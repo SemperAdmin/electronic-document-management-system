@@ -8,6 +8,7 @@ interface Request {
   notes?: string
   unitUic: string
   uploadedById: string
+  submitForUserId?: string
   documentIds: string[]
   createdAt: string
   currentStage?: string
@@ -196,14 +197,18 @@ export default function ReviewDashboard() {
       if (role.includes('PLATOON')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
         const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
+        const ouic = o.unitUic || ''
         const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
         const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-        return oc === cc && ou === cu
+        const cuic = currentUser?.unitUic || ''
+        return oc === cc && ou === cu && (!cuic || ouic === cuic)
       }
       if (role.includes('COMPANY')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
         const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        return oc === cc
+        const ouic = o.unitUic || ''
+        const cuic = currentUser?.unitUic || ''
+        return oc === cc && (!cuic || ouic === cuic)
       }
       if (role.includes('BATTALION')) {
         const cuic = currentUser?.unitUic || ''
@@ -233,14 +238,18 @@ export default function ReviewDashboard() {
       if (role.includes('PLATOON')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
         const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
+        const ouic = o.unitUic || ''
         const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
         const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-        return oc === cc && ou === cu
+        const cuic = currentUser?.unitUic || ''
+        return oc === cc && ou === cu && (!cuic || ouic === cuic)
       }
       if (role.includes('COMPANY')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
         const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        return oc === cc
+        const ouic = o.unitUic || ''
+        const cuic = currentUser?.unitUic || ''
+        return oc === cc && (!cuic || ouic === cuic)
       }
       if (role.includes('BATTALION')) {
         const cuic = currentUser?.unitUic || ''

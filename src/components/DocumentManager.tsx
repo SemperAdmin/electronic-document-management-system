@@ -26,6 +26,7 @@ interface Request {
   notes?: string;
   unitUic: string;
   uploadedById: string;
+  submitForUserId?: string;
   documentIds: string[];
   createdAt: string;
   currentStage?: string;
@@ -137,6 +138,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
         notes: notes.trim() || undefined,
         unitUic: targetUic,
         uploadedById: targetUserId,
+        submitForUserId: targetUserId,
         documentIds: docs.map(d => d.id),
         createdAt: new Date().toISOString(),
         currentStage: 'PLATOON_REVIEW',

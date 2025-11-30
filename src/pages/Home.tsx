@@ -148,12 +148,27 @@ export default function Home() {
                   Login
                 </button>
               )}
-                  {currentUser && (
+                {currentUser && (
               <button
                   className="bg-brand-charcoal text-brand-cream px-3 py-2 rounded-lg hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-4"
                   onClick={() => { setProfileMode('edit'); setView('profile'); }}
                 >
                   Manage Profile
+                </button>
+              )}
+              {currentUser && (
+                <button
+                  className="bg-brand-navy text-brand-cream px-3 py-2 rounded-lg hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                  onClick={() => {
+                    try { localStorage.removeItem('currentUser') } catch {}
+                    setCurrentUser(null)
+                    setDashOpen(false)
+                    setView('login')
+                    navigate('/?view=login')
+                  }}
+                  aria-label="Logout"
+                >
+                  Logout
                 </button>
               )}
                   <div className="relative inline-block">

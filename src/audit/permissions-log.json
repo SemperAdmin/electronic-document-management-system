@@ -1,0 +1,15 @@
+[
+  {
+    "actorId": "usr-1764488650459",
+    "actorRole": "COMPANY_REVIEWER",
+    "targetId": "usr-1764486864353",
+    "grantedRole": "COMPANY_REVIEWER",
+    "timestamp": "2025-11-30T23:05:52.901Z",
+    "scope": {
+      "battalion": "N/A",
+      "unitUic": "M11110",
+      "company": "N/A",
+      "unit": "1/1 1ST MARDIV"
+    }
+  }
+]

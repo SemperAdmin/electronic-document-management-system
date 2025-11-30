@@ -64,7 +64,17 @@
       "timestamp": "2025-11-30T22:32:47.170Z",
       "action": "Endorsed by Commander",
       "comment": "Endorsed."
+    },
+    {
+      "actor": "MSgt Shorter, Stephen N",
+      "timestamp": "2025-11-30T22:39:50.745Z",
+      "action": "Battalion routed to unit 1/10 2D MARDIV"
+    },
+    {
+      "actor": "SSgt Test, Test T",
+      "timestamp": "2025-11-30T22:53:42.640Z",
+      "action": "Battalion assigned external request to section S-1"
     }
   ],
-  "routeSection": "S1"
+  "routeSection": "S-1"
 }

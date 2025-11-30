@@ -26,6 +26,7 @@ interface Request {
   notes?: string
   unitUic?: string
   uploadedById: string
+  submitForUserId?: string
   documentIds: string[]
   createdAt: string
   currentStage?: string
@@ -65,6 +66,7 @@ export default function SectionDashboard() {
   const [expandedCard, setExpandedCard] = useState<Record<string, boolean>>({})
   const [approvalDateEdit, setApprovalDateEdit] = useState<Record<string, string>>({})
   const [endorseUnitSel, setEndorseUnitSel] = useState<Record<string, string>>({})
+  const [externalAssignSel, setExternalAssignSel] = useState<Record<string, string>>({})
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
@@ -217,21 +219,29 @@ export default function SectionDashboard() {
   const sectionRouted = useMemo(() => {
     const cuic = currentUser?.unitUic || ''
     return requests.filter(r => {
-      const ouic = r.unitUic || ''
+      const stage = r.currentStage || ''
+      const effectiveUic = stage === 'EXTERNAL_REVIEW' ? (r.externalPendingUnitUic || r.unitUic || '') : (r.unitUic || '')
       const section = battalionSectionFor(r)
-      return (!!section) && (cuic ? ouic === cuic : true)
+      return (!!section) && (cuic ? effectiveUic === cuic : true)
     })
   }, [requests, currentUser])
 
   const visibleRequests = useMemo(() => {
+    const norm = (n: string) => String(n || '').trim().replace(/^S(\d)\b/, 'S-$1')
     return sectionRouted.filter(r => {
-      const sec = battalionSectionFor(r)
-      return selectedBattalionSection ? sec === selectedBattalionSection : true
+      const sec = norm(battalionSectionFor(r))
+      const sel = norm(selectedBattalionSection)
+      return selectedBattalionSection ? sec === sel : true
     })
   }, [sectionRouted, selectedBattalionSection])
 
   const pendingInSection = useMemo(() => {
-    return visibleRequests.filter(r => (r.currentStage || '') === 'BATTALION_REVIEW')
+    return visibleRequests.filter(r => {
+      const stage = r.currentStage || ''
+      if (stage === 'BATTALION_REVIEW') return true
+      if (stage === 'EXTERNAL_REVIEW' && !!r.routeSection) return true
+      return false
+    })
   }, [visibleRequests])
 
   const previousInSection = useMemo(() => {
@@ -239,12 +249,14 @@ export default function SectionDashboard() {
   }, [visibleRequests])
 
   function battalionSectionFor(r: Request) {
-    if (r.routeSection) return r.routeSection
+    const norm = (n: string) => String(n || '').trim().replace(/^S(\d)\b/, 'S-$1')
+    if (r.routeSection) return norm(r.routeSection)
     const ouic = r.unitUic || ''
     const originator = usersById[r.uploadedById]
     const oc = (originator?.company && originator.company !== 'N/A') ? originator.company : ''
     const ou = (originator?.unit && originator.unit !== 'N/A') ? originator.unit : ''
-    return platoonSectionMap[ouic]?.[oc]?.[ou] || ''
+    const mapped = platoonSectionMap[ouic]?.[oc]?.[ou] || ''
+    return norm(mapped)
   }
 
   const originatorName = (r: Request) => {
@@ -379,6 +391,37 @@ export default function SectionDashboard() {
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
+  }
+
+  const externalPending = useMemo(() => {
+    const uic = currentUser?.unitUic || ''
+    return requests.filter(r => {
+      const stage = r.currentStage || ''
+      if (stage !== 'EXTERNAL_REVIEW') return false
+      const recipientUic = (r.externalPendingUnitUic || r.unitUic || '')
+      return (uic ? recipientUic === uic : true)
+    })
+  }, [requests, currentUser])
+
+  const assignExternalToSection = async (r: Request) => {
+    const dest = externalAssignSel[r.id]
+    if (!dest) return
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${(currentUser as any).mi ? ` ${(currentUser as any).mi}` : ''}` : 'Battalion'
+    const updated: Request = {
+      ...r,
+      currentStage: 'BATTALION_REVIEW',
+      unitUic: currentUser?.unitUic || r.externalPendingUnitUic || r.unitUic,
+      routeSection: dest,
+      externalPendingUnitUic: undefined,
+      externalPendingUnitName: undefined,
+      externalPendingStage: undefined,
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: `Battalion assigned external request to section ${dest}` }] : [{ actor, timestamp: new Date().toISOString(), action: `Battalion assigned external request to section ${dest}` }]
+    }
+    try {
+      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
+      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+    } catch {}
+    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
   }
 
   const renderCard = (r: Request) => {
@@ -617,7 +660,50 @@ export default function SectionDashboard() {
             <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>
           </div>
         </div>
+
         <div className="space-y-8">
+          {externalPending.length > 0 && (
+            <div className="p-4 border border-brand-gold rounded-lg bg-brand-cream">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-[var(--text)]">Pending Assignment (External Requests)</h3>
+                <span className="text-xs px-2 py-1 bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{externalPending.length} item(s)</span>
+              </div>
+              <div className="flex flex-col gap-4">
+                {externalPending.map(r => (
+                  <div key={r.id} className="p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)] transition-all duration-300">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="font-medium text-[var(--text)]">{r.subject}</div>
+                        <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
+                        <div className="text-xs text-[var(--muted)] mt-1">From {r.externalPendingUnitName || 'External Unit'}</div>
+                      </div>
+                      <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">EXTERNAL_REVIEW</span>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <label className="text-sm text-[var(--text)]">Assign to Section</label>
+                      <select
+                        value={externalAssignSel[r.id] || ''}
+                        onChange={(e) => setExternalAssignSel(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                      >
+                        <option value="">Select section</option>
+                        {(unitSections[currentUser?.unitUic || ''] || []).map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <button
+                        className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
+                        disabled={!externalAssignSel[r.id]}
+                        onClick={() => assignExternalToSection(r)}
+                      >
+                        Assign
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">Pending in Section</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPending}>Export Pending</button></div>
             <div className="flex flex-col gap-4">

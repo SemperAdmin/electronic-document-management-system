@@ -30,5 +30,21 @@
     "_sections": [
       "S1"
     ]
+  },
+  "M12310": {
+    "H": [
+      "S1",
+      "S2",
+      "S3"
+    ],
+    "_platoonSectionMap": {
+      "H": {
+        "S1": "S-1"
+      }
+    },
+    "_sections": [
+      "S-1"
+    ],
+    "_commandSections": []
   }
 }

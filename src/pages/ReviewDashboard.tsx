@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { PermissionManager } from '../components/PermissionManager'
 
 interface Request {
   id: string
@@ -53,6 +54,32 @@ export default function ReviewDashboard() {
   const [selectedSection, setSelectedSection] = useState<Record<string, string>>({})
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({})
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
+  const [permOpen, setPermOpen] = useState(false)
+  const [expandedCard, setExpandedCard] = useState<Record<string, boolean>>({})
+  const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
+  const [openDocsId, setOpenDocsId] = useState<string | null>(null)
+  const docsRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (openDocsId && docsRef.current && !docsRef.current.contains(e.target as Node)) {
+        setExpandedDocs(prev => ({ ...prev, [openDocsId]: false }))
+        setOpenDocsId(null)
+      }
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && openDocsId) {
+        setExpandedDocs(prev => ({ ...prev, [openDocsId]: false }))
+        setOpenDocsId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [openDocsId])
 
   useEffect(() => {
     try {
@@ -238,6 +265,49 @@ export default function ReviewDashboard() {
 
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
 
+  const formatCsvCell = (v: any) => {
+    const s = String(v ?? '')
+    const escaped = s.replace(/"/g, '""')
+    return `"${escaped}"`
+  }
+  const buildRows = (list: Request[]) => {
+    const headers = ['Request ID','Subject','Stage','Route Section','Originator','Unit UIC','Company','Unit','Created At','Due Date','Documents']
+    const rows = [headers]
+    for (const r of list) {
+      const o = originatorFor(r)
+      const origin = o ? `${o.rank} ${o.lastName}, ${o.firstName}${o.mi ? ` ${o.mi}` : ''}` : ''
+      const docs = docsFor(r.id).map(d => d.name).join(' | ')
+      rows.push([
+        r.id,
+        r.subject,
+        r.currentStage || '',
+        r.routeSection || '',
+        origin,
+        r.unitUic || '',
+        o?.company || '',
+        o?.unit || '',
+        new Date(r.createdAt).toLocaleString(),
+        r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '',
+        docs
+      ])
+    }
+    return rows.map(row => row.map(formatCsvCell).join(',')).join('\r\n')
+  }
+  const downloadCsv = (filename: string, csv: string) => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+  const exportPending = () => downloadCsv('review_pending.csv', buildRows(pending))
+  const exportInScope = () => downloadCsv('review_in_scope.csv', buildRows(inScopeOther))
+  const exportAll = () => downloadCsv('review_all.csv', buildRows([...pending, ...inScopeOther]))
+
   const updateRequest = async (r: Request, newStage: string, action: string) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
     const entry = { actor, timestamp: new Date().toISOString(), action, comment: (comments[r.id] || '').trim() }
@@ -297,13 +367,29 @@ export default function ReviewDashboard() {
   return (
     <div className="min-h-screen">
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
-          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{myStage}</span>
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{myStage}</span>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>
+            </div>
+          </div>
+          {currentUser && String(currentUser.role || '') !== 'MEMBER' && (
+            <div className="flex-shrink-0">
+              <button
+                className="px-4 py-2 rounded bg-brand-red text-brand-cream border-2 border-brand-red-2 shadow hover:bg-brand-red-2"
+                onClick={() => setPermOpen(true)}
+              >
+                Manage Permissions
+              </button>
+            </div>
+          )}
         </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="mb-2 flex justify-end"><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPending}>Export Pending</button></div>
+          <div className="flex flex-col gap-4">
           {pending.map((r) => (
-            <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'}`}>
+            <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
               <div className="flex items-start justify-between">
                 <div>
                   <div className="font-medium text-[var(--text)]">{r.subject}</div>
@@ -323,12 +409,38 @@ export default function ReviewDashboard() {
                   {isReturned(r) && (
                     <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
                   )}
+                  <button
+                    className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                    onClick={() => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                    aria-expanded={!!expandedCard[r.id]}
+                    aria-controls={`details-rev-${r.id}`}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] })) } }}
+                  >
+                    {expandedCard[r.id] ? 'Hide Details' : 'Edit / Details'}
+                  </button>
                 </div>
               </div>
               {String(currentUser?.role || '').includes('COMPANY') && r.routeSection && (
                 <div className="mt-2 text-sm text-[var(--muted)]">Previously routed to: {r.routeSection}</div>
               )}
-              <div className="mt-3 space-y-2">
+              <div id={`details-rev-${r.id}`} className={expandedCard[r.id] ? '' : 'hidden'}>
+              <div className="mt-3">
+                <button
+                  className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                  aria-expanded={!!expandedDocs[r.id]}
+                  aria-controls={`docs-rev-${r.id}`}
+                  onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                >
+                  <span>Show Documents</span>
+                  <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                </button>
+              </div>
+              <div
+                id={`docs-rev-${r.id}`}
+                ref={expandedDocs[r.id] ? docsRef : undefined}
+                className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
+              >
                 {docsFor(r.id).map(d => (
                   <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
                     <div className="text-sm text-[var(--muted)]">
@@ -439,6 +551,7 @@ export default function ReviewDashboard() {
                   Return
                 </button>
               </div>
+              </div>
             </div>
           ))}
         </div>
@@ -446,10 +559,10 @@ export default function ReviewDashboard() {
           <div className="text-sm text-[var(--muted)]">No requests in your stage.</div>
         )}
         <div className="mt-8">
-          <h3 className="text-lg font-semibold text-[var(--text)] mb-3">In Your Scope</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">In Your Scope</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportInScope}>Export In Scope</button></div>
+          <div className="flex flex-col gap-4">
             {inScopeOther.map((r) => (
-              <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'}`}>
+              <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="font-medium text-[var(--text)]">{r.subject}</div>
@@ -470,6 +583,42 @@ export default function ReviewDashboard() {
                       <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
                     )}
                   </div>
+                </div>
+                <div className="mt-3">
+                  <button
+                    className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
+                    aria-expanded={!!expandedDocs[r.id]}
+                    aria-controls={`docs-scope-${r.id}`}
+                    onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                  >
+                    <span>Show Documents</span>
+                    <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                  </button>
+                </div>
+                <div
+                  id={`docs-scope-${r.id}`}
+                  ref={expandedDocs[r.id] ? docsRef : undefined}
+                  className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
+                >
+                  {docsFor(r.id).map(d => (
+                    <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                      <div className="text-sm text-[var(--muted)]">
+                        <div className="font-medium text-[var(--text)]">{d.name}</div>
+                        <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        { (d as any).fileUrl ? (
+                          <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+                        ) : (
+                          <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {docsFor(r.id).length === 0 && (
+                    <div className="text-sm text-[var(--muted)]">No documents</div>
+                  )}
                 </div>
                 <div className="mt-3">
                   <button
@@ -501,6 +650,9 @@ export default function ReviewDashboard() {
           </div>
         </div>
       </div>
+      {permOpen && currentUser && (
+        <PermissionManager currentUser={currentUser} onClose={() => setPermOpen(false)} />
+      )}
     </div>
   )
 }

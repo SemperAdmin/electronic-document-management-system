@@ -117,6 +117,33 @@ export default defineConfig({
             res.end(JSON.stringify({ ok: false, error: String(e) }))
           }
         })
+
+        server.middlewares.use('/api/permissions-audit/save', (req, res, next) => {
+          if (req.method !== 'POST') return next()
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', () => {
+            try {
+              const entry = JSON.parse(body)
+              const outDir = path.resolve(process.cwd(), 'src', 'audit')
+              if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
+              const logFile = path.resolve(outDir, 'permissions-log.json')
+              let existing: any[] = []
+              if (fs.existsSync(logFile)) {
+                try { existing = JSON.parse(fs.readFileSync(logFile, 'utf-8')) } catch { existing = [] }
+              }
+              existing.push(entry)
+              fs.writeFileSync(logFile, JSON.stringify(existing, null, 2), 'utf-8')
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true }))
+            } catch (e) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: String(e) }))
+            }
+          })
+        })
       }
     }
   ],

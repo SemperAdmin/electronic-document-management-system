@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { UNITS } from '../lib/units'
 import { useNavigate } from 'react-router-dom'
 
 interface UserProfile {
@@ -30,6 +31,10 @@ interface Request {
   currentStage?: string
   routeSection?: string
   activity?: RequestActivity[]
+  commanderApprovalDate?: string
+  externalPendingUnitUic?: string
+  externalPendingUnitName?: string
+  externalPendingStage?: string
 }
 
 interface DocumentItem {
@@ -57,6 +62,33 @@ export default function SectionDashboard() {
   const [attach, setAttach] = useState<Record<string, File[]>>({})
   const [commandSections, setCommandSections] = useState<Record<string, string[]>>({})
   const [selectedCmdSection, setSelectedCmdSection] = useState<Record<string, string>>({})
+  const [expandedCard, setExpandedCard] = useState<Record<string, boolean>>({})
+  const [approvalDateEdit, setApprovalDateEdit] = useState<Record<string, string>>({})
+  const [endorseUnitSel, setEndorseUnitSel] = useState<Record<string, string>>({})
+  const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
+  const [openDocsId, setOpenDocsId] = useState<string | null>(null)
+  const docsRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (openDocsId && docsRef.current && !docsRef.current.contains(e.target as Node)) {
+        setExpandedDocs(prev => ({ ...prev, [openDocsId]: false }))
+        setOpenDocsId(null)
+      }
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && openDocsId) {
+        setExpandedDocs(prev => ({ ...prev, [openDocsId]: false }))
+        setOpenDocsId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [openDocsId])
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -228,7 +260,56 @@ export default function SectionDashboard() {
     return lastApproved ? new Date(lastApproved.timestamp).toLocaleString() : ''
   }
 
+  const commanderStatus = (r: Request) => {
+    const acts = Array.isArray(r.activity) ? r.activity : []
+    const last = [...acts].reverse().find(a => /Commander/i.test(String(a.action || '')))
+    if (!last) return ''
+    if (/Rejected/i.test(last.action)) return 'Rejected'
+    if (/Endorsed/i.test(last.action)) return 'Endorsed'
+    if (/Approved/i.test(last.action)) return 'Approved'
+    return ''
+  }
+
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
+
+  const formatCsvCell = (v: any) => {
+    const s = String(v ?? '')
+    const escaped = s.replace(/"/g, '""')
+    return `"${escaped}"`
+  }
+  const buildRows = (list: Request[]) => {
+    const headers = ['Request ID','Subject','Stage','Battalion Section','Route Section','Originator','Unit UIC','Created At','Documents']
+    const rows = [headers]
+    for (const r of list) {
+      const docs = docsFor(r.id).map(d => d.name).join(' | ')
+      rows.push([
+        r.id,
+        r.subject,
+        r.currentStage || '',
+        battalionSectionFor(r) || '',
+        r.routeSection || '',
+        originatorName(r),
+        r.unitUic || '',
+        new Date(r.createdAt).toLocaleString(),
+        docs
+      ])
+    }
+    return rows.map(row => row.map(formatCsvCell).join(',')).join('\r\n')
+  }
+  const downloadCsv = (filename: string, csv: string) => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+  const exportPending = () => downloadCsv('battalion_pending.csv', buildRows(pendingInSection))
+  const exportPrevious = () => downloadCsv('battalion_previous.csv', buildRows(previousInSection))
+  const exportAll = () => downloadCsv('battalion_all.csv', buildRows([...pendingInSection, ...previousInSection]))
 
   const addFilesToRequest = async (r: Request) => {
     const files = attach[r.id] || []
@@ -304,13 +385,16 @@ export default function SectionDashboard() {
     const section = battalionSectionFor(r)
     const isReturned = false
     return (
-      <div key={r.id} className={`${isReturned ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'}`}>
+      <div key={r.id} className={`${isReturned ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
         <div className="flex items-start justify-between">
           <div>
             <div className="font-medium text-[var(--text)]">{r.subject}</div>
             <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
             <div className="text-xs text-[var(--muted)]">Stage {r.currentStage || 'PLATOON_REVIEW'}</div>
             <div className="text-xs text-[var(--muted)] mt-1">{originatorName(r)}</div>
+            {r.commanderApprovalDate && (
+              <div className="text-xs text-[var(--muted)] mt-1">Commander Approval: {new Date(r.commanderApprovalDate).toLocaleDateString()}</div>
+            )}
           </div>
           <div className="text-right">
             <div className="text-sm">Battalion Section</div>
@@ -318,9 +402,108 @@ export default function SectionDashboard() {
             {r.routeSection && (
               <div className="text-xs text-[var(--muted)] mt-1">Routed: {r.routeSection}</div>
             )}
+            {r.externalPendingUnitName && (
+              <div className="text-xs text-[var(--muted)] mt-1">Pending: {r.externalPendingUnitName}</div>
+            )}
+            <div className="mt-2">
+              <button
+                className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                onClick={() => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                aria-expanded={!!expandedCard[r.id]}
+                aria-controls={`details-sec-${r.id}`}
+              >
+                {expandedCard[r.id] ? 'Hide Details' : 'Edit / Details'}
+              </button>
+            </div>
           </div>
         </div>
-        <div className="mt-3 space-y-2">
+        {(r.currentStage === 'BATTALION_REVIEW' && commanderStatus(r) === 'Approved') && (
+          <div className="mt-3 flex items-center gap-2">
+            <label className="text-sm text-[var(--text)]">Commander Approval Date</label>
+            <input
+              type="date"
+              value={approvalDateEdit[r.id] ?? (r.commanderApprovalDate ? new Date(r.commanderApprovalDate).toISOString().slice(0,10) : '')}
+              onChange={(e) => setApprovalDateEdit(prev => ({ ...prev, [r.id]: e.target.value }))}
+              className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+            />
+            <button
+              className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
+              onClick={async () => {
+                const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${(currentUser as any).mi ? ` ${(currentUser as any).mi}` : ''}` : 'Battalion'
+                const iso = approvalDateEdit[r.id] ? new Date(approvalDateEdit[r.id]).toISOString() : r.commanderApprovalDate
+                const updated: Request = {
+                  ...r,
+                  commanderApprovalDate: iso,
+                  activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: `Battalion updated commander approval date to ${approvalDateEdit[r.id] || ''}` }] : [{ actor, timestamp: new Date().toISOString(), action: `Battalion updated commander approval date to ${approvalDateEdit[r.id] || ''}` }]
+                }
+                try {
+                  localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
+                  await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+                } catch {}
+                setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+              }}
+            >
+              Save Date
+            </button>
+          </div>
+        )}
+
+        {(r.currentStage === 'BATTALION_REVIEW' && commanderStatus(r) === 'Endorsed') && (
+          <div className="mt-3 flex items-center gap-2">
+            <label className="text-sm text-[var(--text)]">Send to Unit</label>
+            <select
+              value={endorseUnitSel[r.id] || ''}
+              onChange={(e) => setEndorseUnitSel(prev => ({ ...prev, [r.id]: e.target.value }))}
+              className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+            >
+              <option value="">Select unit</option>
+              {UNITS.map(u => (
+                <option key={u.uic} value={u.uic}>{u.unitName}</option>
+              ))}
+            </select>
+            <button
+              className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
+              disabled={!endorseUnitSel[r.id]}
+              onClick={async () => {
+                const unit = UNITS.find(u => u.uic === endorseUnitSel[r.id])
+                const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${(currentUser as any).mi ? ` ${(currentUser as any).mi}` : ''}` : 'Battalion'
+                const updated: Request = {
+                  ...r,
+                  currentStage: 'EXTERNAL_REVIEW',
+                  externalPendingUnitUic: unit?.uic || endorseUnitSel[r.id],
+                  externalPendingUnitName: unit?.unitName || endorseUnitSel[r.id],
+                  externalPendingStage: 'Pending at external unit',
+                  activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: `Battalion routed to unit ${unit?.unitName || endorseUnitSel[r.id]}` }] : [{ actor, timestamp: new Date().toISOString(), action: `Battalion routed to unit ${unit?.unitName || endorseUnitSel[r.id]}` }]
+                }
+                try {
+                  localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
+                  await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+                } catch {}
+                setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+              }}
+            >
+              Send
+            </button>
+          </div>
+        )}
+        <div id={`details-sec-${r.id}`} className={expandedCard[r.id] ? '' : 'hidden'}>
+        <div className="mt-3">
+          <button
+            className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+            aria-expanded={!!expandedDocs[r.id]}
+            aria-controls={`docs-sec-${r.id}`}
+            onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+          >
+            <span>Show Documents</span>
+            <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+          </button>
+        </div>
+        <div
+          id={`docs-sec-${r.id}`}
+          ref={expandedDocs[r.id] ? docsRef : undefined}
+          className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
+        >
           {docsFor(r.id).map(d => (
             <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
               <div className="text-sm text-[var(--muted)]">
@@ -420,6 +603,7 @@ export default function SectionDashboard() {
           </div>
         </div>
       </div>
+      </div>
     )
   }
 
@@ -428,12 +612,15 @@ export default function SectionDashboard() {
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-[var(--text)]">Battalion Section Dashboard</h2>
-          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{selectedBattalionSection || '—'}</span>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{selectedBattalionSection || '—'}</span>
+            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>
+          </div>
         </div>
         <div className="space-y-8">
           <div>
-            <h3 className="text-lg font-semibold text-[var(--text)] mb-3">Pending in Section</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">Pending in Section</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPending}>Export Pending</button></div>
+            <div className="flex flex-col gap-4">
               {pendingInSection.map(r => renderCard(r))}
             </div>
             {pendingInSection.length === 0 && (
@@ -441,8 +628,8 @@ export default function SectionDashboard() {
             )}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-[var(--text)] mb-3">Previously in Section</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">Previously in Section</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPrevious}>Export Previous</button></div>
+            <div className="flex flex-col gap-4">
               {previousInSection.map(r => renderCard(r))}
             </div>
             {previousInSection.length === 0 && (

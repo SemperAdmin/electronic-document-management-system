@@ -21,6 +21,7 @@ interface UserProfile {
   passwordHash: string;
   commandOrder?: number;
   isUnitAdmin?: boolean;
+  isCommandStaff?: boolean;
 }
 
 const ROLES = ['MEMBER','PLATOON_REVIEWER','COMPANY_REVIEWER','COMMANDER'];
@@ -51,7 +52,19 @@ export const AdminPanel: React.FC = () => {
   const [adminErrors, setAdminErrors] = useState<string[]>([]);
   const [savingAdmin, setSavingAdmin] = useState(false);
   const [editingIsUnitAdmin, setEditingIsUnitAdmin] = useState<boolean>(false);
+  const [editingIsCommandStaff, setEditingIsCommandStaff] = useState<boolean>(false);
   const [editMode, setEditMode] = useState<'profile' | 'admin'>('admin');
+
+  useEffect(() => {
+    if (editingUser && editMode === 'admin') {
+      if (!editingCompany && editingUser.company && editingUser.company !== 'N/A') {
+        setEditingCompany(editingUser.company);
+      }
+      if (!editingPlatoon && editingUser.unit && editingUser.unit !== 'N/A') {
+        setEditingPlatoon(editingUser.unit);
+      }
+    }
+  }, [editingUser, editMode]);
 
   useEffect(() => {
     try {
@@ -159,6 +172,18 @@ export const AdminPanel: React.FC = () => {
     return Array.isArray(val) ? val : [];
   }, [editingUser, editingCompany, unitStructure]);
 
+  const editCompaniesWithCurrent = useMemo(() => {
+    const base = editCompanies.slice();
+    const cur = editingCompany || (editingUser && editingUser.company !== 'N/A' ? editingUser.company : '');
+    return (cur && !base.includes(cur)) ? [cur, ...base] : base;
+  }, [editCompanies, editingCompany, editingUser]);
+
+  const editPlatoonsWithCurrent = useMemo(() => {
+    const base = editPlatoons.slice();
+    const cur = editingPlatoon || (editingUser && editingUser.unit !== 'N/A' ? editingUser.unit : '');
+    return (cur && !base.includes(cur)) ? [cur, ...base] : base;
+  }, [editPlatoons, editingPlatoon, editingUser]);
+
   const saveUnitStructure = () => {
     try {
       localStorage.setItem('unit_structure', JSON.stringify(unitStructure));
@@ -168,11 +193,13 @@ export const AdminPanel: React.FC = () => {
             const blob = new Blob([JSON.stringify(unitStructure)], { type: 'application/json' });
             navigator.sendBeacon('/api/unit-structure/save', blob);
             setFeedback({ type: 'success', message: 'Unit structure saved.' });
+            try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
             return;
           }
           const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(unitStructure), keepalive: true });
           if (!res.ok) throw new Error('persist_failed');
           setFeedback({ type: 'success', message: 'Unit structure saved.' });
+          try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
         } catch {
           setFeedback({ type: 'error', message: 'Failed to persist unit structure.' });
         }
@@ -198,11 +225,13 @@ export const AdminPanel: React.FC = () => {
             const blob = new Blob([JSON.stringify(next)], { type: 'application/json' })
             navigator.sendBeacon('/api/unit-structure/save', blob)
             setFeedback({ type: 'success', message: 'Unit sections saved.' })
+            try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
             return
           }
           const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next), keepalive: true })
           if (!res.ok) throw new Error('persist_failed')
           setFeedback({ type: 'success', message: 'Unit sections saved.' })
+          try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
         } catch {
           setFeedback({ type: 'error', message: 'Failed to persist unit sections.' })
         }
@@ -227,11 +256,13 @@ export const AdminPanel: React.FC = () => {
             const blob = new Blob([JSON.stringify(next)], { type: 'application/json' })
             navigator.sendBeacon('/api/unit-structure/save', blob)
             setFeedback({ type: 'success', message: 'Command sections saved.' })
+            try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
             return
           }
           const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next), keepalive: true })
           if (!res.ok) throw new Error('persist_failed')
           setFeedback({ type: 'success', message: 'Command sections saved.' })
+          try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
         } catch {
           setFeedback({ type: 'error', message: 'Failed to persist command sections.' })
         }
@@ -256,11 +287,13 @@ export const AdminPanel: React.FC = () => {
             const blob = new Blob([JSON.stringify(next)], { type: 'application/json' })
             navigator.sendBeacon('/api/unit-structure/save', blob)
             setFeedback({ type: 'success', message: 'Platoon-section links saved.' })
+            try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
             return
           }
           const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next), keepalive: true })
           if (!res.ok) throw new Error('persist_failed')
           setFeedback({ type: 'success', message: 'Platoon-section links saved.' })
+          try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
         } catch {
           setFeedback({ type: 'error', message: 'Failed to persist links.' })
         }
@@ -674,6 +707,7 @@ export const AdminPanel: React.FC = () => {
                           setEditingPlatoon(u.unit !== 'N/A' ? u.unit : undefined);
                           setEditingOrder(typeof u.commandOrder === 'number' ? String(u.commandOrder) : '');
                           setEditingIsUnitAdmin(!!u.isUnitAdmin);
+                          setEditingIsCommandStaff(!!u.isCommandStaff);
                         }}>Admin Edit</button>
                       )}
                       <button className="px-2 py-1 text-xs bg-red-600 text-white rounded" onClick={() => {
@@ -776,13 +810,6 @@ export const AdminPanel: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit Admin</label>
-                    <div className="flex items-center gap-2">
-                      <input id="admin-is-unit" type="checkbox" checked={editingIsUnitAdmin} onChange={(e) => setEditingIsUnitAdmin(e.target.checked)} />
-                      <label htmlFor="admin-is-unit" className="text-sm text-gray-700">Grant Unit Admin privileges</label>
-                    </div>
-                  </div>
-                  <div>
                     <label htmlFor="admin-company" className="block text-sm font-medium text-gray-700 mb-1">Company</label>
                     <select
                       id="admin-company"
@@ -791,8 +818,8 @@ export const AdminPanel: React.FC = () => {
                       disabled={editingRole === 'COMMANDER'}
                       className="w-full px-3 py-2 border rounded disabled:bg-gray-50"
                     >
-                      <option value="">{editCompanies.length ? 'Select company' : 'No companies configured'}</option>
-                      {editCompanies.map(c => (
+                      <option value="">{editCompaniesWithCurrent.length ? 'Select company' : 'No companies configured'}</option>
+                      {editCompaniesWithCurrent.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
@@ -806,11 +833,21 @@ export const AdminPanel: React.FC = () => {
                       disabled={editingRole === 'COMMANDER' || !editingCompany || editPlatoons.length === 0}
                       className="w-full px-3 py-2 border rounded disabled:bg-gray-50"
                     >
-                      <option value="">{editPlatoons.length ? 'Select platoon' : 'No platoons configured'}</option>
-                      {editPlatoons.map(p => (
+                      <option value="">{editPlatoonsWithCurrent.length ? 'Select platoon' : 'No platoons configured'}</option>
+                      {editPlatoonsWithCurrent.map(p => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <input id="admin-is-unit" type="checkbox" checked={editingIsUnitAdmin} onChange={(e) => setEditingIsUnitAdmin(e.target.checked)} />
+                    <label htmlFor="admin-is-unit" className="text-sm text-gray-700">Grant Unit Admin privileges</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input id="admin-is-command" type="checkbox" checked={editingIsCommandStaff} disabled={editingRole === 'COMMANDER'} onChange={(e) => setEditingIsCommandStaff(e.target.checked)} />
+                    <label htmlFor="admin-is-command" className="text-sm text-gray-700">Allow access to Command Sections Dashboard</label>
                   </div>
                 </div>
                 {adminErrors.length > 0 && (
@@ -843,6 +880,7 @@ export const AdminPanel: React.FC = () => {
                         ...editingUser,
                         role: editingRole,
                         isUnitAdmin: editingIsUnitAdmin,
+                        isCommandStaff: editingRole === 'COMMANDER' ? false : editingIsCommandStaff,
                         company: (editingIsUnitAdmin || editingRole === 'COMMANDER') ? 'N/A' : (editingCompany || 'N/A'),
                         unit: (editingIsUnitAdmin || editingRole === 'COMMANDER') ? (UNITS.find(x => x.uic === editingUser.unitUic)?.unitName || 'N/A') : (editingPlatoon || 'N/A'),
                       };

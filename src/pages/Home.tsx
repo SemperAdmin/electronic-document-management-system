@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { DocumentManager } from '../components/DocumentManager';
 import ReviewDashboard from './ReviewDashboard';
 import SectionDashboard from './SectionDashboard';
+import CommandDashboard from './CommandDashboard';
+import { hasCommandDashboardAccess } from '../lib/visibility';
 import { Unit } from '../lib/units';
 import { ProfileForm } from '../components/ProfileForm';
 import { AdminPanel } from '../components/AdminPanel';
@@ -11,11 +13,12 @@ import { Login } from '../components/Login';
 
 export default function Home() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
-  const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'review' | 'section'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'review' | 'section' | 'command'>('login');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [profileMode, setProfileMode] = useState<'create' | 'edit'>('create');
   const [dashOpen, setDashOpen] = useState(false);
   const [hasSectionDashboard, setHasSectionDashboard] = useState(false);
+  const [hasCommandDashboard, setHasCommandDashboard] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,20 +37,50 @@ export default function Home() {
         const p = (cu?.unit && cu.unit !== 'N/A') ? cu.unit : '';
         const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || '';
         setHasSectionDashboard(!!linked);
+        setHasCommandDashboard(hasCommandDashboardAccess(cu, us));
       } else {
         setHasSectionDashboard(false);
+        setHasCommandDashboard(false);
       }
     } catch {
       setHasSectionDashboard(false);
+      setHasCommandDashboard(false);
     }
     try {
       const params = new URLSearchParams(window.location.search);
       const v = params.get('view');
-      if (v === 'admin' || v === 'profile' || v === 'dashboard' || v === 'login' || v === 'appadmin' || v === 'review' || v === 'section') {
+      if (v === 'admin' || v === 'profile' || v === 'dashboard' || v === 'login' || v === 'appadmin' || v === 'review' || v === 'section' || v === 'command') {
         setView(v as any);
+      } else {
+        const hasUser = !!localStorage.getItem('currentUser');
+        setView(hasUser ? 'dashboard' : 'login');
       }
-    } catch {}
+    } catch {
+      const hasUser = !!localStorage.getItem('currentUser');
+      setView(hasUser ? 'dashboard' : 'login');
+    }
   }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const rawCU = localStorage.getItem('currentUser');
+        const rawUS = localStorage.getItem('unit_structure');
+        if (rawCU && rawUS) {
+          const cu = JSON.parse(rawCU);
+          const us = JSON.parse(rawUS);
+          const uic = cu?.unitUic || '';
+          const c = (cu?.company && cu.company !== 'N/A') ? cu.company : '';
+          const p = (cu?.unit && cu.unit !== 'N/A') ? cu.unit : '';
+          const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || '';
+          setHasSectionDashboard(!!linked);
+          setHasCommandDashboard(hasCommandDashboardAccess(cu, us));
+        }
+      } catch {}
+    }
+    window.addEventListener('unit_structure_updated', handler)
+    return () => window.removeEventListener('unit_structure_updated', handler)
+  }, [])
 
   useEffect(() => {
     try {
@@ -59,8 +92,10 @@ export default function Home() {
       const p = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : '';
       const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || '';
       setHasSectionDashboard(!!linked);
+      setHasCommandDashboard(hasCommandDashboardAccess(currentUser, us));
     } catch {
       setHasSectionDashboard(false);
+      setHasCommandDashboard(false);
     }
   }, [currentUser]);
 
@@ -136,51 +171,73 @@ export default function Home() {
                       aria-label="Dashboards"
                     >
                       <div className="px-4 py-2 bg-brand-red text-brand-cream rounded-t-lg text-sm font-medium">Dashboards</div>
-                      {currentUser && (
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
-                          role="menuitem"
-                          onClick={() => { setView('dashboard'); setDashOpen(false); }}
-                        >
-                          My Requests
-                        </button>
-                      )}
-                      {(currentUser?.isUnitAdmin) && (
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
-                          role="menuitem"
-                          onClick={() => { setView('admin'); setDashOpen(false); }}
-                        >
-                          Admin
-                        </button>
-                      )}
-                      {(String(currentUser?.role || '').includes('REVIEW')) && (
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
-                          role="menuitem"
-                          onClick={() => { setView('review'); setDashOpen(false); }}
-                        >
-                          Review Dashboard
-                        </button>
-                      )}
-                      {(currentUser && hasSectionDashboard) && (
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
-                          role="menuitem"
-                          onClick={() => { setView('section'); setDashOpen(false); }}
-                        >
-                          Battalion Section Dashboard
-                        </button>
-                      )}
-                      {currentUser && currentUser.email === 'stephen.shorter@usmc.mil' && String(currentUser.edipi) === '1402008233' && (
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
-                          role="menuitem"
-                          onClick={() => { setView('appadmin'); setDashOpen(false); }}
-                        >
-                          App Admin
-                        </button>
-                      )}
+
+                      <div role="group" aria-label="My">
+                        {currentUser && (
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            role="menuitem"
+                            onClick={() => { setView('dashboard'); setDashOpen(false); }}
+                          >
+                            My Requests
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="my-2 border-t border-brand-navy/20" />
+
+                      <div role="group" aria-label="Administration">
+                        {(currentUser?.isUnitAdmin) && (
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            role="menuitem"
+                            onClick={() => { setView('admin'); setDashOpen(false); }}
+                          >
+                            Admin
+                          </button>
+                        )}
+                        {currentUser && currentUser.email === 'stephen.shorter@usmc.mil' && String(currentUser.edipi) === '1402008233' && (
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            role="menuitem"
+                            onClick={() => { setView('appadmin'); setDashOpen(false); }}
+                          >
+                            App Admin
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="my-2 border-t border-brand-navy/20" />
+
+                      <div role="group" aria-label="Dashboards">
+                        {(currentUser && hasSectionDashboard) && (
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            role="menuitem"
+                            onClick={() => { setView('section'); setDashOpen(false); }}
+                          >
+                            Battalion Section Dashboard
+                          </button>
+                        )}
+                        {(String(currentUser?.role || '') === 'COMMANDER' || (currentUser?.isCommandStaff && hasCommandDashboard)) && (
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            role="menuitem"
+                            onClick={() => { setView('command'); setDashOpen(false); }}
+                          >
+                            Command Sections Dashboard
+                          </button>
+                        )}
+                        {(String(currentUser?.role || '').includes('REVIEW')) && (
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            role="menuitem"
+                            onClick={() => { setView('review'); setDashOpen(false); }}
+                          >
+                            Review Dashboard
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -211,6 +268,8 @@ export default function Home() {
           <ReviewDashboard />
         ) : view === 'section' ? (
           <SectionDashboard />
+        ) : view === 'command' ? (
+          <CommandDashboard />
         ) : (
           <DocumentManager selectedUnit={selectedUnit} />
         )}

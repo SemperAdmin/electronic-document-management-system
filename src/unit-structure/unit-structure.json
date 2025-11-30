@@ -17,6 +17,18 @@
     ],
     "H": [
       "HHS1"
+    ],
+    "_platoonSectionMap": {
+      "H": {
+        "HHS1": "S1"
+      }
+    },
+    "_commandSections": [
+      "XO",
+      "SgtMaj"
+    ],
+    "_sections": [
+      "S1"
     ]
   }
 }

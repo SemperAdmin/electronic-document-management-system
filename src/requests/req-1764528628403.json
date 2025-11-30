@@ -9,7 +9,7 @@
     "1764528628403-0"
   ],
   "createdAt": "2025-11-30T18:50:28.417Z",
-  "currentStage": "COMMANDER_REVIEW",
+  "currentStage": "ARCHIVED",
   "activity": [
     {
       "actor": "MSgt Shorter, Stephen N",
@@ -34,6 +34,12 @@
       "timestamp": "2025-11-30T19:37:37.213Z",
       "action": "Approved and routed to XO",
       "comment": "Looks good"
+    },
+    {
+      "actor": "MSgt Shorter, Stephen N",
+      "timestamp": "2025-11-30T21:57:59.584Z",
+      "action": "Approved",
+      "comment": "Approved by me"
     }
   ],
   "routeSection": "XO"

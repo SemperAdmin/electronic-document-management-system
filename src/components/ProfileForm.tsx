@@ -67,6 +67,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [unitStructure, setUnitStructure] = useState<Record<string, Record<string, string[]>>>({});
   const [password, setPassword] = useState('');
+  const [existingUsers, setExistingUsers] = useState<UserProfile[]>([]);
+  const [unitHasAdmin, setUnitHasAdmin] = useState<boolean>(false);
 
   useEffect(() => {
     if (initial.name) {
@@ -128,6 +130,33 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       if (raw) setUnitStructure(JSON.parse(raw));
     } catch {}
   }, [selectedUnit]);
+
+  useEffect(() => {
+    try {
+      const collected: UserProfile[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
+          const rawU = localStorage.getItem(key);
+          if (rawU) collected.push(JSON.parse(rawU));
+        }
+      }
+      const staticUserModules = import.meta.glob('../users/*.json', { eager: true });
+      const staticUsers: UserProfile[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m) as UserProfile);
+      const byId = new Map<string, UserProfile>();
+      for (const u of staticUsers) byId.set(u.id, u);
+      for (const u of collected) byId.set(u.id, u);
+      const all = Array.from(byId.values());
+      setExistingUsers(all);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const uic = selectedUnit?.uic || '';
+    if (!uic) { setUnitHasAdmin(false); return; }
+    const has = existingUsers.some(u => !!u.isUnitAdmin && (u.unitUic || '') === uic);
+    setUnitHasAdmin(has);
+  }, [selectedUnit, existingUsers]);
 
   useEffect(() => {
     if (selectedUnit) {
@@ -201,7 +230,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       unit: unit || selectedUnit?.unitName || 'N/A',
       unitUic: selectedUnit?.uic,
       passwordHash,
-      isUnitAdmin,
+      isUnitAdmin: mode === 'create' && selectedUnit && !unitHasAdmin ? true : isUnitAdmin,
     };
 
     try {
@@ -213,7 +242,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
         setFeedback({ type: 'error', message: 'File write failed. Restart dev server to enable saving to src/users.' });
         return;
       }
-      setFeedback({ type: 'success', message: initial.id ? 'Profile updated.' : 'Profile created.' });
+      setFeedback({ type: 'success', message: initial.id ? 'Profile updated.' : (selectedUnit && !unitHasAdmin ? 'Profile created. You have been assigned Unit Admin for this unit.' : 'Profile created.') });
       onSaved?.(user);
     } catch {
       setFeedback({ type: 'error', message: 'Failed to save profile.' });
@@ -224,6 +253,11 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">{mode === 'edit' ? 'Manage Profile' : 'Create Profile'}</h2>
       <form onSubmit={handleSubmit} className="space-y-6">
+        {(mode === 'create' && selectedUnit && !unitHasAdmin) && (
+          <div className="p-3 border border-yellow-200 bg-yellow-50 text-yellow-800 rounded">
+            No Unit Admin is currently assigned for <span className="font-medium">{selectedUnit.unitName}</span> (UIC {selectedUnit.uic}). You will be assigned Unit Admin for this unit when you create your account.
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>

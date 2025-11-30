@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { UnitSelector } from './UnitSelector';
 import { UNITS, Unit } from '../lib/units';
+import { sha256Hex } from '@/lib/crypto';
 
 interface UserProfile {
   id: string;
@@ -10,6 +11,7 @@ interface UserProfile {
   mi?: string;
   email: string;
   edipi: string;
+  edipiHash?: string;
   service: string;
   rank: string;
   role: string;
@@ -184,12 +186,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       return false;
     }
   };
-  const hashPassword = async (value: string) => {
-    const enc = new TextEncoder();
-    const data = enc.encode(value);
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-  };
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,10 +207,11 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     let passwordHash = initial.passwordHash || '';
     if (mode === 'create') {
       if (!password || password.length < 8) return setFeedback({ type: 'error', message: 'Password must be at least 8 characters.' });
-      passwordHash = await hashPassword(password);
+      passwordHash = await sha256Hex(password);
     } else if (mode === 'edit' && password) {
-      passwordHash = await hashPassword(password);
+      passwordHash = await sha256Hex(password);
     }
+    const edipiHash = await sha256Hex(edipi);
     const user: UserProfile = {
       id,
       name: fullName,
@@ -222,6 +220,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       mi: mi ? mi.trim().toUpperCase() : undefined,
       email: email.trim(),
       edipi,
+      edipiHash,
       service,
       rank,
       role,

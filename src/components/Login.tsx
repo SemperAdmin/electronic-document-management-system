@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { sha256Hex } from '@/lib/crypto';
 
 interface UserProfile {
   id: string;
@@ -8,6 +9,7 @@ interface UserProfile {
   mi?: string;
   email: string;
   edipi: string;
+  edipiHash?: string;
   service: string;
   rank: string;
   role: string;
@@ -23,12 +25,7 @@ interface LoginProps {
   onCreateAccount: () => void;
 }
 
-const sha256 = async (value: string) => {
-  const enc = new TextEncoder();
-  const data = enc.encode(value);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-};
+ 
 
 export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => {
   const [identifier, setIdentifier] = useState('');
@@ -52,12 +49,19 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
           if (rawU) users.push(JSON.parse(rawU));
         }
       }
-      const user = users.find(u => u.email.toLowerCase() === identifier.toLowerCase() || u.edipi === identifier);
+      let user: UserProfile | undefined;
+      const isEdipiLike = /^[0-9]{10}$/.test(identifier);
+      if (isEdipiLike) {
+        const idHash = await sha256Hex(identifier);
+        user = users.find(u => (u.edipiHash && u.edipiHash === idHash) || u.edipi === identifier);
+      } else {
+        user = users.find(u => u.email.toLowerCase() === identifier.toLowerCase());
+      }
       if (!user) {
         setFeedback({ type: 'error', message: 'Account not found.' });
         return;
       }
-      const hash = await sha256(password);
+      const hash = await sha256Hex(password);
       if (hash !== user.passwordHash) {
         setFeedback({ type: 'error', message: 'Invalid credentials.' });
         return;

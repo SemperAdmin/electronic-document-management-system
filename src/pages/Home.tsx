@@ -107,9 +107,9 @@ export default function Home() {
           <div className="flex justify-between items-center py-6">
             {view === 'login' ? (
               <div className="w-full">
-                <div className="flex items-center gap-3">
-                  <img src={logoUrl} alt="EDMS Logo" className="h-10 w-auto" />
-                  <h1 className="text-3xl font-bold text-[var(--text)]">Welcome to the Electronic Document Management System</h1>
+                <div className="grid grid-cols-[auto_1fr] items-center gap-4">
+                  <div className="h-20 md:h-24 lg:h-28"><img src={logoUrl} alt="EDMS Logo" className="h-full w-auto" /></div>
+                  <div><h1 className="text-3xl md:text-4xl font-bold text-[var(--text)]">Welcome to the Electronic Document Management System</h1></div>
                 </div>
                 <p className="text-[var(--muted)] mt-1">Secure, hierarchical workflow for military document submissions and reviews.</p>
                 <p className="text-[var(--muted)] text-sm mt-1">EDMS enforces chain-of-command with role-based access and a linear review state machine from Platoon to Battalion to Commander.</p>
@@ -117,9 +117,9 @@ export default function Home() {
             ) : (
               <>
                 <div className="w-fit">
-                  <div className="flex items-center gap-3">
-                    <img src={logoUrl} alt="EDMS Logo" className="h-10 w-auto" />
-                    <h1 className="text-3xl font-bold text-[var(--text)]">Electronic Document Management System</h1>
+                  <div className="grid grid-cols-[auto_1fr] items-center gap-4">
+                    <div className="h-20 md:h-24 lg:h-28"><img src={logoUrl} alt="EDMS Logo" className="h-full w-auto" /></div>
+                    <div><h1 className="text-3xl md:text-4xl font-bold text-[var(--text)]">Electronic Document Management System</h1></div>
                   </div>
                   <div className="flex items-center justify-between mt-1 w-full">
                     <p className="text-[var(--muted)]">Marine Corps Unit Document Management</p>

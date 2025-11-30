@@ -69,6 +69,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [unitStructure, setUnitStructure] = useState<Record<string, Record<string, string[]>>>({});
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [existingUsers, setExistingUsers] = useState<UserProfile[]>([]);
   const [unitHasAdmin, setUnitHasAdmin] = useState<boolean>(false);
 
@@ -207,8 +208,11 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     let passwordHash = initial.passwordHash || '';
     if (mode === 'create') {
       if (!password || password.length < 8) return setFeedback({ type: 'error', message: 'Password must be at least 8 characters.' });
+      if (password !== confirmPassword) return setFeedback({ type: 'error', message: 'Passwords do not match.' });
       passwordHash = await sha256Hex(password);
     } else if (mode === 'edit' && password) {
+      if (password.length < 8) return setFeedback({ type: 'error', message: 'Password must be at least 8 characters.' });
+      if (password !== confirmPassword) return setFeedback({ type: 'error', message: 'Passwords do not match.' });
       passwordHash = await sha256Hex(password);
     }
     const edipiHash = await sha256Hex(edipi);
@@ -324,6 +328,20 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
             {mode === 'create' && (
               <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
             )}
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">{mode === 'edit' ? 'Confirm New Password' : 'Confirm Password'}</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder={mode === 'edit' ? 'Required only if changing password' : ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={readOnly || (mode === 'edit' && !password)}
+              />
+              {mode === 'edit' && !password && (
+                <p className="text-xs text-gray-500 mt-1">Enter a new password to enable confirmation</p>
+              )}
+            </div>
           </div>
           <div>
             <label className="block text sm font-medium text-gray-700 mb-1">Service</label>
@@ -353,19 +371,19 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
               ))}
             </select>
           </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={readOnly || !canEditRole}
-          >
-            {ROLES.map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={readOnly || !canEditRole}
+            >
+              {ROLES.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Unit Admin</label>

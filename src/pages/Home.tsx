@@ -20,6 +20,7 @@ export default function Home() {
   const [hasSectionDashboard, setHasSectionDashboard] = useState(false);
   const [hasCommandDashboard, setHasCommandDashboard] = useState(false);
   const navigate = useNavigate();
+  const logoUrl = new URL('../assets/images/logo.png', import.meta.url).href;
 
   useEffect(() => {
     try {
@@ -106,14 +107,20 @@ export default function Home() {
           <div className="flex justify-between items-center py-6">
             {view === 'login' ? (
               <div className="w-full">
-                <h1 className="text-3xl font-bold text-[var(--text)]">Welcome to the Electronic Document Management System</h1>
+                <div className="flex items-center gap-3">
+                  <img src={logoUrl} alt="EDMS Logo" className="h-10 w-auto" />
+                  <h1 className="text-3xl font-bold text-[var(--text)]">Welcome to the Electronic Document Management System</h1>
+                </div>
                 <p className="text-[var(--muted)] mt-1">Secure, hierarchical workflow for military document submissions and reviews.</p>
                 <p className="text-[var(--muted)] text-sm mt-1">EDMS enforces chain-of-command with role-based access and a linear review state machine from Platoon to Battalion to Commander.</p>
               </div>
             ) : (
               <>
                 <div className="w-fit">
-                  <h1 className="text-3xl font-bold text-[var(--text)]">Electronic Document Management System</h1>
+                  <div className="flex items-center gap-3">
+                    <img src={logoUrl} alt="EDMS Logo" className="h-10 w-auto" />
+                    <h1 className="text-3xl font-bold text-[var(--text)]">Electronic Document Management System</h1>
+                  </div>
                   <div className="flex items-center justify-between mt-1 w-full">
                     <p className="text-[var(--muted)]">Marine Corps Unit Document Management</p>
                     <div className="text-xl text-brand-red">by Semper Admin</div>
@@ -292,3 +299,4 @@ export default function Home() {
     </div>
   );
 }
+  

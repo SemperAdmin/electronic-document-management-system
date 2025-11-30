@@ -1,0 +1,18 @@
+{
+  "id": "usr-1764488650459",
+  "name": "Stephen N Shorter",
+  "firstName": "Stephen",
+  "lastName": "Shorter",
+  "mi": "N",
+  "email": "stephen.shorter@usmc.mil",
+  "edipi": "1402008233",
+  "service": "Marine Corps",
+  "rank": "MSgt",
+  "role": "PLATOON_REVIEWER",
+  "battalion": "N/A",
+  "company": "N/A",
+  "unit": "1/1 1ST MARDIV",
+  "unitUic": "M11110",
+  "passwordHash": "a80bc8c014e2e777c7ce7f67e093c5c2e19b50f8f20e1cde8e81e14379957a53",
+  "isUnitAdmin": true
+}

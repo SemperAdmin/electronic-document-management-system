@@ -1,0 +1,16 @@
+[
+  {
+    "id": "usr-001",
+    "name": "Sgt. Alex Johnson",
+    "email": "alex.johnson@usmc.mil",
+    "role": "platoon_leader",
+    "unitId": "unit-001"
+  },
+  {
+    "id": "usr-002",
+    "name": "Cpt. Maria Lopez",
+    "email": "maria.lopez@usmc.mil",
+    "role": "battalion_officer",
+    "unitId": "unit-002"
+  }
+]

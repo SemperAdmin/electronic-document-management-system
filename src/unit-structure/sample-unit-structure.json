@@ -1,0 +1,11 @@
+{
+  "M12345": {
+    "Alpha Company": ["1st Platoon", "2nd Platoon"],
+    "Bravo Company": ["1st Platoon"]
+  },
+  "M67890": {
+    "Charlie Company": ["1st Platoon", "2nd Platoon"],
+    "Delta Company": ["1st Platoon"]
+  }
+}
+

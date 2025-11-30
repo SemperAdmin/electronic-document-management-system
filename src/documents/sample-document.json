@@ -1,0 +1,15 @@
+{
+  "id": "doc-sample-1",
+  "name": "sample.pdf",
+  "type": "application/pdf",
+  "size": 12345,
+  "uploadedAt": "2025-11-29T00:00:00.000Z",
+  "category": "administration",
+  "tags": [],
+  "unitUic": "N/A",
+  "subject": "Sample Request",
+  "uploadedById": "usr-sample",
+  "currentStage": "PLATOON_REVIEW",
+  "requestId": "req-sample"
+}
+

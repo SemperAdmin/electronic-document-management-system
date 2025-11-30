@@ -1,0 +1,20 @@
+[
+  {
+    "id": "doc-001",
+    "title": "Platoon Readiness Report",
+    "status": "pending",
+    "submittedBy": "usr-001",
+    "unitId": "unit-001",
+    "createdAt": "2025-11-29T08:00:00Z",
+    "updatedAt": "2025-11-29T08:30:00Z"
+  },
+  {
+    "id": "doc-002",
+    "title": "Battalion SITREP",
+    "status": "approved",
+    "submittedBy": "usr-002",
+    "unitId": "unit-002",
+    "createdAt": "2025-11-28T10:00:00Z",
+    "updatedAt": "2025-11-28T12:00:00Z"
+  }
+]

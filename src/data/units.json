@@ -1,0 +1,20 @@
+[
+  {
+    "id": "unit-001",
+    "name": "1st Platoon, Alpha Company",
+    "level": "platoon",
+    "parentId": "unit-002"
+  },
+  {
+    "id": "unit-002",
+    "name": "Alpha Company, 1st Battalion",
+    "level": "company",
+    "parentId": "unit-003"
+  },
+  {
+    "id": "unit-003",
+    "name": "1st Battalion, 5th Marines",
+    "level": "battalion",
+    "parentId": null
+  }
+]

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DocumentManager } from '../components/DocumentManager';
 import ReviewDashboard from './ReviewDashboard';
+import SectionDashboard from './SectionDashboard';
 import { Unit } from '../lib/units';
 import { ProfileForm } from '../components/ProfileForm';
 import { AdminPanel } from '../components/AdminPanel';
@@ -9,10 +11,12 @@ import { Login } from '../components/Login';
 
 export default function Home() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
-  const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'review'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'review' | 'section'>('dashboard');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [profileMode, setProfileMode] = useState<'create' | 'edit'>('create');
   const [dashOpen, setDashOpen] = useState(false);
+  const [hasSectionDashboard, setHasSectionDashboard] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     try {
@@ -20,13 +24,45 @@ export default function Home() {
       if (raw) setCurrentUser(JSON.parse(raw));
     } catch {}
     try {
+      const rawCU = localStorage.getItem('currentUser');
+      const rawUS = localStorage.getItem('unit_structure');
+      if (rawCU && rawUS) {
+        const cu = JSON.parse(rawCU);
+        const us = JSON.parse(rawUS);
+        const uic = cu?.unitUic || '';
+        const c = (cu?.company && cu.company !== 'N/A') ? cu.company : '';
+        const p = (cu?.unit && cu.unit !== 'N/A') ? cu.unit : '';
+        const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || '';
+        setHasSectionDashboard(!!linked);
+      } else {
+        setHasSectionDashboard(false);
+      }
+    } catch {
+      setHasSectionDashboard(false);
+    }
+    try {
       const params = new URLSearchParams(window.location.search);
       const v = params.get('view');
-      if (v === 'admin' || v === 'profile' || v === 'dashboard' || v === 'login' || v === 'appadmin' || v === 'review') {
+      if (v === 'admin' || v === 'profile' || v === 'dashboard' || v === 'login' || v === 'appadmin' || v === 'review' || v === 'section') {
         setView(v as any);
       }
     } catch {}
   }, []);
+
+  useEffect(() => {
+    try {
+      const rawUS = localStorage.getItem('unit_structure');
+      if (!currentUser || !rawUS) { setHasSectionDashboard(false); return; }
+      const us = JSON.parse(rawUS);
+      const uic = currentUser?.unitUic || '';
+      const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : '';
+      const p = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : '';
+      const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || '';
+      setHasSectionDashboard(!!linked);
+    } catch {
+      setHasSectionDashboard(false);
+    }
+  }, [currentUser]);
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
@@ -41,9 +77,12 @@ export default function Home() {
               </div>
             ) : (
               <>
-                <div>
+                <div className="w-fit">
                   <h1 className="text-3xl font-bold text-[var(--text)]">Electronic Document Management System</h1>
-                  <p className="text-[var(--muted)] mt-1">Marine Corps Unit Document Management</p>
+                  <div className="flex items-center justify-between mt-1 w-full">
+                    <p className="text-[var(--muted)]">Marine Corps Unit Document Management</p>
+                    <div className="text-xl text-brand-red">by Semper Admin</div>
+                  </div>
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="text-sm text-[var(--muted)]">
@@ -124,6 +163,15 @@ export default function Home() {
                           Review Dashboard
                         </button>
                       )}
+                      {(currentUser && hasSectionDashboard) && (
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                          role="menuitem"
+                          onClick={() => { setView('section'); setDashOpen(false); }}
+                        >
+                          Battalion Section Dashboard
+                        </button>
+                      )}
                       {currentUser && currentUser.email === 'stephen.shorter@usmc.mil' && String(currentUser.edipi) === '1402008233' && (
                         <button
                           className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
@@ -161,6 +209,8 @@ export default function Home() {
           />
         ) : view === 'review' ? (
           <ReviewDashboard />
+        ) : view === 'section' ? (
+          <SectionDashboard />
         ) : (
           <DocumentManager selectedUnit={selectedUnit} />
         )}

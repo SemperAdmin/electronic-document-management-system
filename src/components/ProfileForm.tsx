@@ -88,14 +88,18 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
 
   const rankOptions = useMemo(() => SERVICE_RANKS[service] || [], [service]);
   const battalionOptions = useMemo(() => Object.keys(UNIT_STRUCTURE), []);
-  const companyOptions = useMemo(() => (selectedUnit ? Object.keys(unitStructure[selectedUnit.uic] || {}) : []), [selectedUnit, unitStructure]);
+  const companyOptions = useMemo(() => {
+    if (!selectedUnit) return [];
+    const raw = unitStructure[selectedUnit.uic] || {};
+    return Object.keys(raw).filter(k => !k.startsWith('_') && Array.isArray(raw[k]));
+  }, [selectedUnit, unitStructure]);
   const platoonOptions = useMemo(() => (selectedUnit && company ? unitStructure[selectedUnit.uic]?.[company] || [] : []), [selectedUnit, company, unitStructure]);
 
   const companyOptionsWithCurrent = useMemo(() => {
     const base = companyOptions.slice();
     const cur = company || initial.company || '';
-    if (cur && !base.includes(cur)) return [cur, ...base];
-    return base;
+    const list = cur && !base.includes(cur) ? [cur, ...base] : base;
+    return Array.from(new Set(list));
   }, [companyOptions, company, initial.company]);
 
   const platoonOptionsWithCurrent = useMemo(() => {

@@ -198,6 +198,44 @@ export default function ReviewDashboard() {
     return byScope
   }, [requests, myStage, currentUser, users])
 
+  const inScope = useMemo(() => {
+    const role = String(currentUser?.role || '')
+    return requests.filter(r => {
+      const o = originatorFor(r)
+      if (!o) return false
+      if (role.includes('PLATOON')) {
+        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
+        const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
+        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
+        return oc === cc && ou === cu
+      }
+      if (role.includes('COMPANY')) {
+        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
+        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+        return oc === cc
+      }
+      if (role.includes('BATTALION')) {
+        const cuic = currentUser?.unitUic || ''
+        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
+        const linked = platoonSectionMap[cuic]?.[cc]?.[cu] || ''
+        if (r.routeSection) {
+          return linked ? (r.routeSection === linked) : true
+        }
+        return cuic ? (o.unitUic === cuic) : true
+      }
+      if (role.includes('COMMANDER')) {
+        const ouic = o.unitUic || ''
+        const cuic = currentUser?.unitUic || ''
+        return cuic ? (ouic === cuic) : true
+      }
+      return true
+    })
+  }, [requests, currentUser, users, platoonSectionMap])
+
+  const inScopeOther = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [inScope, myStage])
+
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
 
   const updateRequest = async (r: Request, newStage: string, action: string) => {
@@ -287,25 +325,8 @@ export default function ReviewDashboard() {
                   )}
                 </div>
               </div>
-              {String(currentUser?.role || '').includes('COMPANY') && (
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--text)] mb-1">Battalion Section</label>
-                    <select
-                      value={selectedSection[r.id] || ''}
-                      onChange={(e) => setSelectedSection(prev => ({ ...prev, [r.id]: e.target.value }))}
-                      className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg"
-                    >
-                      <option value="">Select section</option>
-                      {(unitSections[currentUser?.unitUic || ''] || []).map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {r.routeSection && (
-                    <div className="text-sm text-[var(--muted)] md:self-end">Previously routed to: {r.routeSection}</div>
-                  )}
-                </div>
+              {String(currentUser?.role || '').includes('COMPANY') && r.routeSection && (
+                <div className="mt-2 text-sm text-[var(--muted)]">Previously routed to: {r.routeSection}</div>
               )}
               <div className="mt-3 space-y-2">
                 {docsFor(r.id).map(d => (
@@ -380,6 +401,22 @@ export default function ReviewDashboard() {
                 </button>
               </div>
               <div className="mt-3 flex items-center justify-end gap-2">
+                {String(currentUser?.role || '').includes('COMPANY') && (
+                  <div className="flex items-center gap-2 mr-auto">
+                    <label className="sr-only">Battalion Section</label>
+                    <select
+                      aria-label="Battalion Section"
+                      value={selectedSection[r.id] || ''}
+                      onChange={(e) => setSelectedSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                      className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                    >
+                      <option value="">Select section</option>
+                      {(unitSections[currentUser?.unitUic || ''] || []).map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <button
                   className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
                   onClick={() => {
@@ -408,6 +445,61 @@ export default function ReviewDashboard() {
         {pending.length === 0 && (
           <div className="text-sm text-[var(--muted)]">No requests in your stage.</div>
         )}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-[var(--text)] mb-3">In Your Scope</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {inScopeOther.map((r) => (
+              <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'}`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="font-medium text-[var(--text)]">{r.subject}</div>
+                    <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
+                    {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
+                    {originatorFor(r) && (
+                      <div className="text-xs text-[var(--muted)] mt-1">
+                        {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
+                        {((originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).unit && originatorFor(r).unit !== 'N/A')) && (
+                          <> • {[originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null].filter(Boolean).join(' • ')}</>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
+                    {isReturned(r) && (
+                      <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <button
+                    className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                    onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                    aria-expanded={!!expandedLogs[r.id]}
+                    aria-controls={`logs-scope-${r.id}`}
+                  >
+                    {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                  </button>
+                  <div id={`logs-scope-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                    {r.activity && r.activity.length ? (
+                      r.activity.map((a, idx) => (
+                        <div key={idx} className="text-xs text-gray-700">
+                          <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                          {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-gray-500">No activity</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {inScopeOther.length === 0 && (
+              <div className="text-sm text-[var(--muted)]">No requests in your scope.</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

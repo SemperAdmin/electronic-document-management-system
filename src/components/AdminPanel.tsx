@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNITS, Unit } from '../lib/units';
 import { ProfileForm } from './ProfileForm';
 import { HierarchicalDropdown } from './HierarchicalDropdown';
@@ -40,6 +40,7 @@ export const AdminPanel: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [filter, setFilter] = useState('');
+  const filterInputRef = useRef<HTMLInputElement>(null);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [viewUser, setViewUser] = useState<UserProfile | null>(null);
   const [editingRole, setEditingRole] = useState<string>('');
@@ -121,13 +122,16 @@ export const AdminPanel: React.FC = () => {
 
   const companies = useMemo(() => {
     const key = selectedUnit?.uic || '';
-    return key ? Object.keys(unitStructure[key] || {}) : [];
+    if (!key) return [];
+    const raw = unitStructure[key] || {};
+    return Object.keys(raw).filter(k => !k.startsWith('_') && Array.isArray(raw[k]));
   }, [selectedUnit, unitStructure]);
 
   const platoons = useMemo(() => {
     const key = selectedUnit?.uic || '';
     if (!key || !selectedCompany) return [];
-    return unitStructure[key]?.[selectedCompany] || [];
+    const val = unitStructure[key]?.[selectedCompany];
+    return Array.isArray(val) ? val : [];
   }, [selectedUnit, selectedCompany, unitStructure]);
 
   const sections = useMemo(() => {
@@ -142,22 +146,37 @@ export const AdminPanel: React.FC = () => {
 
   const editCompanies = useMemo(() => {
     const key = editingUser?.unitUic || '';
-    return key ? Object.keys(unitStructure[key] || {}) : [];
+    if (!key) return [];
+    const raw = unitStructure[key] || {};
+    return Object.keys(raw).filter(k => !k.startsWith('_') && Array.isArray(raw[k]));
   }, [editingUser, unitStructure]);
 
   const editPlatoons = useMemo(() => {
     const key = editingUser?.unitUic || '';
     const companyKey = editingCompany || '';
     if (!key || !companyKey) return [];
-    return unitStructure[key]?.[companyKey] || [];
+    const val = unitStructure[key]?.[companyKey];
+    return Array.isArray(val) ? val : [];
   }, [editingUser, editingCompany, unitStructure]);
 
   const saveUnitStructure = () => {
     try {
       localStorage.setItem('unit_structure', JSON.stringify(unitStructure));
-      fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(unitStructure) })
-        .then(() => setFeedback({ type: 'success', message: 'Unit structure saved.' }))
-        .catch(() => setFeedback({ type: 'error', message: 'Failed to persist unit structure.' }));
+      (async () => {
+        try {
+          if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(unitStructure)], { type: 'application/json' });
+            navigator.sendBeacon('/api/unit-structure/save', blob);
+            setFeedback({ type: 'success', message: 'Unit structure saved.' });
+            return;
+          }
+          const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(unitStructure), keepalive: true });
+          if (!res.ok) throw new Error('persist_failed');
+          setFeedback({ type: 'success', message: 'Unit structure saved.' });
+        } catch {
+          setFeedback({ type: 'error', message: 'Failed to persist unit structure.' });
+        }
+      })();
     } catch {
       setFeedback({ type: 'error', message: 'Failed to save unit structure.' });
     }
@@ -173,9 +192,21 @@ export const AdminPanel: React.FC = () => {
       next[key]._sections = unitSections[key] || [];
       setUnitStructure(next);
       localStorage.setItem('unit_structure', JSON.stringify(next));
-      fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) })
-        .then(() => setFeedback({ type: 'success', message: 'Unit sections saved.' }))
-        .catch(() => setFeedback({ type: 'error', message: 'Failed to persist unit sections.' }));
+      (async () => {
+        try {
+          if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(next)], { type: 'application/json' })
+            navigator.sendBeacon('/api/unit-structure/save', blob)
+            setFeedback({ type: 'success', message: 'Unit sections saved.' })
+            return
+          }
+          const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next), keepalive: true })
+          if (!res.ok) throw new Error('persist_failed')
+          setFeedback({ type: 'success', message: 'Unit sections saved.' })
+        } catch {
+          setFeedback({ type: 'error', message: 'Failed to persist unit sections.' })
+        }
+      })()
     } catch {
       setFeedback({ type: 'error', message: 'Failed to save unit sections.' });
     }
@@ -190,9 +221,21 @@ export const AdminPanel: React.FC = () => {
       next[key]._commandSections = unitCommandSections[key] || [];
       setUnitStructure(next);
       localStorage.setItem('unit_structure', JSON.stringify(next));
-      fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) })
-        .then(() => setFeedback({ type: 'success', message: 'Command sections saved.' }))
-        .catch(() => setFeedback({ type: 'error', message: 'Failed to persist command sections.' }));
+      (async () => {
+        try {
+          if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(next)], { type: 'application/json' })
+            navigator.sendBeacon('/api/unit-structure/save', blob)
+            setFeedback({ type: 'success', message: 'Command sections saved.' })
+            return
+          }
+          const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next), keepalive: true })
+          if (!res.ok) throw new Error('persist_failed')
+          setFeedback({ type: 'success', message: 'Command sections saved.' })
+        } catch {
+          setFeedback({ type: 'error', message: 'Failed to persist command sections.' })
+        }
+      })()
     } catch {
       setFeedback({ type: 'error', message: 'Failed to save command sections.' });
     }
@@ -207,9 +250,21 @@ export const AdminPanel: React.FC = () => {
       next[key]._platoonSectionMap = platoonSectionMap[key] || {};
       setUnitStructure(next);
       localStorage.setItem('unit_structure', JSON.stringify(next));
-      fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) })
-        .then(() => setFeedback({ type: 'success', message: 'Platoon-section links saved.' }))
-        .catch(() => setFeedback({ type: 'error', message: 'Failed to persist links.' }));
+      (async () => {
+        try {
+          if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(next)], { type: 'application/json' })
+            navigator.sendBeacon('/api/unit-structure/save', blob)
+            setFeedback({ type: 'success', message: 'Platoon-section links saved.' })
+            return
+          }
+          const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next), keepalive: true })
+          if (!res.ok) throw new Error('persist_failed')
+          setFeedback({ type: 'success', message: 'Platoon-section links saved.' })
+        } catch {
+          setFeedback({ type: 'error', message: 'Failed to persist links.' })
+        }
+      })()
     } catch {
       setFeedback({ type: 'error', message: 'Failed to save links.' });
     }
@@ -420,7 +475,7 @@ export const AdminPanel: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium text-gray-900">Companies</h3>
-              <button className="text-sm px-2 py-1 bg-gray-100 rounded" onClick={saveUnitStructure}>Save</button>
+              <button type="button" className="text-sm px-2 py-1 bg-gray-100 rounded" onClick={saveUnitStructure}>Save</button>
             </div>
             <div className="flex gap-2 mb-3">
               <input
@@ -430,7 +485,7 @@ export const AdminPanel: React.FC = () => {
                 placeholder="Add company"
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <button className="px-3 py-2 bg-blue-600 text-white rounded-lg" onClick={addCompany}>Add</button>
+              <button type="button" className="px-3 py-2 bg-blue-600 text-white rounded-lg" onClick={addCompany}>Add</button>
             </div>
             <div className="space-y-2">
               {companies.map(c => (
@@ -636,8 +691,8 @@ export const AdminPanel: React.FC = () => {
           </table>
         </div>
         <div className="flex gap-2 mt-4">
-          <input type="text" placeholder="Filter users..." value={filter} onChange={(e) => setFilter(e.target.value)} className="px-3 py-2 border rounded" />
-          <button className="px-3 py-2 bg-blue-600 text-white rounded-lg" onClick={saveUsers}>Save</button>
+          <input ref={filterInputRef} type="text" placeholder="Filter users..." value={filter} onChange={(e) => setFilter(e.target.value)} className="px-3 py-2 border rounded" />
+          <button className="px-3 py-2 bg-blue-600 text-white rounded-lg" onClick={() => filterInputRef.current?.focus()}>Search</button>
           <button className="px-3 py-2 bg-gray-200 rounded" onClick={exportAllUsers}>Export All</button>
         </div>
       </div>
@@ -716,7 +771,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="admin-role" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                    <select id="admin-role" aria-label="Role" value={editingRole} onChange={(e) => setEditingRole(e.target.value)} className="w-full px-3 py-2 border rounded">
+                    <select id="admin-role" aria-label="Role" value={editingRole} onChange={(e) => { const v = e.target.value; setEditingRole(v); if (v === 'COMMANDER') { setEditingCompany(undefined); setEditingPlatoon(undefined); } }} className="w-full px-3 py-2 border rounded">
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
@@ -733,7 +788,8 @@ export const AdminPanel: React.FC = () => {
                       id="admin-company"
                       value={editingCompany || ''}
                       onChange={(e) => { setEditingCompany(e.target.value || undefined); setEditingPlatoon(undefined); }}
-                      className="w-full px-3 py-2 border rounded"
+                      disabled={editingRole === 'COMMANDER'}
+                      className="w-full px-3 py-2 border rounded disabled:bg-gray-50"
                     >
                       <option value="">{editCompanies.length ? 'Select company' : 'No companies configured'}</option>
                       {editCompanies.map(c => (
@@ -747,7 +803,7 @@ export const AdminPanel: React.FC = () => {
                       id="admin-platoon"
                       value={editingPlatoon || ''}
                       onChange={(e) => setEditingPlatoon(e.target.value || undefined)}
-                      disabled={!editingCompany || editPlatoons.length === 0}
+                      disabled={editingRole === 'COMMANDER' || !editingCompany || editPlatoons.length === 0}
                       className="w-full px-3 py-2 border rounded disabled:bg-gray-50"
                     >
                       <option value="">{editPlatoons.length ? 'Select platoon' : 'No platoons configured'}</option>

@@ -32,5 +32,8 @@
   "include": [
     "src",
     "api"
+  ],
+  "exclude": [
+    "src/__tests__"
   ]
 }

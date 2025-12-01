@@ -4,6 +4,7 @@ import { PermissionManager } from '../components/PermissionManager'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/Pagination'
+import * as workflow from '@/lib/workflow'
 
 interface Request {
   id: string
@@ -30,23 +31,8 @@ interface DocumentItem {
   requestId?: string
 }
 
-const ORIGINATOR_STAGE = 'ORIGINATOR_REVIEW'
-const STAGES = ['PLATOON_REVIEW', 'COMPANY_REVIEW', 'BATTALION_REVIEW', 'COMMANDER_REVIEW', 'ARCHIVED']
-
-const nextStage = (stage?: string) => {
-  const i = STAGES.indexOf(stage || STAGES[0])
-  return i >= 0 && i < STAGES.length - 1 ? STAGES[i + 1] : STAGES[i] || STAGES[0]
-}
-
-const prevStage = (stage?: string) => {
-  const i = STAGES.indexOf(stage || STAGES[0])
-  return i > 0 ? STAGES[i - 1] : STAGES[0]
-}
-
-const isReturned = (r: Request) => {
-  const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null
-  return !!a && /returned/i.test(String(a.action || ''))
-}
+// Workflow logic now centralized in src/lib/workflow.ts
+// All stage transitions, permissions, and scope checks use the workflow module
 
 export default function ReviewDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -142,100 +128,28 @@ export default function ReviewDashboard() {
     } catch {}
   }, [])
 
-  const myStage = useMemo(() => {
-    const role = String(currentUser?.role || '')
-    if (role.includes('PLATOON')) return 'PLATOON_REVIEW'
-    if (role.includes('COMPANY')) return 'COMPANY_REVIEW'
-    if (role.includes('BATTALION')) return 'BATTALION_REVIEW'
-    if (role.includes('COMMANDER')) return 'COMMANDER_REVIEW'
-    return 'PLATOON_REVIEW'
-  }, [currentUser])
+  // Get user's review stage using centralized workflow logic
+  const myStage = useMemo(() => workflow.getUserReviewStage(currentUser), [currentUser])
 
   const originatorFor = (r: Request) => users[r.uploadedById] || null
 
+  // Get pending requests using centralized workflow logic
+  // Replaces 80+ lines of duplicated scope-checking logic
   const pending = useMemo(() => {
-    const inStage = requests.filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage)
-    const role = String(currentUser?.role || '')
-    const byScope = inStage.filter(r => {
-      const o = originatorFor(r)
-      if (!o) return false
-      if (role.includes('PLATOON')) {
-        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
-        const ouic = o.unitUic || ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-        const cuic = currentUser?.unitUic || ''
-        return oc === cc && ou === cu && (!cuic || ouic === cuic)
-      }
-      if (role.includes('COMPANY')) {
-        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const ouic = o.unitUic || ''
-        const cuic = currentUser?.unitUic || ''
-        return oc === cc && (!cuic || ouic === cuic)
-      }
-      if (role.includes('BATTALION')) {
-        const cuic = currentUser?.unitUic || ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-        const linked = platoonSectionMap[cuic]?.[cc]?.[cu] || ''
-        if (r.routeSection) {
-          return linked ? (r.routeSection === linked) : true
-        }
-        return cuic ? (o.unitUic === cuic) : true
-      }
-      if (role.includes('COMMANDER')) {
-        const ouic = o.unitUic || ''
-        const cuic = currentUser?.unitUic || ''
-        return cuic ? (ouic === cuic) : true
-      }
-      return true
-    })
-    return byScope
-  }, [requests, myStage, currentUser, users])
-
-  const inScope = useMemo(() => {
-    const role = String(currentUser?.role || '')
-    return requests.filter(r => {
-      const o = originatorFor(r)
-      if (!o) return false
-      if (role.includes('PLATOON')) {
-        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
-        const ouic = o.unitUic || ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-        const cuic = currentUser?.unitUic || ''
-        return oc === cc && ou === cu && (!cuic || ouic === cuic)
-      }
-      if (role.includes('COMPANY')) {
-        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const ouic = o.unitUic || ''
-        const cuic = currentUser?.unitUic || ''
-        return oc === cc && (!cuic || ouic === cuic)
-      }
-      if (role.includes('BATTALION')) {
-        const cuic = currentUser?.unitUic || ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-        const linked = platoonSectionMap[cuic]?.[cc]?.[cu] || ''
-        if (r.routeSection) {
-          return linked ? (r.routeSection === linked) : true
-        }
-        return cuic ? (o.unitUic === cuic) : true
-      }
-      if (role.includes('COMMANDER')) {
-        const ouic = o.unitUic || ''
-        const cuic = currentUser?.unitUic || ''
-        return cuic ? (ouic === cuic) : true
-      }
-      return true
-    })
+    return workflow.getPendingRequests(requests as any[], currentUser, users, platoonSectionMap)
   }, [requests, currentUser, users, platoonSectionMap])
 
-  const inScopeOther = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [inScope, myStage])
+  // Get all requests in user's scope (any stage)
+  const inScope = useMemo(() => {
+    return workflow.filterRequestsByScope(requests as any[], currentUser, users, platoonSectionMap)
+  }, [requests, currentUser, users, platoonSectionMap])
+
+  // Filter to only requests NOT at user's current review stage
+  const inScopeOther = useMemo(() => {
+    return workflow.filterRequestsByStage(inScope, myStage as any).length > 0
+      ? inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage)
+      : inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage)
+  }, [inScope, myStage])
 
   // Pagination for pending requests
   const pendingPagination = usePagination(pending, { pageSize: 25 })
@@ -363,7 +277,7 @@ export default function ReviewDashboard() {
           <div className="mb-2 flex justify-end"><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPending}>Export Pending</button></div>
           <div className="flex flex-col gap-4">
           {pendingPagination.currentData.map((r) => (
-            <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
+            <div key={r.id} className={`${workflow.isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
               <div className="flex items-start justify-between">
                 <div>
                   <div className="font-medium text-[var(--text)]">{r.subject}</div>
@@ -380,7 +294,7 @@ export default function ReviewDashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
-                  {isReturned(r) && (
+                  {workflow.isReturned(r) && (
                     <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
                   )}
                   <button
@@ -511,7 +425,7 @@ export default function ReviewDashboard() {
                       if (!selectedSection[r.id]) return
                       updateRequest(r, 'BATTALION_REVIEW', `Approved and routed to ${selectedSection[r.id]}`)
                     } else {
-                      updateRequest(r, nextStage(r.currentStage), 'Approved')
+                      updateRequest(r, workflow.nextStage(r.currentStage), 'Approved')
                     }
                   }}
                   disabled={String(currentUser?.role || '').includes('COMPANY') && !selectedSection[r.id]}
@@ -520,7 +434,7 @@ export default function ReviewDashboard() {
                 </button>
                 <button
                   className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                  onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
+                  onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? workflow.ORIGINATOR_STAGE : workflow.previousStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
                 >
                   Return
                 </button>
@@ -555,7 +469,7 @@ export default function ReviewDashboard() {
           <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">In Your Scope</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportInScope}>Export In Scope</button></div>
           <div className="flex flex-col gap-4">
             {inScopePagination.currentData.map((r) => (
-              <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
+              <div key={r.id} className={`${workflow.isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="font-medium text-[var(--text)]">{r.subject}</div>
@@ -572,7 +486,7 @@ export default function ReviewDashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
-                    {isReturned(r) && (
+                    {workflow.isReturned(r) && (
                       <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
                     )}
                   </div>

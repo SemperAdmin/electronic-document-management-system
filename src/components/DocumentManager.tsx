@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { Unit } from '../lib/units';
 import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers, DocumentRecord, RequestRecord } from '../lib/db';
 import { getSupabaseUrl } from '../lib/supabase';
+import { usePagination } from '@/hooks/usePagination';
+import { Pagination } from '@/components/Pagination';
 
 interface Document {
   id: string;
@@ -505,7 +507,14 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }).catch(() => setUsers([]));
   }, []);
 
-  
+  // Filter user's requests
+  const myRequests = useMemo(() => {
+    if (!currentUser?.id) return [];
+    return userRequests.filter(r => r.uploadedById === currentUser.id);
+  }, [userRequests, currentUser]);
+
+  // Pagination for user requests
+  const requestsPagination = usePagination(myRequests, { pageSize: 10 });
 
   return (
     <div className="bg-[var(--surface)] rounded-lg shadow">
@@ -621,7 +630,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-[var(--text)] mb-3">Your Requests</h3>
             <div className="space-y-3">
-              {userRequests.filter(r => r.uploadedById === currentUser.id).map((r) => (
+              {requestsPagination.currentData.map((r) => (
                 <div key={r.id}>
                   <div className={isReturnedReq(r) ? "flex items-center justify-between p-4 border border-brand-red-2 rounded-lg bg-brand-cream" : "flex items-center justify-between p-4 border border-brand-navy/20 rounded-lg hover:bg-brand-cream/50"}>
                     <div>
@@ -666,10 +675,29 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                   </div>
                 </div>
               ))}
-              {userRequests.filter(r => r.uploadedById === currentUser.id).length === 0 && (
+              {requestsPagination.totalItems === 0 && (
                 <div className="text-sm text-[var(--muted)]">No requests submitted</div>
               )}
             </div>
+            {requestsPagination.totalItems > 0 && (
+              <Pagination
+                currentPage={requestsPagination.currentPage}
+                totalPages={requestsPagination.totalPages}
+                totalItems={requestsPagination.totalItems}
+                pageSize={requestsPagination.pageSize}
+                startIndex={requestsPagination.startIndex}
+                endIndex={requestsPagination.endIndex}
+                onPageChange={requestsPagination.goToPage}
+                onPageSizeChange={requestsPagination.setPageSize}
+                onNext={requestsPagination.nextPage}
+                onPrevious={requestsPagination.previousPage}
+                onFirst={requestsPagination.goToFirstPage}
+                onLast={requestsPagination.goToLastPage}
+                canGoNext={requestsPagination.canGoNext}
+                canGoPrevious={requestsPagination.canGoPrevious}
+                pageSizeOptions={[5, 10, 25, 50]}
+              />
+            )}
           </div>
         )}
         {isUploading && (

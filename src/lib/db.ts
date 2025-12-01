@@ -138,7 +138,7 @@ function toUserRow(u: UserRecord) {
     role: u.role !== undefined ? u.role : undefined,
     unit_uic: u.unitUic !== undefined ? u.unitUic : undefined,
     unit: u.unit !== undefined ? u.unit : undefined,
-    user_company: u.company !== undefined ? u.company : undefined,
+    company: u.company !== undefined ? u.company : undefined,
     is_unit_admin: u.isUnitAdmin === undefined ? undefined : !!u.isUnitAdmin,
     is_command_staff: u.isCommandStaff === undefined ? undefined : !!u.isCommandStaff,
     is_app_admin: u.isAppAdmin === undefined ? undefined : !!u.isAppAdmin,
@@ -162,7 +162,7 @@ function fromUserRow(r: any): UserRecord {
     role: r.role ? String(r.role) : undefined,
     unitUic: r.unit_uic ? String(r.unit_uic) : undefined,
     unit: r.unit ? String(r.unit) : undefined,
-    company: r.user_company ? String(r.user_company) : undefined,
+    company: r.company ? String(r.company) : undefined,
     isUnitAdmin: !!r.is_unit_admin,
     isCommandStaff: !!r.is_command_staff,
     isAppAdmin: !!r.is_app_admin,
@@ -271,13 +271,13 @@ export async function listCompaniesForUnit(unitUic: string): Promise<string[]> {
     if (!sb?.from) return []
     const { data, error } = await sb
       .from('edms_users')
-      .select('user_company, unit_uic')
+      .select('company, unit_uic')
       .eq('unit_uic', uic)
-      .neq('user_company', 'N/A')
+      .neq('company', 'N/A')
     if (error) return []
     const rows: any[] = Array.isArray(data) ? (data as any[]) : []
     const vals: string[] = rows
-      .map((r: any) => String(r.user_company || '').trim())
+      .map((r: any) => String(r.company || '').trim())
       .filter((v: string) => !!v)
     const uniq: string[] = Array.from(new Set<string>(vals))
     return uniq.sort((a: string, b: string) => a.localeCompare(b))
@@ -295,9 +295,9 @@ export async function listPlatoonsForCompany(unitUic: string, company: string): 
     if (!sb?.from) return []
     const { data, error } = await sb
       .from('edms_users')
-      .select('user_platoon, unit_uic, user_company')
+      .select('user_platoon, unit_uic, company')
       .eq('unit_uic', uic)
-      .eq('user_company', comp)
+      .eq('company', comp)
       .neq('user_platoon', 'N/A')
     if (error) return []
     const rows: any[] = Array.isArray(data) ? (data as any[]) : []

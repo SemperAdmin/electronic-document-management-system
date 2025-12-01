@@ -271,13 +271,13 @@ export async function listCompaniesForUnit(unitUic: string): Promise<string[]> {
     if (!sb?.from) return []
     const { data, error } = await sb
       .from('edms_users')
-      .select('company, unit_uic')
+      .select('company, user_company, unit_uic')
       .eq('unit_uic', uic)
-      .neq('company', 'N/A')
+      .or('company.neq.N/A,user_company.neq.N/A')
     if (error) return []
     const rows: any[] = Array.isArray(data) ? (data as any[]) : []
     const vals: string[] = rows
-      .map((r: any) => String(r.company || '').trim())
+      .map((r: any) => String((r.company || r.user_company || '')).trim())
       .filter((v: string) => !!v)
     const uniq: string[] = Array.from(new Set<string>(vals))
     return uniq.sort((a: string, b: string) => a.localeCompare(b))
@@ -295,9 +295,9 @@ export async function listPlatoonsForCompany(unitUic: string, company: string): 
     if (!sb?.from) return []
     const { data, error } = await sb
       .from('edms_users')
-      .select('user_platoon, unit_uic, company')
+      .select('user_platoon, unit_uic, company, user_company')
       .eq('unit_uic', uic)
-      .eq('company', comp)
+      .or(`company.eq.${comp},user_company.eq.${comp}`)
       .neq('user_platoon', 'N/A')
     if (error) return []
     const rows: any[] = Array.isArray(data) ? (data as any[]) : []

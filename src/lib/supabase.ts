@@ -27,8 +27,23 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
         anonKey: sKey || undefined,
       }
     } catch {}
-    const url = viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url
-    const anonKey = viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey
+    const sanitize = (v?: string) => {
+      if (!v) return v
+      const trimmed = String(v).trim()
+      const noTicks = trimmed.replace(/^`+|`+$/g, '').replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
+      return noTicks
+    }
+    const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url)
+    const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey)
+    // allow runtime query param override for prod debugging
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const qpUrl = sanitize(params.get('supabase_url') || undefined)
+      const qpKey = sanitize(params.get('supabase_key') || undefined)
+      const finalUrl = qpUrl || url
+      const finalKey = qpKey || anonKey
+      return { url: finalUrl, anonKey: finalKey }
+    } catch {}
     return { url, anonKey }
   } catch {
     return {}

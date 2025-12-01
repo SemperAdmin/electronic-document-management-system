@@ -139,6 +139,27 @@ export const AdminPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    try {
+      if (!selectedUnit) {
+        const keys = Object.keys(unitStructure || {})
+        if (keys.length) {
+          const uic = keys[0]
+          const meta = unitStructure[uic] || {}
+          const fromList = UNITS.find(x => x.uic === uic)
+          const inferred = fromList || {
+            ruc: String(meta._ruc || ''),
+            mcc: String(meta._mcc || ''),
+            uic,
+            unitName: String(meta._unitName || uic),
+            streetAddress: String(meta._streetAddress || '')
+          }
+          setSelectedUnit(inferred as any)
+        }
+      }
+    } catch {}
+  }, [unitStructure])
+
+  useEffect(() => {
     const uic = editingUser?.unitUic || ''
     if (!uic) { setEditCompaniesDb([]); return }
     listCompaniesForUnit(uic).then((vals) => setEditCompaniesDb(vals || [])).catch(() => setEditCompaniesDb([]))

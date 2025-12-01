@@ -114,6 +114,7 @@ export const AdminPanel: React.FC = () => {
               if (v && Array.isArray(v._commandSections)) cmdMap[uic] = v._commandSections
               if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
             }
+            setUnitStructure(merged as any)
           } catch {}
         })()
       }

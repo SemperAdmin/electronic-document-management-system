@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import logoImg from '../assets/images/logo.png'
+import { UNITS } from '@/lib/units'
 
 type HeaderProps = {
   currentUser: any
@@ -35,14 +36,17 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                       {currentUser.rank} {currentUser.lastName}{currentUser.lastName ? ',' : ''} {currentUser.firstName}{currentUser.mi ? ` ${currentUser.mi}` : ''}
                     </div>
                     <div className="text-xs text-white/80">{currentUser.service} • {currentUser.role}</div>
-                    {((currentUser?.company && currentUser.company !== 'N/A') || (currentUser?.platoon && currentUser.platoon !== 'N/A')) && (
-                      <div className="text-xs text-white/70">
-                        {[
-                          currentUser.company && currentUser.company !== 'N/A' ? currentUser.company : null,
-                          (currentUser as any).platoon && (currentUser as any).platoon !== 'N/A' ? (currentUser as any).platoon : null
-                        ].filter(Boolean).join(' • ')}
-                      </div>
-                    )}
+                    {(() => {
+                      const unitName = (UNITS.find(x => x.uic === (currentUser?.unitUic || ''))?.unitName) || (currentUser?.unit || '')
+                      const parts = [
+                        unitName || null,
+                        currentUser.company && currentUser.company !== 'N/A' ? currentUser.company : null,
+                        (currentUser as any).platoon && (currentUser as any).platoon !== 'N/A' ? (currentUser as any).platoon : null
+                      ].filter(Boolean)
+                      return parts.length ? (
+                        <div className="text-xs text-white/70">{parts.join(' • ')}</div>
+                      ) : null
+                    })()}
                   </div>
                   <div className="h-8 w-8 rounded-full bg-brand-cream text-brand-navy flex items-center justify-center text-xs font-semibold border border-white/30 select-none">
                     {`${(currentUser.lastName || '').charAt(0)}${(currentUser.firstName || '').charAt(0)}`.toUpperCase()}
@@ -97,4 +101,3 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
     </header>
   )
 }
-

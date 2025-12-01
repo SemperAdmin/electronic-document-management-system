@@ -10,6 +10,7 @@ import { ProfileForm } from '../components/ProfileForm';
 import { AdminPanel } from '../components/AdminPanel';
 import AppAdmin from './AppAdmin';
 import { Login } from '../components/Login';
+import logoImg from '../assets/images/logo.png';
 
 export default function Home() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -102,42 +103,68 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
-      <header className="bg-[var(--surface)] shadow-sm border-b border-brand-navy/20">
+      <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-4 md:gap-8 py-6">
             {view === 'login' ? (
               <div className="w-full">
                 <div>
-                  <h1 className="text-3xl md:text-4xl font-bold text-[var(--text)]">Welcome to the Electronic Document Management System</h1>
-                  <p className="text-[var(--muted)] mt-1">Secure, hierarchical workflow for military document submissions and reviews.</p>
-                  <p className="text-[var(--muted)] text-sm mt-1">EDMS enforces chain-of-command with role-based access and a linear review state machine from Platoon to Battalion to Commander.</p>
+                  <h1 className="text-2xl md:text-3xl font-semibold text-brand-cream">Welcome to the Electronic Document Management System</h1>
+                  <p className="text-white/80 mt-1">Secure, hierarchical workflow for military document submissions and reviews.</p>
+                  <p className="text-white/70 text-sm mt-1">EDMS enforces chain-of-command with role-based access and a linear review state machine from Platoon to Battalion to Commander.</p>
                 </div>
               </div>
             ) : (
               <>
-                <div className="w-fit">
-                  <h1 className="text-3xl md:text-4xl font-bold text-[var(--text)]">Electronic Document Management System</h1>
-                  <div className="flex items-center justify-between mt-1 w-full">
-                    <p className="text-[var(--muted)]">Marine Corps Unit Document Management</p>
-                    <div className="text-xl text-brand-red">by Semper Admin</div>
+                <div className="flex items-center gap-4">
+                  <img src={logoImg} alt="Semper Admin Logo" className="h-10 w-auto rounded" />
+                  <div>
+                    <h1 className="text-2xl md:text-3xl font-semibold leading-tight text-brand-cream">Electronic Document Management System<a> by Semper Admin</a></h1>
+                    <p className="text-sm font-light text-white/70 mt-0.5">Marine Corps Unit Document Management</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center gap-4 md:justify-self-end">
                   <div className="text-sm text-[var(--muted)]">
                     {currentUser ? (
-                      <div className="text-right">
-                        <div className="font-medium text-[var(--text)]">
+                      <div className="relative flex items-center gap-3 group">
+                        <div className="text-right">
+                          <div className="font-medium text-brand-cream">
                           {currentUser.rank} {currentUser.lastName}{currentUser.lastName ? ',' : ''} {currentUser.firstName}{currentUser.mi ? ` ${currentUser.mi}` : ''}
-                        </div>
-                        <div className="text-xs text-[var(--muted)]">{currentUser.service} • {currentUser.role}</div>
+                          </div>
+                          <div className="text-xs text-white/80">{currentUser.service} • {currentUser.role}</div>
                         {((currentUser?.company && currentUser.company !== 'N/A') || (currentUser?.unit && currentUser.unit !== 'N/A')) && (
-                          <div className="text-xs">
+                          <div className="text-xs text-white/70">
                             {[
                               currentUser.company && currentUser.company !== 'N/A' ? currentUser.company : null,
                               currentUser.unit && currentUser.unit !== 'N/A' ? currentUser.unit : null
                             ].filter(Boolean).join(' • ')}
                           </div>
                         )}
+                        </div>
+                        <div className="h-8 w-8 rounded-full bg-brand-cream text-brand-navy flex items-center justify-center text-xs font-semibold border border-white/30 select-none">
+                          {`${(currentUser.lastName || '').charAt(0)}${(currentUser.firstName || '').charAt(0)}`.toUpperCase()}
+                        </div>
+                        <div className="absolute right-0 top-full mt-2 min-w-40 bg-white text-brand-navy border border-brand-navy/20 rounded-md shadow-lg opacity-0 invisible translate-y-1 transition-all duration-150 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:visible group-focus-within:translate-y-0">
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            onClick={() => { setProfileMode('edit'); setView('profile'); }}
+                          >
+                            Manage Profile
+                          </button>
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            onClick={() => {
+                              try { localStorage.removeItem('currentUser') } catch {}
+                              setCurrentUser(null)
+                              setDashOpen(false)
+                              setView('login')
+                              navigate('/?view=login')
+                            }}
+                            aria-label="Logout"
+                          >
+                            Logout
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div className="text-xs text-[var(--muted)]">Not signed in</div>
@@ -145,33 +172,10 @@ export default function Home() {
                   </div>
               {!currentUser && (
                 <button
-                  className="bg-brand-navy text-brand-cream px-3 py-2 rounded-lg hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                  className="bg-brand-charcoal text-brand-cream px-3 py-2 rounded-lg hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
                   onClick={() => setView('login')}
                 >
                   Login
-                </button>
-              )}
-                {currentUser && (
-              <button
-                  className="bg-brand-charcoal text-brand-cream px-3 py-2 rounded-lg hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-4"
-                  onClick={() => { setProfileMode('edit'); setView('profile'); }}
-                >
-                  Manage Profile
-                </button>
-              )}
-              {currentUser && (
-                <button
-                  className="bg-brand-navy text-brand-cream px-3 py-2 rounded-lg hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                  onClick={() => {
-                    try { localStorage.removeItem('currentUser') } catch {}
-                    setCurrentUser(null)
-                    setDashOpen(false)
-                    setView('login')
-                    navigate('/?view=login')
-                  }}
-                  aria-label="Logout"
-                >
-                  Logout
                 </button>
               )}
                   <div className="relative inline-block">
@@ -184,7 +188,7 @@ export default function Home() {
                       Dashboards
                     </button>
                     <div
-                      className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-[var(--surface)] border-2 border-brand-red-2 rounded-lg shadow-lg`}
+                      className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-[var(--surface)] border-2 border-brand-red-2 rounded-lg shadow-lg text-brand-navy`}
                       role="menu"
                       aria-label="Dashboards"
                     >
@@ -193,7 +197,7 @@ export default function Home() {
                       <div role="group" aria-label="My">
                         {currentUser && (
                           <button
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
                             onClick={() => { setView('dashboard'); setDashOpen(false); }}
                           >
@@ -207,7 +211,7 @@ export default function Home() {
                       <div role="group" aria-label="Administration">
                         {(currentUser?.isUnitAdmin) && (
                           <button
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
                             onClick={() => { setView('admin'); setDashOpen(false); }}
                           >
@@ -216,7 +220,7 @@ export default function Home() {
                         )}
                         {currentUser && currentUser.email === 'stephen.shorter@usmc.mil' && String(currentUser.edipi) === '1402008233' && (
                           <button
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
                             onClick={() => { setView('appadmin'); setDashOpen(false); }}
                           >
@@ -230,7 +234,7 @@ export default function Home() {
                       <div role="group" aria-label="Dashboards">
                         {(currentUser && hasSectionDashboard) && (
                           <button
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
                             onClick={() => { setView('section'); setDashOpen(false); }}
                           >
@@ -239,7 +243,7 @@ export default function Home() {
                         )}
                         {(String(currentUser?.role || '') === 'COMMANDER' || (currentUser?.isCommandStaff && hasCommandDashboard)) && (
                           <button
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
                             onClick={() => { setView('command'); setDashOpen(false); }}
                           >
@@ -248,7 +252,7 @@ export default function Home() {
                         )}
                         {(String(currentUser?.role || '').includes('REVIEW')) && (
                           <button
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
                             onClick={() => { setView('review'); setDashOpen(false); }}
                           >

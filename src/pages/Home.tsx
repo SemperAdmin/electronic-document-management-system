@@ -69,6 +69,7 @@ function HomeContent() {
         onManageProfile={() => { setProfileMode('edit'); setView('profile') }}
         onLogout={() => { setCurrentUser(null); setView('login'); navigate('/?view=login') }}
         onNavigate={(v) => setView(v as any)}
+        isLogin={view === 'login'}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

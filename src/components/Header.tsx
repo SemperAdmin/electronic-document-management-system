@@ -9,14 +9,30 @@ type HeaderProps = {
   onManageProfile: () => void
   onLogout: () => void
   onNavigate: (view: string) => void
+  isLogin?: boolean
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, onManageProfile, onLogout, onNavigate }) => {
+export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, onManageProfile, onLogout, onNavigate, isLogin = false }) => {
   const [dashOpen, setDashOpen] = useState(false)
   return (
     <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-4 md:gap-8 py-6">
+          {isLogin ? (
+            <>
+              <div className="w-full">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-semibold text-brand-cream">Welcome to the Electronic Document Management System</h1>
+                  <p className="text-white/80 mt-1">Secure, hierarchical workflow for military document submissions and reviews.</p>
+                  <p className="text-white/70 text-sm mt-1">EDMS enforces chain-of-command with role-based access and a linear review state machine from Platoon to Battalion to Commander.</p>
+                </div>
+              </div>
+              <div className="w-full flex items-center justify-center">
+                <img src={logoImg} alt="Semper Admin Logo" className="w-full h-full max-h-40 md:max-h-56 object-contain" />
+              </div>
+            </>
+          ) : (
+            <>
           <div className="flex items-center gap-4 h-12 md:h-14">
             <img src={logoImg} alt="Semper Admin Logo" className="h-full w-auto rounded object-contain" />
             <div>
@@ -95,7 +111,9 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+            </>
+          )}
         </div>
       </div>
     </header>

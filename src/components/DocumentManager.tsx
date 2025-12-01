@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { Unit } from '../lib/units';
 import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers, DocumentRecord, RequestRecord } from '../lib/db';
+import { getSupabaseUrl } from '../lib/supabase';
 
 interface Document {
   id: string;
@@ -101,7 +102,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     const requestId = `req-${now}`;
 
     let docs: Document[] = [];
-    const supaUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL as string || ''
+    const supaUrl = getSupabaseUrl() || ((import.meta as any)?.env?.VITE_SUPABASE_URL as string || localStorage.getItem('supabase_url') || '')
     const makePublicUrl = (pathKey: string) => {
       try {
         const sb = getSupabase()
@@ -317,7 +318,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         )}
         {doc.fileUrl && (
           <a
-            href={doc.fileUrl}
+            href={normalizeDocUrl(doc.fileUrl)}
             target="_blank"
             rel="noopener noreferrer"
             className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
@@ -336,9 +337,20 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     </div>
   );
 
+  const normalizeDocUrl = (url?: string): string | undefined => {
+    if (!url) return undefined
+    if (/^https?:\/\//i.test(url)) return url
+    const supaBase = getSupabaseUrl() || localStorage.getItem('supabase_url') || ((import.meta as any)?.env?.VITE_SUPABASE_URL as string || '')
+    if (!supaBase) return url
+    if (url.startsWith('/')) return `${supaBase}${url}`
+    if (url.includes('/storage/v1/object/public/edms-docs/')) return `${supaBase}/${url.replace(/^\/+/, '')}`
+    return url
+  }
+
   const openInApp = (doc: Document) => {
-    if (!doc.fileUrl) return;
-    window.open(doc.fileUrl, '_blank');
+    const href = normalizeDocUrl(doc.fileUrl)
+    if (!href) return
+    window.open(href, '_blank');
   };
 
   const saveRequestEdits = async () => {

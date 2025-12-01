@@ -50,3 +50,11 @@ export function getSupabase(): any {
 
 export const supabase: any = getSupabase()
 export const hasSupabase = !!getSupabase()
+export function getSupabaseUrl(): string | undefined {
+  try {
+    const { url } = resolveSupabaseConfig()
+    return url
+  } catch {
+    return undefined
+  }
+}

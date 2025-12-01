@@ -121,7 +121,8 @@ export default function Home() {
                   <div>
                     <h1 className="text-2xl md:text-3xl font-semibold leading-tight text-brand-cream">
                   <span className="text-3xl md:text-4xl">Electronic Document Management System</span>
-                <a className="text-lg font-normal ml-3 whitespace-nowrap text-brand-cream/80" href="#"> 
+                <a 
+                    className="text-lg font-normal ml-3 whitespace-nowrap text-red-500" href="https://linktr.ee/semperadmin">
                     by Semper Admin
                 </a>
             </h1>

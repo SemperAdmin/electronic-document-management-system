@@ -132,67 +132,140 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({ onLoggedIn, onCreateAc
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     setFeedback(null);
-    
+
+    // DEBUG: Log all environment info
+    console.log('═══════════════════════════════════════');
+    console.log('[MobileLogin] LOGIN ATTEMPT STARTED');
+    console.log('[MobileLogin] User Agent:', navigator.userAgent);
+    console.log('[MobileLogin] Platform:', navigator.platform);
+    console.log('[MobileLogin] Input identifier:', data.identifier);
+    console.log('[MobileLogin] Input type:', data.identifier.includes('@') ? 'EMAIL' : 'EDIPI');
+
     try {
+      // Check Supabase initialization first
+      const { getSupabase } = await import('@/lib/supabase');
+      const supabaseClient = getSupabase();
+      console.log('[MobileLogin] Supabase client check:', supabaseClient ? 'INITIALIZED' : 'NULL');
+
+      if (!supabaseClient) {
+        console.error('[MobileLogin] CRITICAL: Supabase client is NULL - cannot query database');
+        setFeedback({
+          type: 'error',
+          message: 'Database connection failed. Check console for details.'
+        });
+        return;
+      }
+
       let user: UserProfile | undefined;
       let emailForLogin = data.identifier.trim().toLowerCase();
-      
+
+      console.log('[MobileLogin] Trimmed/lowercased identifier:', emailForLogin);
+      console.log('[MobileLogin] ALLOW_EDIPI_LOGIN:', ALLOW_EDIPI_LOGIN);
+
       if (ALLOW_EDIPI_LOGIN) {
         const isEdipiLike = /^[0-9]{10}$/.test(data.identifier);
+        console.log('[MobileLogin] Is EDIPI format (10 digits)?:', isEdipiLike);
+
         if (isEdipiLike) {
+          console.log('[MobileLogin] Querying by EDIPI:', data.identifier);
           const found = await (getUserByEdipi as any)(String(data.identifier));
+          console.log('[MobileLogin] getUserByEdipi result:', found ? 'USER FOUND' : 'NULL');
+          if (found) {
+            console.log('[MobileLogin] Found user email:', found.email);
+            console.log('[MobileLogin] Found user ID:', found.id);
+          }
           user = found as any;
           emailForLogin = String(user?.email || '');
         } else {
+          console.log('[MobileLogin] Querying by Email:', emailForLogin);
           const found = await (getUserByEmail as any)(emailForLogin);
+          console.log('[MobileLogin] getUserByEmail result:', found ? 'USER FOUND' : 'NULL');
+          if (found) {
+            console.log('[MobileLogin] Found user email:', found.email);
+            console.log('[MobileLogin] Found user ID:', found.id);
+          }
           user = found as any;
         }
       } else {
         const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        console.log('[MobileLogin] Email validation:', emailPattern.test(emailForLogin));
+
         if (!emailPattern.test(emailForLogin)) {
+          console.warn('[MobileLogin] Invalid email format');
           setFeedback({ type: 'error', message: 'Please enter a valid email.' });
           return;
         }
+
+        console.log('[MobileLogin] Querying by Email (EDIPI disabled):', emailForLogin);
         const found = await (getUserByEmail as any)(emailForLogin);
+        console.log('[MobileLogin] getUserByEmail result:', found ? 'USER FOUND' : 'NULL');
         user = found as any;
       }
-      
+
       if (!user) {
-        setFeedback({ type: 'error', message: 'Account not found.' });
+        console.error('[MobileLogin] USER NOT FOUND IN DATABASE');
+        console.error('[MobileLogin] Searched for:', emailForLogin);
+        console.error('[MobileLogin] Check Supabase console to verify user exists');
+        console.error('[MobileLogin] Check browser console for [DB] error logs above');
+        setFeedback({
+          type: 'error',
+          message: `Account not found for: ${emailForLogin}. Check console logs.`
+        });
         return;
       }
-      
+
+      console.log('[MobileLogin] ✓ User found, proceeding to password verification');
+
       const hashHex = await sha256Hex(data.password);
+      console.log('[MobileLogin] Password hashed (SHA-256)');
+
       const storedRaw = String((user as any).passwordHash || (user as any).password_hash || '').trim();
+      console.log('[MobileLogin] Stored password hash exists:', !!storedRaw);
+      console.log('[MobileLogin] Stored hash length:', storedRaw.length);
+
       if (!storedRaw) {
+        console.error('[MobileLogin] No password hash stored for user');
         setFeedback({ type: 'error', message: 'No password set for this user.' });
         return;
       }
-      
+
       const isHex64 = /^[0-9a-f]{64}$/i.test(storedRaw);
+      console.log('[MobileLogin] Password format:', isHex64 ? 'HEX64 (hashed)' : 'PLAIN TEXT');
+
       const ok = isHex64 ? (storedRaw.toLowerCase() === hashHex.toLowerCase()) : (storedRaw === data.password);
-      
+      console.log('[MobileLogin] Password match:', ok);
+
       if (!ok) {
+        console.error('[MobileLogin] Password verification FAILED');
         setFeedback({ type: 'error', message: 'Invalid credentials.' });
         return;
       }
+
+      console.log('[MobileLogin] ✓ Password verified successfully');
 
       // Save remembered email safely (with fallback for private browsing)
       if (data.rememberMe && user.email) {
         try {
           localStorage.setItem('rememberedUser', user.email);
+          console.log('[MobileLogin] ✓ Saved remembered user to localStorage');
         } catch (e) {
           console.warn('[MobileLogin] Could not save remembered user (localStorage blocked):', e);
         }
       }
+
+      console.log('[MobileLogin] ✓ LOGIN SUCCESSFUL');
+      console.log('═══════════════════════════════════════');
 
       setFeedback({ type: 'success', message: 'Login successful!' });
 
       // Call onLoggedIn immediately (no setTimeout delay like browser Login.tsx)
       onLoggedIn(user);
     } catch (error) {
-      console.error('[MobileLogin] Login failed:', error);
-      setFeedback({ type: 'error', message: 'Login failed. Please try again.' });
+      console.error('[MobileLogin] ✗ LOGIN FAILED WITH EXCEPTION');
+      console.error('[MobileLogin] Error:', error);
+      console.error('[MobileLogin] Error stack:', (error as Error).stack);
+      console.log('═══════════════════════════════════════');
+      setFeedback({ type: 'error', message: `Login failed: ${(error as Error).message}. Check console.` });
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { sha256Hex } from '@/lib/crypto';
+import { listUsers } from '@/lib/db';
+import { ALLOW_EDIPI_LOGIN } from '@/config/auth';
 
 interface UserProfile {
   id: string;
@@ -10,6 +12,7 @@ interface UserProfile {
   email: string;
   edipi: string;
   edipiHash?: string;
+  password_hash?: string;
   service: string;
   rank: string;
   role: string;
@@ -31,42 +34,42 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  
+  React.useEffect(() => {}, [])
+
+  
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
     try {
-      const users: UserProfile[] = [];
-      // Load static users from src/users
-      const staticUserModules = import.meta.glob('../users/*.json', { eager: true });
-      const staticUsers: UserProfile[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m) as UserProfile);
-      users.push(...staticUsers);
-      // Merge with localStorage users
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const rawU = localStorage.getItem(key);
-          if (rawU) users.push(JSON.parse(rawU));
-        }
-      }
+      const users: any[] = (await listUsers()) as any;
       let user: UserProfile | undefined;
-      const isEdipiLike = /^[0-9]{10}$/.test(identifier);
-      if (isEdipiLike) {
-        const idHash = await sha256Hex(identifier);
-        user = users.find(u => (u.edipiHash && u.edipiHash === idHash) || u.edipi === identifier);
+      let emailForLogin = identifier.trim().toLowerCase()
+      if (ALLOW_EDIPI_LOGIN) {
+        const isEdipiLike = /^[0-9]{10}$/.test(identifier);
+        if (isEdipiLike) {
+          user = users.find(u => String(u.edipi) === identifier);
+          emailForLogin = String(user?.email || '')
+        } else {
+          user = users.find(u => String(u.email || '').toLowerCase() === emailForLogin);
+        }
       } else {
-        user = users.find(u => u.email.toLowerCase() === identifier.toLowerCase());
+        // Email-only mode
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailPattern.test(emailForLogin)) {
+          setFeedback({ type: 'error', message: 'Please enter a valid email.' });
+          return;
+        }
+        user = users.find(u => String(u.email || '').toLowerCase() === emailForLogin);
       }
-      if (!user) {
-        setFeedback({ type: 'error', message: 'Account not found.' });
-        return;
-      }
-      const hash = await sha256Hex(password);
-      if (hash !== user.passwordHash) {
-        setFeedback({ type: 'error', message: 'Invalid credentials.' });
-        return;
-      }
-      localStorage.setItem('currentUser', JSON.stringify(user));
+      if (!user) { setFeedback({ type: 'error', message: 'Account not found.' }); return }
+      const hashHex = await sha256Hex(password)
+      const storedRaw = String((user as any).passwordHash || (user as any).password_hash || '').trim()
+      if (!storedRaw) { setFeedback({ type: 'error', message: 'No password set for this user.' }); return }
+      const isHex64 = /^[0-9a-f]{64}$/i.test(storedRaw)
+      const ok = isHex64 ? (storedRaw.toLowerCase() === hashHex.toLowerCase()) : (storedRaw === password)
+      if (!ok) { setFeedback({ type: 'error', message: 'Invalid credentials.' }); return }
       setFeedback({ type: 'success', message: 'Logged in.' });
       onLoggedIn(user);
     } catch {
@@ -79,7 +82,7 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Login</h2>
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email or EDIPI</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{ALLOW_EDIPI_LOGIN ? 'Email or EDIPI' : 'Email'}</label>
           <input
             type="text"
             value={identifier}
@@ -106,6 +109,7 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
           <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Login</button>
         </div>
       </form>
+
     </div>
   );
 };

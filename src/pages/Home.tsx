@@ -10,6 +10,7 @@ import { ProfileForm } from '../components/ProfileForm';
 import { AdminPanel } from '../components/AdminPanel';
 import AppAdmin from './AppAdmin';
 import { Login } from '../components/Login';
+ 
 import logoImg from '../assets/images/logo.png';
 
 export default function Home() {
@@ -25,80 +26,24 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('currentUser');
-      if (raw) setCurrentUser(JSON.parse(raw));
-    } catch {}
-    try {
-      const rawCU = localStorage.getItem('currentUser');
-      const rawUS = localStorage.getItem('unit_structure');
-      if (rawCU && rawUS) {
-        const cu = JSON.parse(rawCU);
-        const us = JSON.parse(rawUS);
-        const uic = cu?.unitUic || '';
-        const c = (cu?.company && cu.company !== 'N/A') ? cu.company : '';
-        const p = (cu?.unit && cu.unit !== 'N/A') ? cu.unit : '';
-        const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || '';
-        setHasSectionDashboard(!!linked);
-        setHasCommandDashboard(hasCommandDashboardAccess(cu, us));
-      } else {
-        setHasSectionDashboard(false);
-        setHasCommandDashboard(false);
-      }
-    } catch {
-      setHasSectionDashboard(false);
-      setHasCommandDashboard(false);
-    }
-    try {
       const params = new URLSearchParams(window.location.search);
       const v = params.get('view');
       if (v === 'admin' || v === 'profile' || v === 'dashboard' || v === 'login' || v === 'appadmin' || v === 'review' || v === 'section' || v === 'command') {
         setView(v as any);
       } else {
-        const hasUser = !!localStorage.getItem('currentUser');
-        setView(hasUser ? 'dashboard' : 'login');
+        setView('login');
       }
     } catch {
-      const hasUser = !!localStorage.getItem('currentUser');
-      setView(hasUser ? 'dashboard' : 'login');
+      setView('login');
     }
   }, []);
 
-  useEffect(() => {
-    const handler = () => {
-      try {
-        const rawCU = localStorage.getItem('currentUser');
-        const rawUS = localStorage.getItem('unit_structure');
-        if (rawCU && rawUS) {
-          const cu = JSON.parse(rawCU);
-          const us = JSON.parse(rawUS);
-          const uic = cu?.unitUic || '';
-          const c = (cu?.company && cu.company !== 'N/A') ? cu.company : '';
-          const p = (cu?.unit && cu.unit !== 'N/A') ? cu.unit : '';
-          const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || '';
-          setHasSectionDashboard(!!linked);
-          setHasCommandDashboard(hasCommandDashboardAccess(cu, us));
-        }
-      } catch {}
-    }
-    window.addEventListener('unit_structure_updated', handler)
-    return () => window.removeEventListener('unit_structure_updated', handler)
-  }, [])
+  useEffect(() => {}, [])
 
   useEffect(() => {
-    try {
-      const rawUS = localStorage.getItem('unit_structure');
-      if (!currentUser || !rawUS) { setHasSectionDashboard(false); return; }
-      const us = JSON.parse(rawUS);
-      const uic = currentUser?.unitUic || '';
-      const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : '';
-      const p = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : '';
-      const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || '';
-      setHasSectionDashboard(!!linked);
-      setHasCommandDashboard(hasCommandDashboardAccess(currentUser, us));
-    } catch {
-      setHasSectionDashboard(false);
-      setHasCommandDashboard(false);
-    }
+    setHasSectionDashboard(false);
+    const isCmd = String(currentUser?.role || '') === 'COMMANDER' || !!currentUser?.isCommandStaff;
+    setHasCommandDashboard(isCmd);
   }, [currentUser]);
 
   return (
@@ -107,13 +52,18 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-4 md:gap-8 py-6">
             {view === 'login' ? (
-              <div className="w-full">
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-semibold text-brand-cream">Welcome to the Electronic Document Management System</h1>
-                  <p className="text-white/80 mt-1">Secure, hierarchical workflow for military document submissions and reviews.</p>
-                  <p className="text-white/70 text-sm mt-1">EDMS enforces chain-of-command with role-based access and a linear review state machine from Platoon to Battalion to Commander.</p>
+              <>
+                <div className="w-full">
+                  <div>
+                    <h1 className="text-2xl md:text-3xl font-semibold text-brand-cream">Welcome to the Electronic Document Management System</h1>
+                    <p className="text-white/80 mt-1">Secure, hierarchical workflow for military document submissions and reviews.</p>
+                    <p className="text-white/70 text-sm mt-1">EDMS enforces chain-of-command with role-based access and a linear review state machine from Platoon to Battalion to Commander.</p>
+                  </div>
                 </div>
-              </div>
+                <div className="w-full flex items-center justify-center">
+                  <img src={logoImg} alt="Semper Admin Logo" className="w-full h-full max-h-40 md:max-h-56 object-contain" />
+                </div>
+              </>
             ) : (
               <>
                 <div className="flex items-center gap-4 h-12 md:h-14">
@@ -138,11 +88,11 @@ export default function Home() {
                           {currentUser.rank} {currentUser.lastName}{currentUser.lastName ? ',' : ''} {currentUser.firstName}{currentUser.mi ? ` ${currentUser.mi}` : ''}
                           </div>
                           <div className="text-xs text-white/80">{currentUser.service} • {currentUser.role}</div>
-                        {((currentUser?.company && currentUser.company !== 'N/A') || (currentUser?.unit && currentUser.unit !== 'N/A')) && (
+                        {((currentUser?.company && currentUser.company !== 'N/A') || (currentUser?.platoon && currentUser.platoon !== 'N/A')) && (
                           <div className="text-xs text-white/70">
                             {[
                               currentUser.company && currentUser.company !== 'N/A' ? currentUser.company : null,
-                              currentUser.unit && currentUser.unit !== 'N/A' ? currentUser.unit : null
+                              (currentUser as any).platoon && (currentUser as any).platoon !== 'N/A' ? (currentUser as any).platoon : null
                             ].filter(Boolean).join(' • ')}
                           </div>
                         )}
@@ -160,7 +110,6 @@ export default function Home() {
                           <button
                             className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream"
                             onClick={() => {
-                              try { localStorage.removeItem('currentUser') } catch {}
                               setCurrentUser(null)
                               setDashOpen(false)
                               setView('login')
@@ -217,14 +166,14 @@ export default function Home() {
                       <div role="group" aria-label="Administration">
                         {(currentUser?.isUnitAdmin) && (
                           <button
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
+                            className="w-full text-left px-4 py-2 text sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
                             onClick={() => { setView('admin'); setDashOpen(false); }}
                           >
                             Admin
                           </button>
                         )}
-                        {currentUser && currentUser.email === 'stephen.shorter@usmc.mil' && String(currentUser.edipi) === '1402008233' && (
+                        {currentUser && !!currentUser.isAppAdmin && (
                           <button
                             className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
@@ -247,7 +196,7 @@ export default function Home() {
                             Battalion Section Dashboard
                           </button>
                         )}
-                        {(String(currentUser?.role || '') === 'COMMANDER' || (currentUser?.isCommandStaff && hasCommandDashboard)) && (
+                        {(hasCommandDashboard) && (
                           <button
                             className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy"
                             role="menuitem"
@@ -299,7 +248,7 @@ export default function Home() {
         ) : view === 'command' ? (
           <CommandDashboard />
         ) : (
-          <DocumentManager selectedUnit={selectedUnit} />
+          <DocumentManager selectedUnit={selectedUnit} currentUser={currentUser} />
         )}
       </main>
     </div>

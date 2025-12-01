@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { UNITS, Unit } from '../lib/units'
+import { upsertUser, listUsers, listRequests } from '../lib/db'
 
 interface UserProfile {
   id: string
@@ -28,41 +29,11 @@ export default function AppAdmin() {
   const [adminView, setAdminView] = useState<'assigned' | 'missing'>('assigned')
 
   const refreshUsers = () => {
-    try {
-      const collected: UserProfile[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const rawU = localStorage.getItem(key)
-          if (rawU) collected.push(JSON.parse(rawU))
-        }
-      }
-      const staticUserModules = import.meta.glob('../users/*.json', { eager: true })
-      const staticUsers: UserProfile[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m) as UserProfile)
-      const map = new Map<string, UserProfile>()
-      for (const u of staticUsers) map.set(u.id, u)
-      for (const u of collected) map.set(u.id, u)
-      setUsers(Array.from(map.values()))
-    } catch {}
+    listUsers().then((us) => setUsers(us as any)).catch(() => setUsers([]))
   }
 
   const refreshRequests = () => {
-    try {
-      const reqModules = import.meta.glob('../requests/*.json', { eager: true })
-      const diskReqs: any[] = Object.values(reqModules).map((m: any) => (m?.default ?? m))
-      const lsReqs: any[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/requests/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) lsReqs.push(JSON.parse(raw))
-        }
-      }
-      const byId = new Map<string, any>()
-      for (const r of diskReqs) byId.set(r.id, r)
-      for (const r of lsReqs) byId.set(r.id, r)
-      setRequests(Array.from(byId.values()))
-    } catch {}
+    listRequests().then((rs) => setRequests(rs as any)).catch(() => setRequests([]))
   }
 
   const refreshAll = () => { setFeedback(null); refreshUsers(); refreshRequests(); }
@@ -88,10 +59,23 @@ export default function AppAdmin() {
     if (!user) return
     const updated: UserProfile = { ...user, isUnitAdmin: true, unitUic: unit.uic, unit: unit.unitName, company: 'N/A' }
     try {
-      localStorage.setItem(`fs/users/${updated.id}.json`, JSON.stringify(updated))
-    } catch {}
-    try {
-      await fetch('/api/users/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      const res = await upsertUser({
+        id: updated.id,
+        email: updated.email,
+        rank: updated.rank,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        mi: updated.mi,
+        service: updated.service,
+        role: updated.role,
+        unitUic: updated.unitUic,
+        unit: updated.unit,
+        company: updated.company,
+        isUnitAdmin: !!updated.isUnitAdmin,
+        isCommandStaff: !!updated.isUnitAdmin,
+        edipi: updated.edipi,
+      })
+      if (!res.ok) { setFeedback({ type: 'error', message: 'Failed to assign admin (DB error).' }); return }
     } catch {}
     setUsers(prev => prev.map(u => (u.id === updated.id ? updated : u)))
     setFeedback({ type: 'success', message: `Assigned ${updated.rank} ${updated.lastName} as admin for ${unit.unitName}.` })
@@ -105,10 +89,21 @@ export default function AppAdmin() {
     return requests.filter(r => STAGES.includes(String(r.currentStage || '')))
   }, [requests])
 
+  const migrateToSupabase = async () => {
+    setFeedback({ type: 'error', message: 'Migration via UI disabled. Use terminal command if needed.' })
+  }
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">App Administration</h2>
       <p className="text-sm text-gray-600 mb-4">Manage Unit Admin assignments and monitor pending approvals.</p>
+
+      <div className="mb-4">
+        <button
+          className="px-4 py-2 rounded bg-brand-navy text-brand-cream hover:brightness-110"
+          onClick={migrateToSupabase}
+        >Migrate local/static data to Supabase</button>
+      </div>
 
       <div className="mb-4 flex gap-2">
         <button

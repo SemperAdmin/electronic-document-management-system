@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { UNITS } from '../lib/units'
 import { useNavigate } from 'react-router-dom'
+import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 
 interface UserProfile {
   id: string
@@ -126,60 +127,23 @@ export default function SectionDashboard() {
   }, [currentUser])
 
   useEffect(() => {
-    try {
-      const reqModules = import.meta.glob('../requests/*.json', { eager: true })
-      const diskReqs: Request[] = Object.values(reqModules).map((m: any) => (m?.default ?? m) as Request)
-      const lsReqs: Request[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/requests/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) lsReqs.push(JSON.parse(raw))
-        }
-      }
-      const byId = new Map<string, Request>()
-      for (const r of diskReqs) byId.set(r.id, r)
-      for (const r of lsReqs) byId.set(r.id, r)
-      setRequests(Array.from(byId.values()))
-    } catch {}
+    listRequests().then((remote) => {
+      setRequests(remote as any)
+    }).catch(() => setRequests([]))
   }, [])
 
   useEffect(() => {
-    try {
-      const docModules = import.meta.glob('../documents/*.json', { eager: true })
-      const diskDocs: DocumentItem[] = Object.values(docModules).map((m: any) => (m?.default ?? m) as DocumentItem)
-      const lsDocs: DocumentItem[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/documents/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) lsDocs.push(JSON.parse(raw))
-        }
-      }
-      const byId = new Map<string, DocumentItem>()
-      for (const d of diskDocs) byId.set(d.id, d)
-      for (const d of lsDocs) byId.set(d.id, d)
-      setDocuments(Array.from(byId.values()))
-    } catch {}
+    listDocuments().then((remote) => {
+      setDocuments(remote as any)
+    }).catch(() => setDocuments([]))
   }, [])
 
   useEffect(() => {
-    try {
-      const collected: UserProfile[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const rawU = localStorage.getItem(key)
-          if (rawU) collected.push(JSON.parse(rawU))
-        }
-      }
-      const staticUserModules = import.meta.glob('../users/*.json', { eager: true })
-      const staticUsers: UserProfile[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m) as UserProfile)
+    listUsers().then((remote) => {
       const byId: Record<string, UserProfile> = {}
-      for (const u of staticUsers) byId[u.id] = u
-      for (const u of collected) byId[u.id] = u
+      for (const u of (remote as any)) byId[u.id] = u
       setUsersById(byId)
-    } catch {}
+    }).catch(() => setUsersById({}))
   }, [])
 
   useEffect(() => {
@@ -197,18 +161,18 @@ export default function SectionDashboard() {
           if (v && Array.isArray(v._commandSections)) cmdMap[uic] = v._commandSections
         }
       } else {
-        const staticUSModules = import.meta.glob('../unit-structure/unit-structure.json', { eager: true })
-        const merged: Record<string, any> = {}
-        for (const mod of Object.values(staticUSModules)) {
-          const data: any = (mod as any)?.default ?? mod
-          Object.assign(merged, data)
-        }
-        for (const uic of Object.keys(merged || {})) {
-          const v = merged[uic]
-          if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
-          if (v && Array.isArray(v._sections)) secMap[uic] = v._sections
-          if (v && Array.isArray(v._commandSections)) cmdMap[uic] = v._commandSections
-        }
+        ;(async () => {
+          try {
+            const res = await fetch('/api/unit-structure')
+            const merged = await res.json()
+            for (const uic of Object.keys(merged || {})) {
+              const v = merged[uic]
+              if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
+              if (v && Array.isArray(v._sections)) secMap[uic] = v._sections
+              if (v && Array.isArray(v._commandSections)) cmdMap[uic] = v._commandSections
+            }
+          } catch {}
+        })()
       }
       setPlatoonSectionMap(pMap)
       setUnitSections(secMap)
@@ -344,13 +308,8 @@ export default function SectionDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
-      for (const d of newDocs) {
-        const serializable = { ...d }
-        localStorage.setItem(`fs/documents/${d.id}.json`, JSON.stringify(serializable))
-        await fetch('/api/documents/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializable) })
-      }
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertDocuments(newDocs as any)
+      await upsertRequest(updated as any)
     } catch {}
     setDocuments(prev => [...prev, ...newDocs])
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
@@ -370,8 +329,7 @@ export default function SectionDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
@@ -386,8 +344,7 @@ export default function SectionDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
@@ -418,8 +375,7 @@ export default function SectionDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: `Battalion assigned external request to section ${dest}` }] : [{ actor, timestamp: new Date().toISOString(), action: `Battalion assigned external request to section ${dest}` }]
     }
     try {
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
   }

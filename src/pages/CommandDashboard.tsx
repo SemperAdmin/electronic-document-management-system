@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 
 interface Request {
   id: string
@@ -80,61 +81,23 @@ export default function CommandDashboard() {
   }, [])
 
   useEffect(() => {
-    try {
-      const reqModules = import.meta.glob('../requests/*.json', { eager: true })
-      const diskReqs: Request[] = Object.values(reqModules).map((m: any) => (m?.default ?? m) as Request)
-      const lsReqs: Request[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/requests/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) lsReqs.push(JSON.parse(raw))
-        }
-      }
-      const byId = new Map<string, Request>()
-      for (const r of diskReqs) byId.set(r.id, r)
-      for (const r of lsReqs) byId.set(r.id, r)
-      setRequests(Array.from(byId.values()))
-    } catch {}
+    listRequests().then((remote) => {
+      setRequests(remote as any)
+    }).catch(() => setRequests([]))
   }, [])
 
   useEffect(() => {
-    try {
-      const docModules = import.meta.glob('../documents/*.json', { eager: true })
-      const diskDocs: DocumentItem[] = Object.values(docModules).map((m: any) => (m?.default ?? m) as DocumentItem)
-      const lsDocs: DocumentItem[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/documents/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) lsDocs.push(JSON.parse(raw))
-        }
-      }
-      const byId = new Map<string, DocumentItem>()
-      for (const d of diskDocs) byId.set(d.id, d)
-      for (const d of lsDocs) byId.set(d.id, d)
-      setDocuments(Array.from(byId.values()))
-    } catch {}
+    listDocuments().then((remote) => {
+      setDocuments(remote as any)
+    }).catch(() => setDocuments([]))
   }, [])
 
   useEffect(() => {
-    try {
-      const userModules = import.meta.glob('../users/*.json', { eager: true })
-      const diskUsers: any[] = Object.values(userModules).map((m: any) => m?.default ?? m)
+    listUsers().then((remote) => {
       const map: Record<string, any> = {}
-      for (const u of diskUsers) if (u?.id) map[u.id] = u
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) {
-            const u = JSON.parse(raw)
-            if (u?.id) map[u.id] = u
-          }
-        }
-      }
+      for (const u of (remote as any)) if (u?.id) map[u.id] = u
       setUsers(map)
-    } catch {}
+    }).catch(() => setUsers({}))
   }, [])
 
   useEffect(() => {
@@ -152,19 +115,19 @@ export default function CommandDashboard() {
           if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
         }
       } else {
-        const staticUSModules = import.meta.glob('../unit-structure/unit-structure.json', { eager: true })
-        const merged: Record<string, any> = {}
-        for (const mod of Object.values(staticUSModules)) {
-          const data: any = (mod as any)?.default ?? mod
-          Object.assign(merged, data)
-        }
-        const uic = currentUser?.unitUic || ''
-        const v = merged?.[uic]
-        if (v && Array.isArray(v._commandSections)) sec.push(...v._commandSections)
-        for (const key of Object.keys(merged || {})) {
-          const node = merged[key]
-          if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
-        }
+        ;(async () => {
+          try {
+            const res = await fetch('/api/unit-structure')
+            const merged = await res.json()
+            const uic = currentUser?.unitUic || ''
+            const v = merged?.[uic]
+            if (v && Array.isArray(v._commandSections)) sec.push(...v._commandSections)
+            for (const key of Object.keys(merged || {})) {
+              const node = merged[key]
+              if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
+            }
+          } catch {}
+        })()
       }
       setCommandSections(sec)
       setPlatoonSectionMap(pMap)
@@ -262,8 +225,7 @@ export default function CommandDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
@@ -279,8 +241,7 @@ export default function CommandDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
@@ -300,8 +261,7 @@ export default function CommandDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
     }
     try {
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
@@ -332,13 +292,8 @@ export default function CommandDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
-      for (const d of newDocs) {
-        const serializable = { ...d }
-        localStorage.setItem(`fs/documents/${d.id}.json`, JSON.stringify(serializable))
-        await fetch('/api/documents/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializable) })
-      }
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertDocuments(newDocs as any)
+      await upsertRequest(updated as any)
     } catch {}
     setDocuments(prev => [...prev, ...newDocs])
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Unit } from '../lib/units';
+import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers, DocumentRecord, RequestRecord } from '../lib/db';
 
 interface Document {
   id: string;
@@ -42,15 +43,16 @@ interface ActionEntry {
 
 interface DocumentManagerProps {
   selectedUnit: Unit | null;
+  currentUser?: any;
 }
 
-export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }) => {
+export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, currentUser: cuProp }) => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [subject, setSubject] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
@@ -72,7 +74,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
 
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedFiles(event.target.files);
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    setSelectedFiles((prev) => [...prev, ...files]);
+    try { event.target.value = '' } catch {}
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -93,10 +97,38 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
     const targetUserId = submitForUserId || currentUser.id;
     const targetUser = users.find(u => u.id === targetUserId);
     const targetUic = selectedUnit ? selectedUnit.uic : (targetUser?.unitUic || 'N/A');
+    const requestId = `req-${now}`;
 
     let docs: Document[] = [];
+    const supaUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL as string || ''
+    const sanitize = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
+    async function uploadToStorage(file: File, pathKey: string) {
+      const resp = await fetch('/api/storage/sign-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
+      const json = await resp.json()
+      if (!resp.ok || !json?.signedUrl) throw new Error(String(json?.error || 'sign_url_failed'))
+      const putRes = await fetch(String(json.signedUrl), { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
+      if (!putRes.ok) {
+        let msg = 'upload_failed'
+        try { msg = await putRes.text() } catch {}
+        throw new Error(msg)
+      }
+      return `${supaUrl}/storage/v1/object/public/edms-docs/${pathKey}`
+    }
     if (selectedFiles && selectedFiles.length > 0) {
-      docs = Array.from(selectedFiles).map((file, index) => ({
+      const uploadedUrls: string[] = []
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const f = selectedFiles[i]
+        const pathKey = `${targetUic}/${requestId}/${now}-${i}-${sanitize(f.name)}`
+        try {
+          const url = await uploadToStorage(f, pathKey)
+          uploadedUrls.push(url)
+        } catch (err: any) {
+          setIsUploading(false)
+          setFeedback({ type: 'error', message: `Failed to upload ${f.name}: ${String(err?.message || err)}` })
+          return
+        }
+      }
+      docs = selectedFiles.map((file, index) => ({
         id: `${now}-${index}`,
         name: file.name,
         type: file.type,
@@ -110,26 +142,18 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
         notes: notes.trim() || undefined,
         uploadedById: targetUserId,
         currentStage: 'PLATOON_REVIEW',
-        fileUrl: URL.createObjectURL(file),
+        fileUrl: uploadedUrls[index],
       }));
     }
 
-    const requestId = `req-${now}`;
     docs = docs.map(d => ({ ...d, requestId }));
     setDocuments(prev => [...prev, ...docs]);
-    setSelectedFiles(null);
+    setSelectedFiles([]);
     setSubject('');
     setDueDate('');
     setNotes('');
 
     try {
-      for (const d of docs) {
-        try {
-          const serializable = { ...d, uploadedAt: d.uploadedAt.toISOString() };
-          localStorage.setItem(`fs/documents/${d.id}.json`, JSON.stringify(serializable));
-          await fetch('/api/documents/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializable) });
-        } catch {}
-      }
       const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Unknown';
       const requestPayload = {
         id: requestId,
@@ -147,9 +171,14 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
         ]
       };
       try {
-        localStorage.setItem(`fs/requests/${requestId}.json`, JSON.stringify(requestPayload));
-        await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestPayload) });
-      } catch {}
+        await upsertRequest(requestPayload as unknown as RequestRecord);
+        const resDocs = await upsertDocuments(docs as unknown as DocumentRecord[]);
+        if (!resDocs.ok) throw new Error(String((resDocs as any)?.error?.message || (resDocs as any)?.error || 'document_upsert_failed'));
+      } catch (e: any) {
+        setIsUploading(false);
+        setFeedback({ type: 'error', message: `Failed to persist submission: ${String(e?.message || e)}` });
+        return;
+      }
       setUserRequests(prev => {
         const exists = prev.some(r => r.id === requestPayload.id);
         return exists ? prev.map(r => (r.id === requestPayload.id ? (requestPayload as Request) : r)) : [...prev, requestPayload as Request];
@@ -184,7 +213,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
     }
   };
 
-  const saveDocEdits = () => {
+  const saveDocEdits = async () => {
     if (!selectedDoc) return;
     const updated = documents.map(d => d.id === selectedDoc.id ? {
       ...d,
@@ -196,22 +225,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
     try {
       const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Unknown';
       const entry: ActionEntry = { actor, timestamp: new Date().toISOString(), action: 'Updated document', comment: (editNotes || '').trim() };
-      const key = selectedDoc.requestId ? `fs/requests/${selectedDoc.requestId}.json` : '';
-      if (key) {
-        let req: any = null;
+      const req = selectedDoc.requestId ? userRequests.find(r => r.id === selectedDoc.requestId) : null;
+      if (req) {
+        const nextReq = { ...req, activity: Array.isArray(req.activity) ? [...req.activity, entry] : [entry] };
         try {
-          const raw = localStorage.getItem(key);
-          if (raw) req = JSON.parse(raw);
-        } catch {}
-        if (!req) req = { id: selectedDoc.requestId, activity: [] };
-        req.activity = Array.isArray(req.activity) ? [...req.activity, entry] : [entry];
-        try {
-          localStorage.setItem(key, JSON.stringify(req));
-          fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) }).catch(() => {});
+          await upsertRequest(nextReq as unknown as RequestRecord);
         } catch {}
         setRequestActivity((prev) => [...prev, entry]);
       }
     } catch {}
+    setEditNotes('');
     setSelectedDoc(null);
   };
 
@@ -313,6 +336,24 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
       return;
     }
     const now = Date.now();
+    const sanitize2 = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
+    const supaUrl2 = (import.meta as any)?.env?.VITE_SUPABASE_URL as string || ''
+    const uploaded2: string[] = []
+    for (let i = 0; i < attachFiles.length; i++) {
+      const f = attachFiles[i]
+      const pathKey = `${selectedRequest.unitUic || 'N-A'}/${selectedRequest.id}/${now}-${i}-${sanitize2(f.name)}`
+      try {
+        const resp = await fetch('/api/storage/sign-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
+        const json = await resp.json()
+        if (!resp.ok || !json?.signedUrl) throw new Error(String(json?.error || 'sign_url_failed'))
+        const putRes = await fetch(String(json.signedUrl), { method: 'PUT', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f })
+        if (!putRes.ok) throw new Error('upload_failed')
+        uploaded2.push(`${supaUrl2}/storage/v1/object/public/edms-docs/${pathKey}`)
+      } catch (e: any) {
+        setFeedback({ type: 'error', message: `Failed to upload ${f.name}: ${String(e?.message || e)}` })
+        return
+      }
+    }
     const newDocs: Document[] = attachFiles.map((file, idx) => ({
       id: `${now}-${idx}`,
       name: file.name,
@@ -328,7 +369,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
       uploadedById: currentUser.id,
       currentStage: selectedRequest.currentStage || 'PLATOON_REVIEW',
       requestId: selectedRequest.id,
-      fileUrl: URL.createObjectURL(file)
+      fileUrl: uploaded2[idx]
     }));
     const updatedRequest: Request = {
       ...selectedRequest,
@@ -347,17 +388,19 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
       ]
     };
     try {
-      for (const d of newDocs) {
-        const serializable = { ...d, uploadedAt: d.uploadedAt.toISOString() };
-        try { localStorage.setItem(`fs/documents/${d.id}.json`, JSON.stringify(serializable)); } catch {}
-        try { await fetch('/api/documents/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializable) }); } catch {}
+      try {
+        const resDocs = await upsertDocuments(newDocs as unknown as DocumentRecord[]);
+        if (!resDocs.ok) throw new Error(String((resDocs as any)?.error?.message || (resDocs as any)?.error || 'document_upsert_failed'));
+        await upsertRequest(updatedRequest as unknown as RequestRecord);
+      } catch (e: any) {
+        setFeedback({ type: 'error', message: `Failed to persist documents: ${String(e?.message || e)}` });
+        return;
       }
-      try { localStorage.setItem(`fs/requests/${updatedRequest.id}.json`, JSON.stringify(updatedRequest)); } catch {}
-      try { await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedRequest) }); } catch {}
       setDocuments(prev => [...prev, ...newDocs]);
       setUserRequests(prev => prev.map(r => (r.id === updatedRequest.id ? updatedRequest : r)));
       setSelectedRequest(updatedRequest);
       setAttachFiles([]);
+      setEditRequestNotes('');
       setFeedback({ type: 'success', message: newDocs.length ? 'Files added and request updated.' : 'Request updated.' });
     } catch {
       setFeedback({ type: 'error', message: 'Failed to update request.' });
@@ -365,47 +408,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
   };
 
   useEffect(() => {
-    try {
-      const byId = new Map<string, Document>();
-
-      // 1) Gather any previously saved aggregate list
-      try {
-        const raw = localStorage.getItem('documents');
-        if (raw) {
-          const parsed = JSON.parse(raw) as (Omit<Document, 'uploadedAt'> & { uploadedAt: string })[];
-          const restored = parsed.map(d => ({ ...d, uploadedAt: new Date(d.uploadedAt) })) as Document[];
-          for (const d of restored) byId.set(d.id, d);
-        }
-      } catch {}
-
-      // 2) Gather per-file localStorage entries written during uploads
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('fs/documents/') && key.endsWith('.json')) {
-            const raw = localStorage.getItem(key);
-            if (raw) {
-              const parsed = JSON.parse(raw) as (Omit<Document, 'uploadedAt'> & { uploadedAt: string });
-              const restored: Document = { ...parsed, uploadedAt: new Date(parsed.uploadedAt) } as Document;
-              byId.set(restored.id, restored);
-            }
-          }
-        }
-      } catch {}
-
-      // 3) Gather static JSON files persisted to disk via API
-      try {
-        const staticDocModules = import.meta.glob('../documents/*.json', { eager: true });
-        const staticDocs: any[] = Object.values(staticDocModules).map((m: any) => m?.default ?? m);
-        for (const sd of staticDocs) {
-          if (!sd || !sd.id) continue;
-          const restored: Document = { ...sd, uploadedAt: new Date(sd.uploadedAt) } as Document;
-          byId.set(restored.id, restored);
-        }
-      } catch {}
-
-      setDocuments(Array.from(byId.values()));
-    } catch {}
+    listDocuments().then((remote) => {
+      setDocuments(remote as any);
+    }).catch(() => setDocuments([]));
   }, []);
 
   useEffect(() => {
@@ -417,56 +422,20 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
     }
   }, [selectedRequest]);
 
-  useEffect(() => {
-    try {
-      const serializable = documents.map(d => ({ ...d, uploadedAt: d.uploadedAt.toISOString() }));
-      localStorage.setItem('documents', JSON.stringify(serializable));
-    } catch {}
-  }, [documents]);
+  useEffect(() => {}, [documents]);
 
   useEffect(() => {
-    try {
-      const collected: Request[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('fs/requests/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key);
-          if (raw) collected.push(JSON.parse(raw));
-        }
-      }
-      const staticReqModules = import.meta.glob('../requests/*.json', { eager: true });
-      const staticReqs: Request[] = Object.values(staticReqModules).map((m: any) => (m?.default ?? m) as Request);
-      const byId = new Map<string, Request>();
-      for (const r of staticReqs) byId.set(r.id, r);
-      for (const r of collected) byId.set(r.id, r);
-      setUserRequests(Array.from(byId.values()));
-    } catch {}
+    listRequests().then((remote) => {
+      setUserRequests(remote as any);
+    }).catch(() => setUserRequests([]));
   }, []);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('currentUser');
-      if (raw) setCurrentUser(JSON.parse(raw));
-    } catch {}
-  }, []);
+  useEffect(() => { setCurrentUser(cuProp || null) }, [cuProp]);
 
   useEffect(() => {
-    try {
-      const collected: any[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const rawU = localStorage.getItem(key);
-          if (rawU) collected.push(JSON.parse(rawU));
-        }
-      }
-      const staticUserModules = import.meta.glob('../users/*.json', { eager: true });
-      const staticUsers: any[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m));
-      const byId = new Map<string, any>();
-      for (const u of staticUsers) if (u?.id) byId.set(u.id, u);
-      for (const u of collected) if (u?.id) byId.set(u.id, u);
-      setUsers(Array.from(byId.values()));
-    } catch {}
+    listUsers().then((remote) => {
+      setUsers(remote as any);
+    }).catch(() => setUsers([]));
   }, []);
 
   
@@ -543,9 +512,28 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
               />
               Attach Files
             </label>
-            <span className="text-sm text-[var(--muted)]">{selectedFiles ? `${selectedFiles.length} file(s) selected` : 'No files selected'}</span>
+            <div className="flex-1">
+              {selectedFiles.length > 0 ? (
+                <div className="ml-2 flex flex-wrap gap-2">
+                  {selectedFiles.map((f, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded border border-brand-navy/20">
+                      <span className="max-w-[240px] truncate" title={f.name}>{f.name}</span>
+                      <button
+                        type="button"
+                        className="text-brand-red-2 hover:underline"
+                        onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
+                      >
+                        Delete
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="ml-2 text-xs text-[var(--muted)]">No files selected</span>
+              )}
+            </div>
             <div className="md:ml-auto flex gap-2">
-              <button type="button" onClick={() => { setShowForm(false); setSelectedFiles(null); setSubject(''); setDueDate(''); setNotes(''); setFeedback(null); }} className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream">Cancel</button>
+              <button type="button" onClick={() => { setShowForm(false); setSelectedFiles([]); setSubject(''); setDueDate(''); setNotes(''); setFeedback(null); }} className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream">Cancel</button>
               <button type="submit" className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors">Submit</button>
             </div>
           </div>
@@ -738,10 +726,27 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit }
                 </div>
                 <div className="mt-3">
                   <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded-lg hover:brightness-110 cursor-pointer inline-block">
-                    <input type="file" multiple onChange={(e) => setAttachFiles(e.target.files ? Array.from(e.target.files) : [])} className="hidden" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" />
+                    <input type="file" multiple onChange={(e) => { const files = e.target.files ? Array.from(e.target.files) : []; setAttachFiles(prev => [...prev, ...files]); try { e.target.value = '' } catch {} }} className="hidden" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" />
                     Add Files
                   </label>
-                  <span className="ml-2 text-xs text-[var(--muted)]">{attachFiles.length ? `${attachFiles.length} file(s) selected` : 'No files selected'}</span>
+                  <div className="ml-2 flex flex-wrap gap-2">
+                    {attachFiles.length === 0 ? (
+                      <span className="text-xs text-[var(--muted)]">No files selected</span>
+                    ) : (
+                      attachFiles.map((f, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded border border-brand-navy/20">
+                          <span className="max-w-[240px] truncate" title={f.name}>{f.name}</span>
+                          <button
+                            type="button"
+                            className="text-brand-red-2 hover:underline"
+                            onClick={() => setAttachFiles(prev => prev.filter((_, i) => i !== idx))}
+                          >
+                            Delete
+                          </button>
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { listUsers, upsertUser } from '@/lib/db'
 
 interface UserProfile {
   id: string
@@ -14,6 +15,7 @@ interface UserProfile {
   battalion: string
   company: string
   unit: string
+  platoon?: string
   unitUic?: string
   passwordHash: string
   isUnitAdmin?: boolean
@@ -34,22 +36,9 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
   const [confirmRemoveId, setConfirmRemoveId] = useState<string>('')
 
   useEffect(() => {
-    try {
-      const collected: UserProfile[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const rawU = localStorage.getItem(key)
-          if (rawU) collected.push(JSON.parse(rawU))
-        }
-      }
-      const staticUserModules = import.meta.glob('../users/*.json', { eager: true })
-      const staticUsers: UserProfile[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m) as UserProfile)
-      const byId = new Map<string, UserProfile>()
-      for (const u of staticUsers) byId.set(u.id, u)
-      for (const u of collected) byId.set(u.id, u)
-      setUsers(Array.from(byId.values()))
-    } catch {}
+    listUsers().then((remote) => {
+      setUsers(remote as any)
+    }).catch(() => setUsers([]))
   }, [])
 
   const canManage = useMemo(() => {
@@ -63,9 +52,9 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
       const role = String(currentUser.role || '')
       if (role.includes('PLATOON')) {
         const oc = (u.company && u.company !== 'N/A') ? u.company : ''
-        const ou = (u.unit && u.unit !== 'N/A') ? u.unit : ''
+        const ou = (u.platoon && u.platoon !== 'N/A') ? u.platoon : ((u.unit && u.unit !== 'N/A') ? u.unit : '')
         const cc = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
+        const cu = ((currentUser as any).platoon && (currentUser as any).platoon !== 'N/A') ? (currentUser as any).platoon : ((currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : '')
         return oc === cc && ou === cu
       }
       if (role.includes('COMPANY')) {
@@ -87,9 +76,9 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
       const cuic = currentUser.unitUic || ''
       if (role.includes('PLATOON')) {
         const oc = (u.company && u.company !== 'N/A') ? u.company : ''
-        const ou = (u.unit && u.unit !== 'N/A') ? u.unit : ''
+        const ou = (u.platoon && u.platoon !== 'N/A') ? u.platoon : ((u.unit && u.unit !== 'N/A') ? u.unit : '')
         const cc = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
+        const cu = ((currentUser as any).platoon && (currentUser as any).platoon !== 'N/A') ? (currentUser as any).platoon : ((currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : '')
         return oc === cc && ou === cu
       }
       if (role.includes('COMPANY')) {
@@ -110,23 +99,41 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
       setBusy(true)
       setError('')
       const target = users.find(u => u.id === selectedUserId)
-      if (!canManage || !target) { setBusy(false); return }
-      const role = String(currentUser.role || '')
-      const next: UserProfile = { ...target }
-      next.role = role
-      if (role.includes('PLATOON')) {
-        next.company = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : 'N/A'
-        next.unit = (currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : 'N/A'
-      } else if (role.includes('COMPANY')) {
-        next.company = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : 'N/A'
-        next.unit = 'N/A'
-      } else if (role.includes('COMMANDER')) {
-        next.company = 'N/A'
-        next.unit = 'N/A'
-      }
-      try { localStorage.setItem(`fs/users/${next.id}.json`, JSON.stringify(next)) } catch {}
+    if (!canManage || !target) { setBusy(false); return }
+    const role = String(currentUser.role || '')
+    const next: UserProfile = { ...target }
+    next.role = role
+    if (role.includes('PLATOON')) {
+      ;(next as any).roleCompany = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : 'N/A'
+      const cu = ((currentUser as any).platoon && (currentUser as any).platoon !== 'N/A') ? (currentUser as any).platoon : ((currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : 'N/A')
+      ;(next as any).rolePlatoon = cu
+    } else if (role.includes('COMPANY')) {
+      ;(next as any).roleCompany = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : 'N/A'
+      ;(next as any).rolePlatoon = 'N/A'
+    } else if (role.includes('COMMANDER')) {
+      ;(next as any).roleCompany = 'N/A'
+      ;(next as any).rolePlatoon = 'N/A'
+    }
       try {
-        const res = await fetch('/api/users/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) })
+        const res = await upsertUser({
+          id: next.id,
+          email: next.email,
+          rank: next.rank,
+          firstName: next.firstName,
+          lastName: next.lastName,
+          mi: next.mi,
+          service: next.service,
+          role: next.role,
+          unitUic: next.unitUic,
+          unit: next.unit,
+          company: next.company,
+          isUnitAdmin: !!next.isUnitAdmin,
+          isCommandStaff: !!next.isCommandStaff,
+          edipi: next.edipi,
+          passwordHash: next.passwordHash,
+          roleCompany: (next as any).roleCompany,
+          rolePlatoon: (next as any).rolePlatoon,
+        })
         if (!res.ok) throw new Error('persist_failed')
       } catch (e) {
         setError('Failed to persist user changes')
@@ -172,9 +179,28 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
       next.company = 'N/A'
       next.unit = 'N/A'
       next.isCommandStaff = false
-      try { localStorage.setItem(`fs/users/${next.id}.json`, JSON.stringify(next)) } catch {}
+      ;(next as any).roleCompany = 'N/A'
+      ;(next as any).rolePlatoon = 'N/A'
       try {
-        const res = await fetch('/api/users/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) })
+        const res = await upsertUser({
+          id: next.id,
+          email: next.email,
+          rank: next.rank,
+          firstName: next.firstName,
+          lastName: next.lastName,
+          mi: next.mi,
+          service: next.service,
+          role: next.role,
+          unitUic: next.unitUic,
+          unit: next.unit,
+          company: next.company,
+          isUnitAdmin: !!next.isUnitAdmin,
+          isCommandStaff: !!next.isCommandStaff,
+          edipi: next.edipi,
+          passwordHash: next.passwordHash,
+          roleCompany: (next as any).roleCompany,
+          rolePlatoon: (next as any).rolePlatoon,
+        })
         if (!res.ok) throw new Error('persist_failed')
       } catch (e) {
         setError('Failed to persist user changes')
@@ -213,7 +239,7 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
             <select className="w-full px-3 py-2 border rounded" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
               <option value="">Choose user</option>
               {eligibleUsers.map(u => (
-                <option key={u.id} value={u.id}>{u.lastName}, {u.firstName}{u.mi ? ` ${u.mi}` : ''} • {u.email}</option>
+                <option key={u.id} value={u.id}>{u.rank} {u.lastName}, {u.firstName}{u.mi ? ` ${u.mi}` : ''} • {u.email}</option>
               ))}
             </select>
           </div>
@@ -222,7 +248,7 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
             <div className="space-y-2">
               {currentAccess.map(u => (
                 <div key={u.id} className="flex items-center justify-between p-2 border rounded">
-                  <div className="text-sm text-gray-700">{u.lastName}, {u.firstName}{u.mi ? ` ${u.mi}` : ''} • {u.email}</div>
+                  <div className="text-sm text-gray-700">{u.rank} {u.lastName}, {u.firstName}{u.mi ? ` ${u.mi}` : ''} • {u.email}</div>
                   <button className="px-3 py-1 text-xs bg-red-600 text-white rounded" onClick={() => setConfirmRemoveId(u.id)}>Remove Access</button>
                 </div>
               ))}

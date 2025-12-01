@@ -1,0 +1,18 @@
+{
+  "_platoonSectionMap": {
+    "H": {
+      "HHS1": "S-1"
+    }
+  },
+  "_sections": [
+    "S-1"
+  ],
+  "_commandSections": [
+    "XO"
+  ],
+  "_mcc": "V11",
+  "_unitName": "1/1 1ST MARDIV",
+  "H": [
+    "HHS1"
+  ]
+}

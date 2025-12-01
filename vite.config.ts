@@ -1,14 +1,17 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
+import { createClient } from '@supabase/supabase-js'
 
-export default defineConfig({
-  base: './',
-  build: {
-    outDir: 'docs'
-  },
-  plugins: [
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  return {
+    base: './',
+    build: {
+      outDir: 'docs'
+    },
+    plugins: [
     react(),
     {
       name: 'users-save-middleware',
@@ -88,8 +91,17 @@ export default defineConfig({
               const structure = JSON.parse(body)
               const outDir = path.resolve(process.cwd(), 'src', 'unit-structure')
               if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
-              const outFile = path.resolve(outDir, 'unit-structure.json')
-              fs.writeFileSync(outFile, JSON.stringify(structure, null, 2), 'utf-8')
+              if (structure && typeof structure === 'object') {
+                for (const [uic, data] of Object.entries(structure)) {
+                  const mcc = (data && typeof data === 'object' && (data as any)._mcc) ? String((data as any)._mcc) : ''
+                  const unitName = (data && typeof data === 'object' && (data as any)._unitName) ? String((data as any)._unitName) : ''
+                  const safeMcc = mcc.replace(/[^A-Za-z0-9_-]/g, '') || 'MCC'
+                  const safeUnit = unitName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                  const base = `${uic}__${safeMcc}${safeUnit ? `__${safeUnit}` : ''}`
+                  const file = path.resolve(outDir, `${base}.json`)
+                  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8')
+                }
+              }
               res.statusCode = 200
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({ ok: true }))
@@ -104,17 +116,22 @@ export default defineConfig({
         server.middlewares.use('/api/unit-structure', (req, res, next) => {
           if (req.method !== 'GET') return next()
           try {
-            const outFile = path.resolve(process.cwd(), 'src', 'unit-structure', 'unit-structure.json')
-            if (!fs.existsSync(outFile)) {
-              res.statusCode = 200
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({}))
-              return
+            const dir = path.resolve(process.cwd(), 'src', 'unit-structure')
+            const merged = {} as Record<string, any>
+            if (fs.existsSync(dir)) {
+              const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.json') && !/^(readme|unit-sections|sample)/i.test(f))
+              for (const f of files) {
+                try {
+                  const raw = fs.readFileSync(path.join(dir, f), 'utf-8')
+                  const data = JSON.parse(raw)
+                  const uic = path.basename(f, '.json')
+                  merged[uic] = data
+                } catch {}
+              }
             }
-            const content = fs.readFileSync(outFile, 'utf-8')
             res.statusCode = 200
             res.setHeader('Content-Type', 'application/json')
-            res.end(content)
+            res.end(JSON.stringify(merged))
           } catch (e) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json')
@@ -148,15 +165,50 @@ export default defineConfig({
             }
           })
         })
+
+        // Supabase Storage: create signed upload URL for client-side uploads
+        server.middlewares.use('/api/storage/sign-upload', (req, res, next) => {
+          if (req.method !== 'POST') return next()
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', async () => {
+            try {
+              const json = JSON.parse(body || '{}')
+              const pathKey = String(json.path || '')
+              if (!pathKey) throw new Error('path_required')
+              const url = env.VITE_SUPABASE_URL
+              const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
+              if (!url || !serviceKey) throw new Error('supabase_env_missing')
+              const sb = createClient(url, serviceKey)
+              try { await sb.storage.createBucket('edms-docs', { public: true }) } catch {}
+              const { data, error } = await sb.storage.from('edms-docs').createSignedUploadUrl(pathKey)
+              if (error) throw error
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true, signedUrl: data?.signedUrl, path: data?.path }))
+            } catch (e) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: String((e as any)?.message || e) }))
+            }
+          })
+        })
       }
     }
-  ],
-  resolve: {
-    alias: {
-      '@': path.resolve(process.cwd(), 'src')
+    ],
+    resolve: {
+      alias: {
+        '@': path.resolve(process.cwd(), 'src')
+      }
+    },
+    define: {
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || ''),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || ''),
+      __ENV_SUPABASE_URL: JSON.stringify(env.VITE_SUPABASE_URL || ''),
+      __ENV_SUPABASE_ANON_KEY: JSON.stringify(env.VITE_SUPABASE_ANON_KEY || ''),
+    },
+    server: {
+      middlewareMode: false
     }
-  },
-  server: {
-    middlewareMode: false
   }
 })

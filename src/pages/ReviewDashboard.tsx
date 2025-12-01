@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { PermissionManager } from '../components/PermissionManager'
+import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 
 interface Request {
   id: string
@@ -90,61 +91,23 @@ export default function ReviewDashboard() {
   }, [])
 
   useEffect(() => {
-    try {
-      const reqModules = import.meta.glob('../requests/*.json', { eager: true })
-      const diskReqs: Request[] = Object.values(reqModules).map((m: any) => (m?.default ?? m) as Request)
-      const lsReqs: Request[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/requests/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) lsReqs.push(JSON.parse(raw))
-        }
-      }
-      const byId = new Map<string, Request>()
-      for (const r of diskReqs) byId.set(r.id, r)
-      for (const r of lsReqs) byId.set(r.id, r)
-      setRequests(Array.from(byId.values()))
-    } catch {}
+    listRequests().then((remote) => {
+      setRequests(remote as any)
+    }).catch(() => setRequests([]))
   }, [])
 
   useEffect(() => {
-    try {
-      const docModules = import.meta.glob('../documents/*.json', { eager: true })
-      const diskDocs: DocumentItem[] = Object.values(docModules).map((m: any) => (m?.default ?? m) as DocumentItem)
-      const lsDocs: DocumentItem[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/documents/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) lsDocs.push(JSON.parse(raw))
-        }
-      }
-      const byId = new Map<string, DocumentItem>()
-      for (const d of diskDocs) byId.set(d.id, d)
-      for (const d of lsDocs) byId.set(d.id, d)
-      setDocuments(Array.from(byId.values()))
-    } catch {}
+    listDocuments().then((remote) => {
+      setDocuments(remote as any)
+    }).catch(() => setDocuments([]))
   }, [])
 
   useEffect(() => {
-    try {
-      const userModules = import.meta.glob('../users/*.json', { eager: true })
-      const diskUsers: any[] = Object.values(userModules).map((m: any) => m?.default ?? m)
+    listUsers().then((remote) => {
       const map: Record<string, any> = {}
-      for (const u of diskUsers) if (u?.id) map[u.id] = u
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const raw = localStorage.getItem(key)
-          if (raw) {
-            const u = JSON.parse(raw)
-            if (u?.id) map[u.id] = u
-          }
-        }
-      }
+      for (const u of (remote as any)) if (u?.id) map[u.id] = u
       setUsers(map)
-    } catch {}
+    }).catch(() => setUsers({}))
   }, [])
 
   useEffect(() => {
@@ -160,17 +123,17 @@ export default function ReviewDashboard() {
           if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
         }
       } else {
-        const staticUSModules = import.meta.glob('../unit-structure/unit-structure.json', { eager: true })
-        const merged: Record<string, any> = {}
-        for (const mod of Object.values(staticUSModules)) {
-          const data: any = (mod as any)?.default ?? mod
-          Object.assign(merged, data)
-        }
-        for (const uic of Object.keys(merged || {})) {
-          const v = merged[uic]
-          if (v && Array.isArray(v._sections)) secMap[uic] = v._sections
-          if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
-        }
+        ;(async () => {
+          try {
+            const res = await fetch('/api/unit-structure')
+            const merged = await res.json()
+            for (const uic of Object.keys(merged || {})) {
+              const v = merged[uic]
+              if (v && Array.isArray(v._sections)) secMap[uic] = v._sections
+              if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
+            }
+          } catch {}
+        })()
       }
       setUnitSections(secMap)
       setPlatoonSectionMap(pMap)
@@ -327,8 +290,7 @@ export default function ReviewDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
@@ -359,13 +321,8 @@ export default function ReviewDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
-      for (const d of newDocs) {
-        const serializable = { ...d }
-        localStorage.setItem(`fs/documents/${d.id}.json`, JSON.stringify(serializable))
-        await fetch('/api/documents/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializable) })
-      }
-      localStorage.setItem(`fs/requests/${updated.id}.json`, JSON.stringify(updated))
-      await fetch('/api/requests/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) })
+      await upsertDocuments(newDocs as any)
+      await upsertRequest(updated as any)
     } catch {}
     setDocuments(prev => [...prev, ...newDocs])
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
@@ -457,10 +414,10 @@ export default function ReviewDashboard() {
                       <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      { (d as any).fileUrl ? (
+                        { (d as any).fileUrl ? (
                         <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
                       ) : (
-                        <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                          <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
                       )}
                     </div>
                   </div>

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { UnitSelector } from './UnitSelector';
 import { UNITS, Unit } from '../lib/units';
 import { sha256Hex } from '@/lib/crypto';
+import { listUsers, upsertUser, getUserById } from '@/lib/db';
+import { signUp } from '@/lib/auth';
 
 interface UserProfile {
   id: string;
@@ -18,9 +20,12 @@ interface UserProfile {
   battalion: string;
   company: string;
   unit: string;
+  platoon?: string;
   unitUic?: string;
   passwordHash: string;
   isUnitAdmin?: boolean;
+  roleCompany?: string;
+  rolePlatoon?: string;
 }
 
 interface ProfileFormProps {
@@ -64,7 +69,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const [isUnitAdmin, setIsUnitAdmin] = useState<boolean>(!!initial.isUnitAdmin);
   const [battalion, setBattalion] = useState(initial.battalion || '');
   const [company, setCompany] = useState(initial.company || '');
-  const [unit, setUnit] = useState(initial.unit || '');
+  const [platoon, setPlatoon] = useState((initial as any).platoon || '');
   const [selectedUnit, setSelectedUnit] = useState<Unit | undefined>(undefined);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [unitStructure, setUnitStructure] = useState<Record<string, Record<string, string[]>>>({});
@@ -72,6 +77,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const [confirmPassword, setConfirmPassword] = useState('');
   const [existingUsers, setExistingUsers] = useState<UserProfile[]>([]);
   const [unitHasAdmin, setUnitHasAdmin] = useState<boolean>(false);
+  const [roleCompany, setRoleCompany] = useState(initial.roleCompany || '');
+  const [rolePlatoon, setRolePlatoon] = useState(initial.rolePlatoon || '');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   useEffect(() => {
     if (initial.name) {
@@ -99,20 +107,49 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     return Object.keys(raw).filter(k => !k.startsWith('_') && Array.isArray(raw[k]));
   }, [selectedUnit, unitStructure]);
   const platoonOptions = useMemo(() => (selectedUnit && company ? unitStructure[selectedUnit.uic]?.[company] || [] : []), [selectedUnit, company, unitStructure]);
+  const roleCompanyOptions = useMemo(() => {
+    if (!selectedUnit) return [];
+    const raw = unitStructure[selectedUnit.uic] || {};
+    return Object.keys(raw).filter(k => !k.startsWith('_') && Array.isArray(raw[k]));
+  }, [selectedUnit, unitStructure]);
+  const rolePlatoonOptions = useMemo(() => (selectedUnit && roleCompany ? unitStructure[selectedUnit.uic]?.[roleCompany] || [] : []), [selectedUnit, roleCompany, unitStructure]);
 
   const companyOptionsWithCurrent = useMemo(() => {
-    const base = companyOptions.slice();
-    const cur = company || initial.company || '';
-    const list = cur && !base.includes(cur) ? [cur, ...base] : base;
-    return Array.from(new Set(list));
-  }, [companyOptions, company, initial.company]);
+    return companyOptions.slice();
+  }, [companyOptions]);
 
   const platoonOptionsWithCurrent = useMemo(() => {
-    const base = platoonOptions.slice();
-    const cur = unit || initial.unit || '';
+    return platoonOptions.slice();
+  }, [platoonOptions]);
+  const roleCompanyOptionsWithCurrent = useMemo(() => {
+    const base = roleCompanyOptions.slice();
+    const cur = roleCompany || (initial as any).roleCompany || '';
+    const list = cur && !base.includes(cur) ? [cur, ...base] : base;
+    return Array.from(new Set(list));
+  }, [roleCompanyOptions, roleCompany, initial]);
+  const rolePlatoonOptionsWithCurrent = useMemo(() => {
+    const base = rolePlatoonOptions.slice();
+    const cur = rolePlatoon || (initial as any).rolePlatoon || '';
     if (cur && !base.includes(cur)) return [cur, ...base];
     return base;
-  }, [platoonOptions, unit, initial.unit]);
+  }, [rolePlatoonOptions, rolePlatoon, initial]);
+
+  useEffect(() => {
+    // Hydrate current company/platoon from DB for edit mode
+    ;(async () => {
+      try {
+        if (mode === 'edit' && initial.id) {
+          const u = await getUserById(String(initial.id))
+          if (u) {
+            if (u.company && !company) setCompany(String(u.company))
+            if ((u as any).platoon && !platoon) setPlatoon(String((u as any).platoon))
+            if ((u as any).roleCompany && !roleCompany) setRoleCompany(String((u as any).roleCompany))
+            if ((u as any).rolePlatoon && !rolePlatoon) setRolePlatoon(String((u as any).rolePlatoon))
+          }
+        }
+      } catch {}
+    })()
+  }, [mode, initial.id])
 
   useEffect(() => {
     if (!rankOptions.includes(rank)) setRank('');
@@ -120,12 +157,15 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
 
   useEffect(() => {
     setCompany('');
-    setUnit('');
+    setPlatoon('');
   }, [battalion]);
 
   useEffect(() => {
-    setUnit('');
+    setPlatoon('');
   }, [company]);
+  useEffect(() => {
+    setRolePlatoon('');
+  }, [roleCompany]);
 
   useEffect(() => {
     try {
@@ -135,23 +175,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   }, [selectedUnit]);
 
   useEffect(() => {
-    try {
-      const collected: UserProfile[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const rawU = localStorage.getItem(key);
-          if (rawU) collected.push(JSON.parse(rawU));
-        }
-      }
-      const staticUserModules = import.meta.glob('../users/*.json', { eager: true });
-      const staticUsers: UserProfile[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m) as UserProfile);
-      const byId = new Map<string, UserProfile>();
-      for (const u of staticUsers) byId.set(u.id, u);
-      for (const u of collected) byId.set(u.id, u);
-      const all = Array.from(byId.values());
-      setExistingUsers(all);
-    } catch {}
+    listUsers().then((users) => {
+      setExistingUsers(users as any);
+    }).catch(() => setExistingUsers([]));
   }, []);
 
   useEffect(() => {
@@ -164,25 +190,15 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   useEffect(() => {
     if (selectedUnit) {
       if (!company && initial.company && companyOptionsWithCurrent.includes(initial.company)) setCompany(String(initial.company));
-      if (!unit && initial.unit && platoonOptionsWithCurrent.includes(initial.unit)) setUnit(String(initial.unit));
+      const initPlt = (initial as any).platoon;
+      if (!platoon && initPlt && platoonOptionsWithCurrent.includes(initPlt)) setPlatoon(String(initPlt));
     }
-  }, [selectedUnit, companyOptionsWithCurrent, platoonOptionsWithCurrent, company, unit, initial.company, initial.unit]);
+  }, [selectedUnit, companyOptionsWithCurrent, platoonOptionsWithCurrent, company, platoon, initial]);
 
   const validateEdipi = (value: string) => /^[0-9]{10}$/.test(value);
   const isEdipiTaken = (value: string, excludeId?: string) => {
     try {
-      const collected: UserProfile[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const rawU = localStorage.getItem(key);
-          if (rawU) collected.push(JSON.parse(rawU));
-        }
-      }
-      const staticUserModules = import.meta.glob('../users/*.json', { eager: true });
-      const staticUsers: UserProfile[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m) as UserProfile);
-      const all = [...staticUsers, ...collected];
-      return all.some(u => String(u.edipi) === String(value) && String(u.id) !== String(excludeId || ''));
+      return existingUsers.some(u => String(u.edipi) === String(value) && String(u.id) !== String(excludeId || ''));
     } catch {
       return false;
     }
@@ -202,20 +218,37 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     if (!service) return setFeedback({ type: 'error', message: 'Service is required.' });
     if (!rank) return setFeedback({ type: 'error', message: 'Rank is required.' });
     if (isEdipiTaken(edipi, initial.id ? String(initial.id) : undefined)) return setFeedback({ type: 'error', message: 'EDIPI already exists.' });
+    if (role === 'COMPANY_REVIEWER' && !roleCompany) return setFeedback({ type: 'error', message: 'Role Company is required for Company Reviewer.' });
+    if (role === 'PLATOON_REVIEWER' && (!roleCompany || !rolePlatoon)) return setFeedback({ type: 'error', message: 'Role Company and Role Platoon are required for Platoon Reviewer.' });
 
     const fullName = `${firstName.trim()}${mi ? ' ' + mi.trim().toUpperCase() : ''} ${lastName.trim()}`;
-    const id = initial.id ? String(initial.id) : `usr-${Date.now()}`;
+    let id = initial.id ? String(initial.id) : `usr-${Date.now()}`;
     let passwordHash = initial.passwordHash || '';
     if (mode === 'create') {
       if (!password || password.length < 8) return setFeedback({ type: 'error', message: 'Password must be at least 8 characters.' });
       if (password !== confirmPassword) return setFeedback({ type: 'error', message: 'Passwords do not match.' });
+      try {
+        const { data, error } = await signUp(email.trim(), password);
+        if (error) {
+          setFeedback({ type: 'error', message: `Failed to create auth user: ${String(error.message || error)}` });
+          return;
+        }
+        const authUserId = data?.user?.id ? String(data.user.id) : '';
+        if (!authUserId) {
+          setFeedback({ type: 'error', message: 'Auth user ID missing after sign up.' });
+          return;
+        }
+        id = authUserId;
+      } catch (e: any) {
+        setFeedback({ type: 'error', message: `Failed to create auth user: ${String(e?.message || e)}` });
+        return;
+      }
       passwordHash = await sha256Hex(password);
     } else if (mode === 'edit' && password) {
       if (password.length < 8) return setFeedback({ type: 'error', message: 'Password must be at least 8 characters.' });
       if (password !== confirmPassword) return setFeedback({ type: 'error', message: 'Passwords do not match.' });
       passwordHash = await sha256Hex(password);
     }
-    const edipiHash = await sha256Hex(edipi);
     const user: UserProfile = {
       id,
       name: fullName,
@@ -224,27 +257,41 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       mi: mi ? mi.trim().toUpperCase() : undefined,
       email: email.trim(),
       edipi,
-      edipiHash,
       service,
       rank,
       role,
       battalion: battalion || 'N/A',
       company: company || 'N/A',
-      unit: unit || selectedUnit?.unitName || 'N/A',
+      unit: selectedUnit?.unitName || 'N/A',
       unitUic: selectedUnit?.uic,
       passwordHash,
       isUnitAdmin: mode === 'create' && selectedUnit && !unitHasAdmin ? true : isUnitAdmin,
+      roleCompany: roleCompany || undefined,
+      rolePlatoon: rolePlatoon || undefined,
+      platoon: platoon || 'N/A',
     };
 
     try {
-      localStorage.setItem(`fs/users/${user.id}.json`, JSON.stringify(user));
-      localStorage.setItem('currentUser', JSON.stringify(user));
-      const res = await fetch('/api/users/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(user) });
-      const data = await res.json().catch(() => ({ ok: false }));
-      if (!res.ok || !data.ok) {
-        setFeedback({ type: 'error', message: 'File write failed. Restart dev server to enable saving to src/users.' });
-        return;
-      }
+      const res = await upsertUser({
+        id: user.id,
+        email: user.email,
+        rank: user.rank,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        mi: user.mi,
+        service: user.service,
+        role: user.role,
+        unitUic: user.unitUic,
+        unit: selectedUnit?.unitName || 'N/A',
+        company: user.company,
+        isUnitAdmin: !!user.isUnitAdmin,
+        edipi: user.edipi,
+        passwordHash: passwordHash,
+        platoon: platoon || 'N/A',
+        roleCompany: roleCompany || undefined,
+        rolePlatoon: rolePlatoon || undefined,
+      })
+      if (!res.ok) { setFeedback({ type: 'error', message: `Failed to save profile: ${String((res as any)?.error?.message || (res as any)?.error || 'unknown')}` }); return }
       setFeedback({ type: 'success', message: initial.id ? 'Profile updated.' : (selectedUnit && !unitHasAdmin ? 'Profile created. You have been assigned Unit Admin for this unit.' : 'Profile created.') });
       onSaved?.(user);
     } catch {
@@ -261,7 +308,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
             No Unit Admin is currently assigned for <span className="font-medium">{selectedUnit.unitName}</span> (UIC {selectedUnit.uic}). You will be assigned Unit Admin for this unit when you create your account.
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-3 text-center">Personal Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
             <input
@@ -316,34 +365,6 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
             <p className="text-xs text-gray-500 mt-1">Must be exactly 10 digits</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{mode === 'edit' ? 'New Password (optional)' : 'Password'}</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === 'edit' ? 'Leave blank to keep current' : ''}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={readOnly}
-            />
-            {mode === 'create' && (
-              <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
-            )}
-            <div className="mt-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">{mode === 'edit' ? 'Confirm New Password' : 'Confirm Password'}</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder={mode === 'edit' ? 'Required only if changing password' : ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={readOnly || (mode === 'edit' && !password)}
-              />
-              {mode === 'edit' && !password && (
-                <p className="text-xs text-gray-500 mt-1">Enter a new password to enable confirmation</p>
-              )}
-            </div>
-          </div>
-          <div>
             <label className="block text sm font-medium text-gray-700 mb-1">Service</label>
             <select
               value={service}
@@ -371,62 +392,167 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={readOnly || !canEditRole}
-            >
-              {ROLES.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Unit Admin</label>
-          <div className="flex items-center gap-2">
-            <input id="pf-is-unit-admin" type="checkbox" checked={isUnitAdmin} onChange={(e) => setIsUnitAdmin(e.target.checked)} disabled={readOnly || !canEditAdmin} />
-            <label htmlFor="pf-is-unit-admin" className="text-sm text-gray-700">Grant Unit Admin privileges</label>
+          {mode === 'create' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={readOnly}
+                />
+                <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={readOnly}
+                />
+              </div>
+            </>
+          ) : (
+            <></>
+          )}
+          
           </div>
         </div>
 
+        {showPasswordModal && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow p-6 w-full max-w-md">
+              <h4 className="text-lg font-semibold mb-4">Update Password</h4>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={readOnly}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={readOnly}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button type="button" className="px-4 py-2 bg-gray-100 text-gray-800 rounded border border-gray-300" onClick={() => setShowPasswordModal(false)}>Cancel</button>
+                <button type="button" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" onClick={() => setShowPasswordModal(false)}>Save</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>
-          <UnitSelector onUnitSelect={(u) => setSelectedUnit(u)} selectedUnit={selectedUnit} />
-          <p className="text-xs text-gray-500 mt-2">Select a unit to enable company and platoon.</p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-3 text-center">Roles (View Only)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled
+              >
+                {ROLES.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <select
+                value={roleCompany}
+                onChange={(e) => setRoleCompany(e.target.value)}
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              >
+                <option value="">{roleCompanyOptionsWithCurrent.length ? 'Select company' : 'No companies configured'}</option>
+                {roleCompanyOptionsWithCurrent.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <select
+                value={rolePlatoon}
+                onChange={(e) => setRolePlatoon(e.target.value)}
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              >
+                <option value="">{rolePlatoonOptionsWithCurrent.length ? 'Select platoon' : 'No platoons configured'}</option>
+                {rolePlatoonOptionsWithCurrent.map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <input id="pf-is-unit-admin" type="checkbox" checked={isUnitAdmin} onChange={(e) => setIsUnitAdmin(e.target.checked)} disabled={readOnly || !canEditAdmin} />
+                <label htmlFor="pf-is-unit-admin" className="text-sm text-gray-700">Grant Unit Admin privileges</label>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" checked={(initial as any)?.isCommandStaff || role === 'COMMANDER'} disabled />
+                <span className="text-sm text-gray-700">Allow access to Command Sections Dashboard</span>
+              </div>
+            </div>
+          </div>
         </div>
 
+
+        <h3 className="text-lg font-semibold text-gray-900 mb-3 text-center">Unit Assignment</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
-            <select
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              disabled={readOnly || !selectedUnit || companyOptionsWithCurrent.length === 0}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
-            >
-              <option value="">{companyOptionsWithCurrent.length ? 'Select company' : 'No companies configured'}</option>
-              {companyOptionsWithCurrent.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            <UnitSelector onUnitSelect={(u) => setSelectedUnit(u)} selectedUnit={selectedUnit} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Platoon</label>
-            <select
-              value={unit}
-              onChange={(e) => setUnit(e.target.value)}
-              disabled={readOnly || !selectedUnit || !company || platoonOptionsWithCurrent.length === 0}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
-            >
-              <option value="">{platoonOptionsWithCurrent.length ? 'Select platoon' : 'No platoons configured'}</option>
-              {platoonOptionsWithCurrent.map(u => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                <select
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  disabled={readOnly || !selectedUnit || companyOptionsWithCurrent.length === 0}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                >
+                  <option value="">{companyOptionsWithCurrent.length ? 'Select company' : 'No companies configured'}</option>
+                  {companyOptionsWithCurrent.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Platoon</label>
+                <select
+                  value={platoon}
+                  onChange={(e) => setPlatoon(e.target.value)}
+                  disabled={readOnly || !selectedUnit || !company || platoonOptionsWithCurrent.length === 0}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                >
+                  <option value="">{platoonOptionsWithCurrent.length ? 'Select platoon' : 'No platoons configured'}</option>
+                  {platoonOptionsWithCurrent.map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -436,7 +562,10 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
           </div>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          {mode === 'edit' && (
+            <button type="button" className="px-4 py-2 bg-brand-cream text-brand-navy rounded border border-gray-300 hover:brightness-105" onClick={() => setShowPasswordModal(true)} disabled={readOnly}>Update Password</button>
+          )}
           <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50" disabled={readOnly}>{mode === 'edit' ? 'Save' : 'Create Profile'}</button>
         </div>
       </form>

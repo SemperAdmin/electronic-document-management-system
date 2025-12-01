@@ -8,3 +8,8 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+try {
+  const boot = document.getElementById('boot')
+  if (boot) boot.remove()
+} catch {}

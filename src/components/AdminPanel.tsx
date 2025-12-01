@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNITS, Unit } from '../lib/units';
+import { listUsers, upsertUser } from '@/lib/db';
 import { ProfileForm } from './ProfileForm';
 import { HierarchicalDropdown } from './HierarchicalDropdown';
 
@@ -22,6 +23,7 @@ interface UserProfile {
   commandOrder?: number;
   isUnitAdmin?: boolean;
   isCommandStaff?: boolean;
+  platoon?: string;
 }
 
 const ROLES = ['MEMBER','PLATOON_REVIEWER','COMPANY_REVIEWER','COMMANDER'];
@@ -47,6 +49,10 @@ export const AdminPanel: React.FC = () => {
   const [editingRole, setEditingRole] = useState<string>('');
   const [editingCompany, setEditingCompany] = useState<string | undefined>(undefined);
   const [editingPlatoon, setEditingPlatoon] = useState<string | undefined>(undefined);
+  const [editingUserCompany, setEditingUserCompany] = useState<string | undefined>(undefined);
+  const [editingUserPlatoon, setEditingUserPlatoon] = useState<string | undefined>(undefined);
+  const [editingRoleCompany, setEditingRoleCompany] = useState<string | undefined>(undefined);
+  const [editingRolePlatoon, setEditingRolePlatoon] = useState<string | undefined>(undefined);
   const [editingOrder, setEditingOrder] = useState<string>('');
   const [adminTab, setAdminTab] = useState<'unit' | 'users'>('unit');
   const [adminErrors, setAdminErrors] = useState<string[]>([]);
@@ -55,16 +61,26 @@ export const AdminPanel: React.FC = () => {
   const [editingIsCommandStaff, setEditingIsCommandStaff] = useState<boolean>(false);
   const [editMode, setEditMode] = useState<'profile' | 'admin'>('admin');
 
+  const editingInitRef = useRef<boolean>(false)
   useEffect(() => {
-    if (editingUser && editMode === 'admin') {
+    if (editingUser && editMode === 'admin' && !editingInitRef.current) {
       if (!editingCompany && editingUser.company && editingUser.company !== 'N/A') {
         setEditingCompany(editingUser.company);
+        setEditingUserCompany(editingUser.company);
       }
-      if (!editingPlatoon && editingUser.unit && editingUser.unit !== 'N/A') {
-        setEditingPlatoon(editingUser.unit);
+      if (!editingPlatoon && (editingUser as any).platoon && (editingUser as any).platoon !== 'N/A') {
+        setEditingPlatoon((editingUser as any).platoon);
+        setEditingUserPlatoon((editingUser as any).platoon);
       }
+      if (!(editingRoleCompany) && (editingUser as any).roleCompany && (editingUser as any).roleCompany !== 'N/A') {
+        setEditingRoleCompany((editingUser as any).roleCompany)
+      }
+      if (!(editingRolePlatoon) && (editingUser as any).rolePlatoon && (editingUser as any).rolePlatoon !== 'N/A') {
+        setEditingRolePlatoon((editingUser as any).rolePlatoon)
+      }
+      editingInitRef.current = true
     }
-  }, [editingUser, editMode]);
+  }, [editingUser, editMode])
 
   useEffect(() => {
     try {
@@ -86,40 +102,26 @@ export const AdminPanel: React.FC = () => {
           if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap;
         }
       } else {
-        const staticUSModules = import.meta.glob('../unit-structure/unit-structure.json', { eager: true });
-        const merged: Record<string, any> = {};
-        for (const mod of Object.values(staticUSModules)) {
-          const data: any = (mod as any)?.default ?? mod;
-          Object.assign(merged, data);
-        }
-        for (const uic of Object.keys(merged || {})) {
-          const v = merged[uic];
-          if (v && Array.isArray(v._sections)) secMap[uic] = v._sections;
-          if (v && Array.isArray(v._commandSections)) cmdMap[uic] = v._commandSections;
-          if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap;
-        }
+        ;(async () => {
+          try {
+            const res = await fetch('/api/unit-structure')
+            const merged = await res.json()
+            for (const uic of Object.keys(merged || {})) {
+              const v = merged[uic]
+              if (v && Array.isArray(v._sections)) secMap[uic] = v._sections
+              if (v && Array.isArray(v._commandSections)) cmdMap[uic] = v._commandSections
+              if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
+            }
+          } catch {}
+        })()
       }
       setUnitSections(secMap);
       setUnitCommandSections(cmdMap);
       setPlatoonSectionMap(pMap);
     } catch {}
-    try {
-      const collected: UserProfile[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('fs/users/') && key.endsWith('.json')) {
-          const rawU = localStorage.getItem(key);
-          if (rawU) collected.push(JSON.parse(rawU));
-        }
-      }
-      const staticUserModules = import.meta.glob('../users/*.json', { eager: true });
-      const staticUsers: UserProfile[] = Object.values(staticUserModules).map((m: any) => (m?.default ?? m) as UserProfile);
-      const byId = new Map<string, UserProfile>();
-      // Prefer static first, then overlay with collected/local to maintain latest edits
-      for (const u of staticUsers) byId.set(u.id, u);
-      for (const u of collected) byId.set(u.id, u);
-      setUsers(Array.from(byId.values()));
-    } catch {}
+    listUsers().then((remote) => {
+      setUsers(remote as any);
+    }).catch(() => setUsers([]));
     try {
       const rawCurrent = localStorage.getItem('currentUser');
       if (rawCurrent) {
@@ -166,11 +168,19 @@ export const AdminPanel: React.FC = () => {
 
   const editPlatoons = useMemo(() => {
     const key = editingUser?.unitUic || '';
-    const companyKey = editingCompany || '';
+    const companyKey = editingUserCompany || '';
     if (!key || !companyKey) return [];
     const val = unitStructure[key]?.[companyKey];
     return Array.isArray(val) ? val : [];
-  }, [editingUser, editingCompany, unitStructure]);
+  }, [editingUser, editingUserCompany, unitStructure]);
+
+  const rolePlatoons = useMemo(() => {
+    const key = editingUser?.unitUic || '';
+    const companyKey = editingRoleCompany || '';
+    if (!key || !companyKey) return [];
+    const val = unitStructure[key]?.[companyKey];
+    return Array.isArray(val) ? val : [];
+  }, [editingUser, editingRoleCompany, unitStructure]);
 
   const editCompaniesWithCurrent = useMemo(() => {
     const base = editCompanies.slice();
@@ -180,13 +190,30 @@ export const AdminPanel: React.FC = () => {
 
   const editPlatoonsWithCurrent = useMemo(() => {
     const base = editPlatoons.slice();
-    const cur = editingPlatoon || (editingUser && editingUser.unit !== 'N/A' ? editingUser.unit : '');
+    const cur = editingUserPlatoon || (editingUser && (editingUser as any).platoon && (editingUser as any).platoon !== 'N/A' ? (editingUser as any).platoon : '');
     return (cur && !base.includes(cur)) ? [cur, ...base] : base;
-  }, [editPlatoons, editingPlatoon, editingUser]);
+  }, [editPlatoons, editingUserPlatoon, editingUser]);
+
+  const rolePlatoonsWithCurrent = useMemo(() => {
+    const base = rolePlatoons.slice();
+    const cur = editingRolePlatoon || (editingUser && (editingUser as any).rolePlatoon && (editingUser as any).rolePlatoon !== 'N/A' ? (editingUser as any).rolePlatoon : '');
+    return (cur && !base.includes(cur)) ? [cur, ...base] : base;
+  }, [rolePlatoons, editingRolePlatoon, editingUser]);
 
   const saveUnitStructure = () => {
     try {
-      localStorage.setItem('unit_structure', JSON.stringify(unitStructure));
+      // add metadata for selected unit
+      if (selectedUnit) {
+        const key = selectedUnit.uic
+        const next = { ...unitStructure }
+        next[key] = next[key] || {}
+        next[key]._mcc = selectedUnit.mcc || (next[key]._mcc || '')
+        next[key]._unitName = selectedUnit.unitName || (next[key]._unitName || '')
+        setUnitStructure(next)
+        localStorage.setItem('unit_structure', JSON.stringify(next))
+      } else {
+        localStorage.setItem('unit_structure', JSON.stringify(unitStructure))
+      }
       (async () => {
         try {
           if (navigator.sendBeacon) {
@@ -217,6 +244,8 @@ export const AdminPanel: React.FC = () => {
       const next = { ...unitStructure };
       next[key] = next[key] || {};
       next[key]._sections = unitSections[key] || [];
+      next[key]._mcc = selectedUnit.mcc || (next[key]._mcc || '')
+      next[key]._unitName = selectedUnit.unitName || (next[key]._unitName || '')
       setUnitStructure(next);
       localStorage.setItem('unit_structure', JSON.stringify(next));
       (async () => {
@@ -248,6 +277,8 @@ export const AdminPanel: React.FC = () => {
       const next = { ...unitStructure };
       next[key] = next[key] || {};
       next[key]._commandSections = unitCommandSections[key] || [];
+      next[key]._mcc = selectedUnit.mcc || (next[key]._mcc || '')
+      next[key]._unitName = selectedUnit.unitName || (next[key]._unitName || '')
       setUnitStructure(next);
       localStorage.setItem('unit_structure', JSON.stringify(next));
       (async () => {
@@ -279,6 +310,8 @@ export const AdminPanel: React.FC = () => {
       const next = { ...unitStructure };
       next[key] = next[key] || {};
       next[key]._platoonSectionMap = platoonSectionMap[key] || {};
+      next[key]._mcc = selectedUnit.mcc || (next[key]._mcc || '')
+      next[key]._unitName = selectedUnit.unitName || (next[key]._unitName || '')
       setUnitStructure(next);
       localStorage.setItem('unit_structure', JSON.stringify(next));
       (async () => {
@@ -404,8 +437,23 @@ export const AdminPanel: React.FC = () => {
   const saveUsers = () => {
     try {
       users.forEach(async (u) => {
-        localStorage.setItem(`fs/users/${u.id}.json`, JSON.stringify(u));
-        await fetch('/api/users/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u) });
+        await upsertUser({
+          id: u.id,
+          email: u.email,
+          rank: u.rank,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          mi: u.mi,
+          service: u.service,
+          role: u.role,
+          unitUic: u.unitUic,
+          unit: u.unit,
+          company: u.company,
+          isUnitAdmin: !!u.isUnitAdmin,
+          isCommandStaff: !!u.isCommandStaff,
+          edipi: u.edipi,
+          passwordHash: u.passwordHash,
+        });
       });
       setFeedback({ type: 'success', message: 'Users updated.' });
     } catch {
@@ -687,7 +735,7 @@ export const AdminPanel: React.FC = () => {
                       if (u.role === 'COMPANY_REVIEWER') return (u.company && u.company !== 'N/A') ? u.company : '—';
                       if (u.role === 'PLATOON_REVIEWER') {
                         const c = (u.company && u.company !== 'N/A') ? u.company : '';
-                        const p = (u.unit && u.unit !== 'N/A') ? u.unit : '';
+                        const p = ((u as any).platoon && (u as any).platoon !== 'N/A') ? (u as any).platoon : '';
                         const parts = [c, p].filter(Boolean);
                         return parts.length ? parts.join(' / ') : '—';
                       }
@@ -704,7 +752,9 @@ export const AdminPanel: React.FC = () => {
                           setEditingUser(u);
                           setEditingRole(u.role);
                           setEditingCompany(u.company !== 'N/A' ? u.company : undefined);
-                          setEditingPlatoon(u.unit !== 'N/A' ? u.unit : undefined);
+                          setEditingUserCompany(u.company !== 'N/A' ? u.company : undefined);
+                          setEditingPlatoon((u as any).platoon && (u as any).platoon !== 'N/A' ? (u as any).platoon : undefined);
+                          setEditingUserPlatoon((u as any).platoon && (u as any).platoon !== 'N/A' ? (u as any).platoon : undefined);
                           setEditingOrder(typeof u.commandOrder === 'number' ? String(u.commandOrder) : '');
                           setEditingIsUnitAdmin(!!u.isUnitAdmin);
                           setEditingIsCommandStaff(!!u.isCommandStaff);
@@ -765,7 +815,7 @@ export const AdminPanel: React.FC = () => {
                   if (viewUser.role === 'COMPANY_REVIEWER') return (viewUser.company && viewUser.company !== 'N/A') ? viewUser.company : '—';
                   if (viewUser.role === 'PLATOON_REVIEWER') {
                     const c = (viewUser.company && viewUser.company !== 'N/A') ? viewUser.company : '';
-                    const p = (viewUser.unit && viewUser.unit !== 'N/A') ? viewUser.unit : '';
+                    const p = ((viewUser as any).platoon && (viewUser as any).platoon !== 'N/A') ? (viewUser as any).platoon : '';
                     const parts = [c, p].filter(Boolean);
                     return parts.length ? parts.join(' / ') : '—';
                   }
@@ -810,12 +860,12 @@ export const AdminPanel: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="admin-company" className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                    <label htmlFor="admin-company" className="block text-sm font-medium text-gray-700 mb-1">Role Company (Reviewer Scope)</label>
                     <select
                       id="admin-company"
-                      value={editingCompany || ''}
-                      onChange={(e) => { setEditingCompany(e.target.value || undefined); setEditingPlatoon(undefined); }}
-                      disabled={editingRole === 'COMMANDER'}
+                      value={editingRoleCompany || ''}
+                      onChange={(e) => setEditingRoleCompany(e.target.value || undefined)}
+                      disabled={!editingRole.includes('REVIEW')}
                       className="w-full px-3 py-2 border rounded disabled:bg-gray-50"
                     >
                       <option value="">{editCompaniesWithCurrent.length ? 'Select company' : 'No companies configured'}</option>
@@ -825,16 +875,16 @@ export const AdminPanel: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="admin-platoon" className="block text-sm font-medium text-gray-700 mb-1">Platoon</label>
+                    <label htmlFor="admin-platoon" className="block text-sm font-medium text-gray-700 mb-1">Role Platoon (Reviewer Scope)</label>
                     <select
                       id="admin-platoon"
-                      value={editingPlatoon || ''}
-                      onChange={(e) => setEditingPlatoon(e.target.value || undefined)}
-                      disabled={editingRole === 'COMMANDER' || !editingCompany || editPlatoons.length === 0}
+                      value={editingRolePlatoon || ''}
+                      onChange={(e) => setEditingRolePlatoon(e.target.value || undefined)}
+                      disabled={!editingRole.includes('REVIEW') || !editingRoleCompany || rolePlatoonsWithCurrent.length === 0}
                       className="w-full px-3 py-2 border rounded disabled:bg-gray-50"
                     >
-                      <option value="">{editPlatoonsWithCurrent.length ? 'Select platoon' : 'No platoons configured'}</option>
-                      {editPlatoonsWithCurrent.map(p => (
+                      <option value="">{rolePlatoonsWithCurrent.length ? 'Select platoon' : 'No platoons configured'}</option>
+                      {rolePlatoonsWithCurrent.map(p => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
@@ -846,7 +896,32 @@ export const AdminPanel: React.FC = () => {
                     <label htmlFor="admin-is-unit" className="text-sm text-gray-700">Grant Unit Admin privileges</label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <input id="admin-is-command" type="checkbox" checked={editingIsCommandStaff} disabled={editingRole === 'COMMANDER'} onChange={(e) => setEditingIsCommandStaff(e.target.checked)} />
+                    <input id="admin-is-command" type="checkbox" checked={editingIsCommandStaff} disabled={editingRole === 'COMMANDER'} onChange={async (e) => {
+                      const checked = e.target.checked
+                      setEditingIsCommandStaff(checked)
+                      try {
+                        if (editingUser) {
+                          const res = await upsertUser({
+                            id: editingUser.id,
+                            email: editingUser.email,
+                            rank: editingUser.rank,
+                            firstName: editingUser.firstName,
+                            lastName: editingUser.lastName,
+                            mi: editingUser.mi,
+                            service: editingUser.service,
+                            role: editingUser.role,
+                            unitUic: editingUser.unitUic,
+                            unit: editingUser.unit,
+                            company: editingUser.company,
+                            isUnitAdmin: !!editingUser.isUnitAdmin,
+                            isCommandStaff: checked,
+                            edipi: editingUser.edipi,
+                            passwordHash: editingUser.passwordHash,
+                          })
+                          if (!res.ok) throw new Error('persist_failed')
+                        }
+                      } catch {}
+                    }} />
                     <label htmlFor="admin-is-command" className="text-sm text-gray-700">Allow access to Command Sections Dashboard</label>
                   </div>
                 </div>
@@ -860,6 +935,7 @@ export const AdminPanel: React.FC = () => {
                     className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
                     onClick={() => {
                       setEditingUser(null);
+                      editingInitRef.current = false;
                       setAdminErrors([]);
                       setSavingAdmin(false);
                     }}
@@ -876,17 +952,40 @@ export const AdminPanel: React.FC = () => {
                       setAdminErrors(errs);
                       if (errs.length) return;
                       setSavingAdmin(true);
+                      const baseUnitName = UNITS.find(x => x.uic === editingUser.unitUic)?.unitName || 'N/A'
                       const updated = {
                         ...editingUser,
                         role: editingRole,
                         isUnitAdmin: editingIsUnitAdmin,
                         isCommandStaff: editingRole === 'COMMANDER' ? false : editingIsCommandStaff,
-                        company: (editingIsUnitAdmin || editingRole === 'COMMANDER') ? 'N/A' : (editingCompany || 'N/A'),
-                        unit: (editingIsUnitAdmin || editingRole === 'COMMANDER') ? (UNITS.find(x => x.uic === editingUser.unitUic)?.unitName || 'N/A') : (editingPlatoon || 'N/A'),
+                        company: (editingUserCompany || 'N/A'),
+                        unit: baseUnitName,
+                        platoon: (editingUserPlatoon || 'N/A'),
+                        roleCompany: (editingRole.includes('REVIEW')) ? (editingRoleCompany || 'N/A') : undefined,
+                        rolePlatoon: (editingRole.includes('REVIEW')) ? (editingRolePlatoon || 'N/A') : undefined,
                       };
                       try { localStorage.setItem(`fs/users/${updated.id}.json`, JSON.stringify(updated)); } catch {}
                       try {
-                        const res = await fetch('/api/users/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+                        const res = await upsertUser({
+                          id: updated.id,
+                          email: updated.email,
+                          rank: updated.rank,
+                          firstName: updated.firstName,
+                          lastName: updated.lastName,
+                          mi: updated.mi,
+                          service: updated.service,
+                          role: updated.role,
+                          unitUic: updated.unitUic,
+                          unit: updated.unit,
+                          company: updated.company,
+                          isUnitAdmin: !!updated.isUnitAdmin,
+                          isCommandStaff: !!updated.isCommandStaff,
+                          edipi: updated.edipi,
+                          passwordHash: updated.passwordHash,
+                          roleCompany: updated.roleCompany,
+                          rolePlatoon: updated.rolePlatoon,
+                          platoon: updated.platoon,
+                        });
                         if (!res.ok) throw new Error('persist_failed');
                       } catch (e) {
                         setSavingAdmin(false);
@@ -900,10 +999,11 @@ export const AdminPanel: React.FC = () => {
                           setCurrentUser(updated);
                         }
                       } catch {}
-                      setEditingUser(null);
-                      setSavingAdmin(false);
-                      setFeedback({ type: 'success', message: 'Administrative changes saved.' });
-                    }}
+                          setEditingUser(null);
+                          editingInitRef.current = false;
+                          setSavingAdmin(false);
+                          setFeedback({ type: 'success', message: 'Administrative changes saved.' });
+                        }}
                   >
                     {savingAdmin && (<span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>)}
                     <span>Save Changes</span>

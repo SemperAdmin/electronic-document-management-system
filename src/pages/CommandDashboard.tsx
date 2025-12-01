@@ -37,6 +37,7 @@ export default function CommandDashboard() {
   const [comments, setComments] = useState<Record<string, string>>({})
   const [attach, setAttach] = useState<Record<string, File[]>>({})
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
+  const [expandedUserDetails, setExpandedUserDetails] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
@@ -308,13 +309,13 @@ export default function CommandDashboard() {
           <h2 className="text-xl font-semibold text-[var(--text)]">Command Sections Dashboard</h2>
           <div className="flex items-center gap-2">
             <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{currentUser?.unitUic || ''}</span>
-            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>
+            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
           </div>
         </div>
 
         <div className="space-y-8">
           <div>
-            <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">Commander</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportCommander}>Export Commander</button></div>
+            <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">Commander</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportCommander}>Export Commander</button></div>
             <div className="flex flex-col gap-4">
               {inCommander.map((r) => (
                 <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
@@ -324,10 +325,18 @@ export default function CommandDashboard() {
                       <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
                       {originatorFor(r) && (
                         <div className="text-xs text-[var(--muted)] mt-1">
-                          {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                          {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                            <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                          )}
+                          <div className="md:hidden">
+                            {originatorFor(r).rank} {originatorFor(r).lastName}
+                            <button onClick={() => setExpandedUserDetails(prev => ({...prev, [r.id]: !prev[r.id]}))} className="ml-2 text-brand-navy underline">
+                              {expandedUserDetails[r.id] ? 'Less' : 'More'}
+                            </button>
+                          </div>
+                          <div className={`${expandedUserDetails[r.id] ? 'block' : 'hidden'} md:block`}>
+                            {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
+                            {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
+                              <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -467,7 +476,7 @@ export default function CommandDashboard() {
 
           {commandSections.map((name) => (
             <div key={name}>
-              <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">{name}</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => exportSection(name)}>Export {name}</button></div>
+              <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">{name}</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(name)}>Export {name}</button></div>
               <div className="flex flex-col gap-4">
                 {(byCommandSection[name] || []).map((r) => (
                   <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
@@ -477,10 +486,18 @@ export default function CommandDashboard() {
                         <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
                         {originatorFor(r) && (
                           <div className="text-xs text-[var(--muted)] mt-1">
-                            {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                            {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                              <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                            )}
+                            <div className="md:hidden">
+                              {originatorFor(r).rank} {originatorFor(r).lastName}
+                              <button onClick={() => setExpandedUserDetails(prev => ({...prev, [r.id]: !prev[r.id]}))} className="ml-2 text-brand-navy underline">
+                                {expandedUserDetails[r.id] ? 'Less' : 'More'}
+                              </button>
+                            </div>
+                            <div className={`${expandedUserDetails[r.id] ? 'block' : 'hidden'} md:block`}>
+                              {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
+                              {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
+                                <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

@@ -115,16 +115,28 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
     const sanitize = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
     async function uploadToStorage(file: File, pathKey: string) {
-      const resp = await fetch('/api/storage/sign-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
-      const json = await resp.json()
-      if (!resp.ok || !json?.signedUrl) throw new Error(String(json?.error || 'sign_url_failed'))
-      const putRes = await fetch(String(json.signedUrl), { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
-      if (!putRes.ok) {
-        let msg = 'upload_failed'
-        try { msg = await putRes.text() } catch {}
-        throw new Error(msg)
+      try {
+        const resp = await fetch('/api/storage/sign-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
+        const json = await resp.json()
+        if (!resp.ok || !json?.signedUrl) throw new Error(String(json?.error || 'sign_url_failed'))
+        const putRes = await fetch(String(json.signedUrl), { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
+        if (!putRes.ok) {
+          let msg = 'upload_failed'
+          try { msg = await putRes.text() } catch {}
+          throw new Error(msg)
+        }
+        return makePublicUrl(pathKey)
+      } catch (e) {
+        try {
+          const sb = getSupabase()
+          if (!sb?.storage) throw e
+          const { data, error } = await sb.storage.from('edms-docs').upload(pathKey, file, { upsert: true, contentType: file.type || 'application/octet-stream' })
+          if (error) throw error
+          return makePublicUrl(pathKey)
+        } catch (fallbackErr) {
+          throw (e || fallbackErr)
+        }
       }
-      return makePublicUrl(pathKey)
     }
     if (selectedFiles && selectedFiles.length > 0) {
       const uploadedUrls: string[] = []

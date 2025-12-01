@@ -5,8 +5,10 @@ import { createClient } from '@supabase/supabase-js'
 // is loaded, preventing race conditions or initialization failures on mobile browsers
 // that may have issues with Vite's lazy environment variable loading.
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rjcbsaxdkggloyzjbbln.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqY2JzYXhka2dnbG95empibGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDI5MTgwNDksImV4cCI6MjAxODQ5NDA0OX0.VWl-w6h--f4dG5qV-1_x2q-2-Gl-J-u-C-e-T-p-E-g';
+// *** CRITICAL DIAGNOSTIC HARDCODE - MUST BE REMOVED AFTER FIX ***
+const SUPABASE_URL = 'https://rjcbsaxdkggloyzjbbln.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+// *** END HARDCODE ***
 
 // In-memory cache for environments where localStorage is blocked
 const memoryCache: { [key: string]: string } = {};

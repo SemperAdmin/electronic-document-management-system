@@ -92,9 +92,24 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
       emailForLogin = String(user?.email || '')
       if (!user || !emailForLogin) { setFeedback({ type: 'error', message: 'Account not found.' }); return }
       const { error } = await signInWithPassword(emailForLogin, password)
-      if (error) { setFeedback({ type: 'error', message: 'Invalid credentials.' }); return }
-      setFeedback({ type: 'success', message: 'Logged in.' })
-      onLoggedIn(user)
+      if (!error) {
+        setFeedback({ type: 'success', message: 'Logged in.' })
+        onLoggedIn(user)
+        return
+      }
+      try {
+        const storedRaw = String((user as any).passwordHash || (user as any).password_hash || '').trim()
+        if (!storedRaw) { setFeedback({ type: 'error', message: (error as any)?.message || 'Invalid credentials.' }); return }
+        const hashHex = await sha256Hex(password)
+        const isHex64 = /^[0-9a-f]{64}$/i.test(storedRaw)
+        const ok = isHex64 ? (storedRaw.toLowerCase() === hashHex.toLowerCase()) : (storedRaw === password)
+        if (!ok) { setFeedback({ type: 'error', message: (error as any)?.message || 'Invalid credentials.' }); return }
+        setFeedback({ type: 'success', message: 'Logged in.' })
+        onLoggedIn(user)
+      } catch {
+        setFeedback({ type: 'error', message: (error as any)?.message || 'Invalid credentials.' })
+      }
+      
     } catch {
       setFeedback({ type: 'error', message: 'Login failed.' });
     }

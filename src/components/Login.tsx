@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { sha256Hex } from '@/lib/crypto';
-import { listUsers } from '@/lib/db';
+import { listUsers, getUserByEmail } from '@/lib/db';
+import { signInWithPassword } from '@/lib/auth';
 import { ALLOW_EDIPI_LOGIN } from '@/config/auth';
 
 interface UserProfile {
@@ -43,35 +44,38 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
     e.preventDefault();
     setFeedback(null);
     try {
-      const users: any[] = (await listUsers()) as any;
-      let user: UserProfile | undefined;
       let emailForLogin = identifier.trim().toLowerCase()
-      if (ALLOW_EDIPI_LOGIN) {
-        const isEdipiLike = /^[0-9]{10}$/.test(identifier);
-        if (isEdipiLike) {
-          user = users.find(u => String(u.edipi) === identifier);
-          emailForLogin = String(user?.email || '')
-        } else {
-          user = users.find(u => String(u.email || '').toLowerCase() === emailForLogin);
-        }
-      } else {
-        // Email-only mode
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailPattern.test(emailForLogin)) {
-          setFeedback({ type: 'error', message: 'Please enter a valid email.' });
-          return;
-        }
-        user = users.find(u => String(u.email || '').toLowerCase() === emailForLogin);
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+      // Prefer Supabase auth for email logins to avoid REST 401 on edms_users
+      if (emailPattern.test(emailForLogin)) {
+        const { data, error } = await signInWithPassword(emailForLogin, password)
+        if (error) { setFeedback({ type: 'error', message: 'Invalid credentials.' }); return }
+        const profile = await getUserByEmail(emailForLogin)
+        if (!profile) { setFeedback({ type: 'error', message: 'User profile not found.' }); return }
+        setFeedback({ type: 'success', message: 'Logged in.' });
+        onLoggedIn(profile as any)
+        return
       }
-      if (!user) { setFeedback({ type: 'error', message: 'Account not found.' }); return }
-      const hashHex = await sha256Hex(password)
-      const storedRaw = String((user as any).passwordHash || (user as any).password_hash || '').trim()
-      if (!storedRaw) { setFeedback({ type: 'error', message: 'No password set for this user.' }); return }
-      const isHex64 = /^[0-9a-f]{64}$/i.test(storedRaw)
-      const ok = isHex64 ? (storedRaw.toLowerCase() === hashHex.toLowerCase()) : (storedRaw === password)
-      if (!ok) { setFeedback({ type: 'error', message: 'Invalid credentials.' }); return }
-      setFeedback({ type: 'success', message: 'Logged in.' });
-      onLoggedIn(user);
+
+      // EDIPI login (fallback): requires users list access; may be unavailable in prod
+      if (!ALLOW_EDIPI_LOGIN) {
+        setFeedback({ type: 'error', message: 'Please log in with email.' });
+        return
+      }
+      const isEdipiLike = /^[0-9]{10}$/.test(identifier)
+      if (!isEdipiLike) {
+        setFeedback({ type: 'error', message: 'Enter a valid email or 10-digit EDIPI.' })
+        return
+      }
+      const users: any[] = (await listUsers()) as any
+      const user = users.find(u => String(u.edipi) === identifier)
+      emailForLogin = String(user?.email || '')
+      if (!user || !emailForLogin) { setFeedback({ type: 'error', message: 'Account not found.' }); return }
+      const { error } = await signInWithPassword(emailForLogin, password)
+      if (error) { setFeedback({ type: 'error', message: 'Invalid credentials.' }); return }
+      setFeedback({ type: 'success', message: 'Logged in.' })
+      onLoggedIn(user)
     } catch {
       setFeedback({ type: 'error', message: 'Login failed.' });
     }

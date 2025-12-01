@@ -337,7 +337,7 @@ export default function ReviewDashboard() {
           <div>
             <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
             <div className="mt-2 flex items-center gap-2">
-              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{myStage}</span>
+              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{String(currentUser?.role || 'MEMBER')}</span>
               <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>
             </div>
           </div>

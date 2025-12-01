@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 
 export interface BiometricRegistrationData {
   user_id: string;
@@ -238,7 +238,9 @@ class MobileAPIService {
         updated_at: new Date().toISOString()
       };
 
-      const { data, error } = await supabase
+      const sb = getSupabase();
+      if (!sb) throw new Error('supabase_not_initialized');
+      const { data, error } = await sb
         .from('mobile_sessions')
         .insert(sessionData)
         .select()
@@ -254,7 +256,9 @@ class MobileAPIService {
 
   async updateMobileSession(session_id: string, updates: any): Promise<any> {
     try {
-      const { data, error } = await supabase
+      const sb = getSupabase();
+      if (!sb) throw new Error('supabase_not_initialized');
+      const { data, error } = await sb
         .from('mobile_sessions')
         .update({
           ...updates,
@@ -274,7 +278,9 @@ class MobileAPIService {
 
   async getMobileSession(session_id: string): Promise<any> {
     try {
-      const { data, error } = await supabase
+      const sb = getSupabase();
+      if (!sb) throw new Error('supabase_not_initialized');
+      const { data, error } = await sb
         .from('mobile_sessions')
         .select('*')
         .eq('id', session_id)
@@ -291,7 +297,9 @@ class MobileAPIService {
   // Offline Actions Management
   async createOfflineAction(actionData: any): Promise<any> {
     try {
-      const { data, error } = await supabase
+      const sb = getSupabase();
+      if (!sb) throw new Error('supabase_not_initialized');
+      const { data, error } = await sb
         .from('offline_actions')
         .insert({
           ...actionData,
@@ -312,7 +320,9 @@ class MobileAPIService {
   async syncOfflineActions(user_id: string, device_id: string): Promise<any> {
     try {
       // Get pending offline actions
-      const { data: pendingActions, error: fetchError } = await supabase
+      const sb = getSupabase();
+      if (!sb) throw new Error('supabase_not_initialized');
+      const { data: pendingActions, error: fetchError } = await sb
         .from('offline_actions')
         .select('*')
         .eq('user_id', user_id)
@@ -330,7 +340,7 @@ class MobileAPIService {
         try {
           // Here you would implement the actual sync logic
           // For now, we'll just mark them as synced
-          const { error: updateError } = await supabase
+          const { error: updateError } = await sb
             .from('offline_actions')
             .update({
               sync_status: 'synced',
@@ -348,12 +358,12 @@ class MobileAPIService {
           const newRetryCount = (action.retry_count || 0) + 1;
           const newStatus = newRetryCount >= (action.max_retries || 3) ? 'error' : 'pending';
 
-          await supabase
+          await sb
             .from('offline_actions')
             .update({
               retry_count: newRetryCount,
               sync_status: newStatus,
-              error_message: error.message,
+              error_message: (error as any).message,
               updated_at: new Date().toISOString()
             })
             .eq('id', action.id);

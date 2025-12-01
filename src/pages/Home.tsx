@@ -116,10 +116,15 @@ export default function Home() {
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-4">
-                  <img src={logoImg} alt="Semper Admin Logo" className="h-10 w-auto rounded" />
+                <div className="flex items-center gap-4 h-12 md:h-14">
+                  <img src={logoImg} alt="Semper Admin Logo" className="h-full w-auto rounded object-contain" />
                   <div>
-                    <h1 className="text-2xl md:text-3xl font-semibold leading-tight text-brand-cream">Electronic Document Management System<a> by Semper Admin</a></h1>
+                    <h1 className="text-2xl md:text-3xl font-semibold leading-tight text-brand-cream">
+                  <span className="text-3xl md:text-4xl">Electronic Document Management System</span>
+                <a className="text-lg font-normal ml-3 whitespace-nowrap text-brand-cream/80" href="#"> 
+                    by Semper Admin
+                </a>
+            </h1>
                     <p className="text-sm font-light text-white/70 mt-0.5">Marine Corps Unit Document Management</p>
                   </div>
                 </div>

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { UnitSelector } from './UnitSelector';
 import { UNITS, Unit } from '../lib/units';
 import { sha256Hex } from '@/lib/crypto';
-import { listUsers, upsertUser, getUserById } from '@/lib/db';
+import { listUsers, upsertUser, getUserById, listCompaniesForUnit, listPlatoonsForCompany } from '@/lib/db';
 import { signUp } from '@/lib/auth';
 
 interface UserProfile {
@@ -80,6 +80,10 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const [roleCompany, setRoleCompany] = useState(initial.roleCompany || '');
   const [rolePlatoon, setRolePlatoon] = useState(initial.rolePlatoon || '');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [companyOptionsDb, setCompanyOptionsDb] = useState<string[]>([]);
+  const [platoonOptionsDb, setPlatoonOptionsDb] = useState<string[]>([]);
+  const [roleCompanyOptionsDb, setRoleCompanyOptionsDb] = useState<string[]>([]);
+  const [rolePlatoonOptionsDb, setRolePlatoonOptionsDb] = useState<string[]>([]);
 
   useEffect(() => {
     if (initial.name) {
@@ -93,6 +97,10 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     if (initial.firstName) setFirstName(String(initial.firstName));
     if (initial.lastName) setLastName(String(initial.lastName));
     if (initial.mi) setMi(String(initial.mi));
+    if (initial.company) setCompany(String(initial.company));
+    if ((initial as any).platoon) setPlatoon(String((initial as any).platoon));
+    if ((initial as any).roleCompany) setRoleCompany(String((initial as any).roleCompany));
+    if ((initial as any).rolePlatoon) setRolePlatoon(String((initial as any).rolePlatoon));
     if (initial.unitUic) {
       const u = UNITS.find(x => x.uic === initial.unitUic);
       if (u) setSelectedUnit(u);
@@ -103,24 +111,40 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const battalionOptions = useMemo(() => Object.keys(UNIT_STRUCTURE), []);
   const companyOptions = useMemo(() => {
     if (!selectedUnit) return [];
+    const fromDb = companyOptionsDb
+    if (fromDb && fromDb.length) return fromDb
     const raw = unitStructure[selectedUnit.uic] || {};
     return Object.keys(raw).filter(k => !k.startsWith('_') && Array.isArray(raw[k]));
-  }, [selectedUnit, unitStructure]);
+  }, [selectedUnit, unitStructure, companyOptionsDb]);
   const platoonOptions = useMemo(() => (selectedUnit && company ? unitStructure[selectedUnit.uic]?.[company] || [] : []), [selectedUnit, company, unitStructure]);
+  const platoonOptionsResolved = useMemo(() => {
+    if (!selectedUnit || !company) return []
+    const fromDb = platoonOptionsDb
+    if (fromDb && fromDb.length) return fromDb
+    return platoonOptions
+  }, [selectedUnit, company, platoonOptionsDb, platoonOptions])
   const roleCompanyOptions = useMemo(() => {
     if (!selectedUnit) return [];
+    const fromDb = roleCompanyOptionsDb
+    if (fromDb && fromDb.length) return fromDb
     const raw = unitStructure[selectedUnit.uic] || {};
     return Object.keys(raw).filter(k => !k.startsWith('_') && Array.isArray(raw[k]));
-  }, [selectedUnit, unitStructure]);
+  }, [selectedUnit, unitStructure, roleCompanyOptionsDb]);
   const rolePlatoonOptions = useMemo(() => (selectedUnit && roleCompany ? unitStructure[selectedUnit.uic]?.[roleCompany] || [] : []), [selectedUnit, roleCompany, unitStructure]);
+  const rolePlatoonOptionsResolved = useMemo(() => {
+    if (!selectedUnit || !roleCompany) return []
+    const fromDb = rolePlatoonOptionsDb
+    if (fromDb && fromDb.length) return fromDb
+    return rolePlatoonOptions
+  }, [selectedUnit, roleCompany, rolePlatoonOptionsDb, rolePlatoonOptions])
 
   const companyOptionsWithCurrent = useMemo(() => {
     return companyOptions.slice();
   }, [companyOptions]);
 
   const platoonOptionsWithCurrent = useMemo(() => {
-    return platoonOptions.slice();
-  }, [platoonOptions]);
+    return platoonOptionsResolved.slice();
+  }, [platoonOptionsResolved]);
   const roleCompanyOptionsWithCurrent = useMemo(() => {
     const base = roleCompanyOptions.slice();
     const cur = roleCompany || (initial as any).roleCompany || '';
@@ -128,11 +152,11 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     return Array.from(new Set(list));
   }, [roleCompanyOptions, roleCompany, initial]);
   const rolePlatoonOptionsWithCurrent = useMemo(() => {
-    const base = rolePlatoonOptions.slice();
+    const base = rolePlatoonOptionsResolved.slice();
     const cur = rolePlatoon || (initial as any).rolePlatoon || '';
     if (cur && !base.includes(cur)) return [cur, ...base];
     return base;
-  }, [rolePlatoonOptions, rolePlatoon, initial]);
+  }, [rolePlatoonOptionsResolved, rolePlatoon, initial]);
 
   useEffect(() => {
     // Hydrate current company/platoon from DB for edit mode
@@ -173,6 +197,29 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       if (raw) setUnitStructure(JSON.parse(raw));
     } catch {}
   }, [selectedUnit]);
+
+  useEffect(() => {
+    const uic = selectedUnit?.uic || ''
+    if (!uic) { setCompanyOptionsDb([]); setRoleCompanyOptionsDb([]); return }
+    listCompaniesForUnit(uic).then((vals) => {
+      setCompanyOptionsDb(vals || [])
+      setRoleCompanyOptionsDb(vals || [])
+    }).catch(() => { setCompanyOptionsDb([]); setRoleCompanyOptionsDb([]) })
+  }, [selectedUnit])
+
+  useEffect(() => {
+    const uic = selectedUnit?.uic || ''
+    const comp = company || ''
+    if (!uic || !comp) { setPlatoonOptionsDb([]); return }
+    listPlatoonsForCompany(uic, comp).then((vals) => setPlatoonOptionsDb(vals || [])).catch(() => setPlatoonOptionsDb([]))
+  }, [selectedUnit, company])
+
+  useEffect(() => {
+    const uic = selectedUnit?.uic || ''
+    const comp = roleCompany || ''
+    if (!uic || !comp) { setRolePlatoonOptionsDb([]); return }
+    listPlatoonsForCompany(uic, comp).then((vals) => setRolePlatoonOptionsDb(vals || [])).catch(() => setRolePlatoonOptionsDb([]))
+  }, [selectedUnit, roleCompany])
 
   useEffect(() => {
     listUsers().then((users) => {
@@ -477,7 +524,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
             </div>
             <div>
               <select
-                value={roleCompany}
+                value={roleCompany || String((initial as any).roleCompany || '')}
                 onChange={(e) => setRoleCompany(e.target.value)}
                 disabled
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
@@ -490,7 +537,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
             </div>
             <div>
               <select
-                value={rolePlatoon}
+                value={rolePlatoon || String((initial as any).rolePlatoon || '')}
                 onChange={(e) => setRolePlatoon(e.target.value)}
                 disabled
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
@@ -529,7 +576,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
                 <select
-                  value={company}
+                  value={company || String(initial.company || '')}
                   onChange={(e) => setCompany(e.target.value)}
                   disabled={readOnly || !selectedUnit || companyOptionsWithCurrent.length === 0}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
@@ -543,7 +590,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Platoon</label>
                 <select
-                  value={platoon}
+                  value={platoon || String((initial as any).platoon || '')}
                   onChange={(e) => setPlatoon(e.target.value)}
                   disabled={readOnly || !selectedUnit || !company || platoonOptionsWithCurrent.length === 0}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"

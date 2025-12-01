@@ -262,3 +262,49 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
     return null
   }
 }
+
+export async function listCompaniesForUnit(unitUic: string): Promise<string[]> {
+  try {
+    const uic = String(unitUic || '')
+    if (!uic) return []
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb
+      .from('edms_users')
+      .select('user_company, unit_uic')
+      .eq('unit_uic', uic)
+      .neq('user_company', 'N/A')
+    if (error) return []
+    const vals = (data ?? [])
+      .map((r: any) => String(r.user_company || '').trim())
+      .filter((v: string) => !!v)
+    const uniq = Array.from(new Set(vals))
+    return uniq.sort((a, b) => a.localeCompare(b))
+  } catch {
+    return []
+  }
+}
+
+export async function listPlatoonsForCompany(unitUic: string, company: string): Promise<string[]> {
+  try {
+    const uic = String(unitUic || '')
+    const comp = String(company || '')
+    if (!uic || !comp) return []
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb
+      .from('edms_users')
+      .select('user_platoon, unit_uic, user_company')
+      .eq('unit_uic', uic)
+      .eq('user_company', comp)
+      .neq('user_platoon', 'N/A')
+    if (error) return []
+    const vals = (data ?? [])
+      .map((r: any) => String(r.user_platoon || '').trim())
+      .filter((v: string) => !!v)
+    const uniq = Array.from(new Set(vals))
+    return uniq.sort((a, b) => a.localeCompare(b))
+  } catch {
+    return []
+  }
+}

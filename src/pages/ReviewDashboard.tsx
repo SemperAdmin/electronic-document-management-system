@@ -331,9 +331,9 @@ export default function ReviewDashboard() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="max-w-7xl mx-auto p-6">
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
-        <div className="mb-4 flex items-start justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
             <div className="mt-2 flex items-center gap-2">
@@ -552,7 +552,7 @@ export default function ReviewDashboard() {
                 </div>
                 <div className="mt-3">
                   <button
-                    className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
+                    className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
                     aria-expanded={!!expandedDocs[r.id]}
                     aria-controls={`docs-scope-${r.id}`}
                     onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}

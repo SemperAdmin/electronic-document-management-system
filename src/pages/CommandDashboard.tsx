@@ -325,6 +325,9 @@ export default function CommandDashboard() {
                       {originatorFor(r) && (
                         <div className="text-xs text-[var(--muted)] mt-1">
                           {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
+                          {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
+                            <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
+                          )}
                         </div>
                       )}
                     </div>
@@ -475,6 +478,9 @@ export default function CommandDashboard() {
                         {originatorFor(r) && (
                           <div className="text-xs text-[var(--muted)] mt-1">
                             {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
+                            {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
+                              <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
+                            )}
                           </div>
                         )}
                       </div>

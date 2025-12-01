@@ -13,6 +13,7 @@ interface UserProfile {
   company: string
   unit: string
   unitUic?: string
+  platoon?: string
 }
 
 interface RequestActivity {
@@ -230,6 +231,17 @@ export default function SectionDashboard() {
     return parts.join(' ').trim()
   }
 
+  const originatorAffiliation = (r: Request) => {
+    const u = usersById[r.uploadedById]
+    if (!u) return ''
+    const vals = [
+      (u.unit && u.unit !== 'N/A') ? u.unit : null,
+      (u.company && u.company !== 'N/A') ? u.company : null,
+      (u.platoon && u.platoon !== 'N/A') ? u.platoon : null,
+    ].filter(Boolean) as string[]
+    return vals.join(' • ')
+  }
+
   const approvalInfo = (r: Request) => {
     const acts = Array.isArray(r.activity) ? r.activity : []
     const lastApproved = [...acts].reverse().find(a => a.action === 'Approved')
@@ -390,7 +402,7 @@ export default function SectionDashboard() {
             <div className="font-medium text-[var(--text)]">{r.subject}</div>
             <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
             <div className="text-xs text-[var(--muted)]">Stage {r.currentStage || 'PLATOON_REVIEW'}</div>
-            <div className="text-xs text-[var(--muted)] mt-1">{originatorName(r)}</div>
+            <div className="text-xs text-[var(--muted)] mt-1">{originatorName(r)}{originatorAffiliation(r) ? ` • ${originatorAffiliation(r)}` : ''}</div>
             {r.commanderApprovalDate && (
               <div className="text-xs text-[var(--muted)] mt-1">Commander Approval: {new Date(r.commanderApprovalDate).toLocaleDateString()}</div>
             )}

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { PermissionManager } from '../components/PermissionManager'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
+import { usePagination } from '@/hooks/usePagination'
+import { Pagination } from '@/components/Pagination'
 
 interface Request {
   id: string
@@ -235,6 +237,12 @@ export default function ReviewDashboard() {
 
   const inScopeOther = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [inScope, myStage])
 
+  // Pagination for pending requests
+  const pendingPagination = usePagination(pending, { pageSize: 25 })
+
+  // Pagination for in-scope requests
+  const inScopePagination = usePagination(inScopeOther, { pageSize: 25 })
+
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
 
   const formatCsvCell = (v: any) => {
@@ -354,7 +362,7 @@ export default function ReviewDashboard() {
         </div>
           <div className="mb-2 flex justify-end"><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPending}>Export Pending</button></div>
           <div className="flex flex-col gap-4">
-          {pending.map((r) => (
+          {pendingPagination.currentData.map((r) => (
             <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
               <div className="flex items-start justify-between">
                 <div>
@@ -521,13 +529,32 @@ export default function ReviewDashboard() {
             </div>
           ))}
         </div>
-        {pending.length === 0 && (
+        {pendingPagination.totalItems === 0 && (
           <div className="text-sm text-[var(--muted)]">No requests in your stage.</div>
+        )}
+        {pendingPagination.totalItems > 0 && (
+          <Pagination
+            currentPage={pendingPagination.currentPage}
+            totalPages={pendingPagination.totalPages}
+            totalItems={pendingPagination.totalItems}
+            pageSize={pendingPagination.pageSize}
+            startIndex={pendingPagination.startIndex}
+            endIndex={pendingPagination.endIndex}
+            onPageChange={pendingPagination.goToPage}
+            onPageSizeChange={pendingPagination.setPageSize}
+            onNext={pendingPagination.nextPage}
+            onPrevious={pendingPagination.previousPage}
+            onFirst={pendingPagination.goToFirstPage}
+            onLast={pendingPagination.goToLastPage}
+            canGoNext={pendingPagination.canGoNext}
+            canGoPrevious={pendingPagination.canGoPrevious}
+            pageSizeOptions={[10, 25, 50, 100]}
+          />
         )}
         <div className="mt-8">
           <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">In Your Scope</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportInScope}>Export In Scope</button></div>
           <div className="flex flex-col gap-4">
-            {inScopeOther.map((r) => (
+            {inScopePagination.currentData.map((r) => (
               <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
                 <div className="flex items-start justify-between">
                   <div>
@@ -610,10 +637,29 @@ export default function ReviewDashboard() {
                 </div>
               </div>
             ))}
-            {inScopeOther.length === 0 && (
+            {inScopePagination.totalItems === 0 && (
               <div className="text-sm text-[var(--muted)]">No requests in your scope.</div>
             )}
           </div>
+          {inScopePagination.totalItems > 0 && (
+            <Pagination
+              currentPage={inScopePagination.currentPage}
+              totalPages={inScopePagination.totalPages}
+              totalItems={inScopePagination.totalItems}
+              pageSize={inScopePagination.pageSize}
+              startIndex={inScopePagination.startIndex}
+              endIndex={inScopePagination.endIndex}
+              onPageChange={inScopePagination.goToPage}
+              onPageSizeChange={inScopePagination.setPageSize}
+              onNext={inScopePagination.nextPage}
+              onPrevious={inScopePagination.previousPage}
+              onFirst={inScopePagination.goToFirstPage}
+              onLast={inScopePagination.goToLastPage}
+              canGoNext={inScopePagination.canGoNext}
+              canGoPrevious={inScopePagination.canGoPrevious}
+              pageSizeOptions={[10, 25, 50, 100]}
+            />
+          )}
         </div>
       </div>
       {permOpen && currentUser && (

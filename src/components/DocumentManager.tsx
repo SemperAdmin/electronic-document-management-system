@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getSupabase } from '../lib/supabase';
 import { Unit } from '../lib/units';
 import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers, DocumentRecord, RequestRecord } from '../lib/db';
 
@@ -101,6 +102,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
     let docs: Document[] = [];
     const supaUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL as string || ''
+    const makePublicUrl = (pathKey: string) => {
+      try {
+        const sb = getSupabase()
+        if (sb && sb.storage && typeof sb.storage.from === 'function') {
+          const res = sb.storage.from('edms-docs').getPublicUrl(pathKey)
+          if (res?.data?.publicUrl) return String(res.data.publicUrl)
+        }
+      } catch {}
+      return `${supaUrl}/storage/v1/object/public/edms-docs/${pathKey}`
+    }
     const sanitize = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
     async function uploadToStorage(file: File, pathKey: string) {
       const resp = await fetch('/api/storage/sign-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
@@ -112,7 +123,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         try { msg = await putRes.text() } catch {}
         throw new Error(msg)
       }
-      return `${supaUrl}/storage/v1/object/public/edms-docs/${pathKey}`
+      return makePublicUrl(pathKey)
     }
     if (selectedFiles && selectedFiles.length > 0) {
       const uploadedUrls: string[] = []
@@ -338,6 +349,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     const now = Date.now();
     const sanitize2 = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
     const supaUrl2 = (import.meta as any)?.env?.VITE_SUPABASE_URL as string || ''
+    const makePublicUrl2 = (pathKey: string) => {
+      try {
+        const sb = getSupabase()
+        if (sb && sb.storage && typeof sb.storage.from === 'function') {
+          const res = sb.storage.from('edms-docs').getPublicUrl(pathKey)
+          if (res?.data?.publicUrl) return String(res.data.publicUrl)
+        }
+      } catch {}
+      return `${supaUrl2}/storage/v1/object/public/edms-docs/${pathKey}`
+    }
     const uploaded2: string[] = []
     for (let i = 0; i < attachFiles.length; i++) {
       const f = attachFiles[i]
@@ -348,7 +369,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         if (!resp.ok || !json?.signedUrl) throw new Error(String(json?.error || 'sign_url_failed'))
         const putRes = await fetch(String(json.signedUrl), { method: 'PUT', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f })
         if (!putRes.ok) throw new Error('upload_failed')
-        uploaded2.push(`${supaUrl2}/storage/v1/object/public/edms-docs/${pathKey}`)
+        uploaded2.push(makePublicUrl2(pathKey))
       } catch (e: any) {
         setFeedback({ type: 'error', message: `Failed to upload ${f.name}: ${String(e?.message || e)}` })
         return

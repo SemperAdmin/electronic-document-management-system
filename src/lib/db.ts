@@ -275,11 +275,12 @@ export async function listCompaniesForUnit(unitUic: string): Promise<string[]> {
       .eq('unit_uic', uic)
       .neq('user_company', 'N/A')
     if (error) return []
-    const vals = (data ?? [])
+    const rows: any[] = Array.isArray(data) ? (data as any[]) : []
+    const vals: string[] = rows
       .map((r: any) => String(r.user_company || '').trim())
       .filter((v: string) => !!v)
-    const uniq = Array.from(new Set(vals))
-    return uniq.sort((a, b) => a.localeCompare(b))
+    const uniq: string[] = Array.from(new Set<string>(vals))
+    return uniq.sort((a: string, b: string) => a.localeCompare(b))
   } catch {
     return []
   }
@@ -299,11 +300,12 @@ export async function listPlatoonsForCompany(unitUic: string, company: string): 
       .eq('user_company', comp)
       .neq('user_platoon', 'N/A')
     if (error) return []
-    const vals = (data ?? [])
+    const rows: any[] = Array.isArray(data) ? (data as any[]) : []
+    const vals: string[] = rows
       .map((r: any) => String(r.user_platoon || '').trim())
       .filter((v: string) => !!v)
-    const uniq = Array.from(new Set(vals))
-    return uniq.sort((a, b) => a.localeCompare(b))
+    const uniq: string[] = Array.from(new Set<string>(vals))
+    return uniq.sort((a: string, b: string) => a.localeCompare(b))
   } catch {
     return []
   }

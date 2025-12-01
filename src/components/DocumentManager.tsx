@@ -73,6 +73,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [docsExpanded, setDocsExpanded] = useState<boolean>(false);
   const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
   const [submitForUserId, setSubmitForUserId] = useState<string>('');
+  const [replacingDocId, setReplacingDocId] = useState<string>('');
 
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -333,6 +334,17 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
           View/Edit
         </button
         >
+        {doc.fileUrl && (
+          <>
+            <input id={`replace-input-${doc.id}`} type="file" className="hidden" onChange={(ev) => { const f = ev.target.files?.[0]; if (f) replaceDocFile(doc, f); try { ev.target.value = '' } catch {} }} />
+            <button
+              className="px-3 py-1 text-xs bg-brand-navy text-brand-cream rounded hover:brightness-110"
+              onClick={(e) => { e.stopPropagation(); setReplacingDocId(doc.id); const el = document.getElementById(`replace-input-${doc.id}`) as HTMLInputElement | null; el?.click(); }}
+            >
+              Replace File
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -372,6 +384,48 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     if (!href) return
     window.open(href, '_blank');
   };
+
+  const extractPathKey = (url?: string): string => {
+    if (!url) return ''
+    try {
+      if (/^https?:\/\//i.test(url)) {
+        const u = new URL(url)
+        const marker = '/storage/v1/object/public/edms-docs/'
+        const idx = u.pathname.indexOf(marker)
+        if (idx >= 0) return u.pathname.substring(idx + marker.length)
+      } else {
+        const marker = '/storage/v1/object/public/edms-docs/'
+        const idx = url.indexOf(marker)
+        if (idx >= 0) return url.substring(idx + marker.length)
+      }
+    } catch {}
+    return ''
+  }
+
+  const replaceDocFile = async (doc: Document, file: File) => {
+    try {
+      setFeedback(null)
+      const sb: any = getSupabase()
+      const pathKey = extractPathKey(doc.fileUrl)
+      if (!sb || !pathKey) {
+        setFeedback({ type: 'error', message: 'Storage not initialized for replace.' })
+        return
+      }
+      const { error } = await sb.storage.from('edms-docs').upload(pathKey, file, { upsert: true, contentType: file.type || 'application/octet-stream' })
+      if (error) {
+        setFeedback({ type: 'error', message: String(error.message || error) })
+        return
+      }
+      const publicUrl = sb.storage.from('edms-docs').getPublicUrl(pathKey)?.data?.publicUrl
+      const newUrl = publicUrl ? String(publicUrl) + `?v=${Date.now()}` : doc.fileUrl
+      setDocuments(prev => prev.map(d => (d.id === doc.id ? { ...d, fileUrl: newUrl } : d)))
+      setFeedback({ type: 'success', message: 'File replaced.' })
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: String(e?.message || e) })
+    } finally {
+      setReplacingDocId('')
+    }
+  }
 
   const saveRequestEdits = async () => {
     if (!selectedRequest || !currentUser?.id || selectedRequest.uploadedById !== currentUser.id) {

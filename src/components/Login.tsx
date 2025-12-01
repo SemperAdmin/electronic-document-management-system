@@ -87,6 +87,7 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
             type="text"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
+            autoComplete="username"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>

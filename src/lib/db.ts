@@ -263,6 +263,19 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
   }
 }
 
+export async function getUserByEdipi(edipi: string): Promise<UserRecord | null> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return null
+    const { data, error } = await sb.from('edms_users').select('*').eq('edipi', edipi).limit(1)
+    if (error) return null
+    const row = (data ?? [])[0]
+    return row ? fromUserRow(row) : null
+  } catch {
+    return null
+  }
+}
+
 export async function listCompaniesForUnit(unitUic: string): Promise<string[]> {
   try {
     const uic = String(unitUic || '')

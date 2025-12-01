@@ -4,7 +4,7 @@ import { Eye, EyeOff, Fingerprint, Smartphone, Tablet, Monitor } from 'lucide-re
 import clsx from 'clsx';
 import { useForm } from 'react-hook-form';
 import { sha256Hex } from '@/lib/crypto';
-import { listUsers } from '@/lib/db';
+import { listUsers, getUserByEmail, getUserByEdipi } from '@/lib/db';
 import { ALLOW_EDIPI_LOGIN } from '@/config/auth';
 import { TouchOptimizedButton } from './MobileLayout';
 import { useMobileLayout } from './MobileLayout';
@@ -134,17 +134,18 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({ onLoggedIn, onCreateAc
     setFeedback(null);
     
     try {
-      const users: UserProfile[] = (await listUsers()) as any;
       let user: UserProfile | undefined;
       let emailForLogin = data.identifier.trim().toLowerCase();
       
       if (ALLOW_EDIPI_LOGIN) {
         const isEdipiLike = /^[0-9]{10}$/.test(data.identifier);
         if (isEdipiLike) {
-          user = users.find(u => String(u.edipi) === data.identifier);
+          const found = await (getUserByEdipi as any)(String(data.identifier));
+          user = found as any;
           emailForLogin = String(user?.email || '');
         } else {
-          user = users.find(u => String(u.email || '').toLowerCase() === emailForLogin);
+          const found = await (getUserByEmail as any)(emailForLogin);
+          user = found as any;
         }
       } else {
         const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -152,7 +153,8 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({ onLoggedIn, onCreateAc
           setFeedback({ type: 'error', message: 'Please enter a valid email.' });
           return;
         }
-        user = users.find(u => String(u.email || '').toLowerCase() === emailForLogin);
+        const found = await (getUserByEmail as any)(emailForLogin);
+        user = found as any;
       }
       
       if (!user) {

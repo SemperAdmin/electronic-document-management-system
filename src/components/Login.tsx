@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { listUsers, getUserByEmail } from '@/lib/db';
+import { getUserByEmail, getUserByEdipi } from '@/lib/db';
 import { sha256Hex } from '@/lib/crypto';
 import { ALLOW_EDIPI_LOGIN } from '@/config/auth';
 
@@ -45,15 +45,14 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
     try {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       const isEdipiLike = /^[0-9]{10}$/.test(identifier)
-      const users: any[] = (await listUsers()) as any
       let user: any = null
       let emailForLogin = identifier.trim().toLowerCase()
 
       if (ALLOW_EDIPI_LOGIN && isEdipiLike) {
-        user = users.find(u => String(u.edipi) === String(identifier))
+        user = await getUserByEdipi(String(identifier))
         emailForLogin = String(user?.email || '')
       } else if (emailPattern.test(emailForLogin)) {
-        user = users.find(u => String(u.email || '').toLowerCase() === emailForLogin)
+        user = await getUserByEmail(emailForLogin)
       } else {
         setFeedback({ type: 'error', message: 'Enter a valid email or 10-digit EDIPI.' })
         return

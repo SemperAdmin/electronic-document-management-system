@@ -69,11 +69,16 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
 
       // success
       const profile = await getUserByEmail(emailForLogin)
-      if (!profile) { setFeedback({ type: 'error', message: 'User profile not found.' }); return }
+      if (!profile) {
+        console.error('[Login] User profile not found after successful password verification', { emailForLogin })
+        setFeedback({ type: 'error', message: 'User profile not found.' })
+        return
+      }
       setFeedback({ type: 'success', message: 'Logged in.' })
       onLoggedIn(profile as any)
-      
-    } catch {
+
+    } catch (error) {
+      console.error('[Login] Login failed:', error)
       setFeedback({ type: 'error', message: 'Login failed.' });
     }
   };

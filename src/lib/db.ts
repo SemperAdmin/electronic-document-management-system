@@ -253,12 +253,19 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
   try {
     const sb = getSupabase()
-    if (!sb?.from) return null
+    if (!sb?.from) {
+      console.error('[DB] getUserByEmail failed: Supabase client not initialized', { email })
+      return null
+    }
     const { data, error } = await sb.from('edms_users').select('*').eq('email', email).limit(1)
-    if (error) return null
+    if (error) {
+      console.error('[DB] getUserByEmail query failed:', { email, error: error.message })
+      return null
+    }
     const row = (data ?? [])[0]
     return row ? fromUserRow(row) : null
-  } catch {
+  } catch (e) {
+    console.error('[DB] getUserByEmail exception:', { email, error: e })
     return null
   }
 }
@@ -266,12 +273,19 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
 export async function getUserByEdipi(edipi: string): Promise<UserRecord | null> {
   try {
     const sb = getSupabase()
-    if (!sb?.from) return null
+    if (!sb?.from) {
+      console.error('[DB] getUserByEdipi failed: Supabase client not initialized', { edipi })
+      return null
+    }
     const { data, error } = await sb.from('edms_users').select('*').eq('edipi', edipi).limit(1)
-    if (error) return null
+    if (error) {
+      console.error('[DB] getUserByEdipi query failed:', { edipi, error: error.message })
+      return null
+    }
     const row = (data ?? [])[0]
     return row ? fromUserRow(row) : null
-  } catch {
+  } catch (e) {
+    console.error('[DB] getUserByEdipi exception:', { edipi, error: e })
     return null
   }
 }

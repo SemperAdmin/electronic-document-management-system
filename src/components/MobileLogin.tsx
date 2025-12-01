@@ -97,31 +97,31 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({ onLoggedIn, onCreateAc
 
   const handleBiometricLogin = async () => {
     if (!biometricAvailable) return;
-    
+
     setIsLoading(true);
     setFeedback(null);
-    
+
     try {
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-      
-      const credential = await navigator.credentials.get({
-        publicKey: {
-          challenge,
-          rpId: window.location.hostname,
-          allowCredentials: [],
-          userVerification: 'preferred',
-        },
+      // SECURITY FIX: Biometric authentication disabled until proper implementation
+      //
+      // PREVIOUS VULNERABILITY: This function was authenticating as the first user
+      // in the database without verifying the biometric credential against any
+      // stored user credentials. This is a critical security flaw.
+      //
+      // PROPER IMPLEMENTATION REQUIRES:
+      // 1. Store user's biometric public key in biometric_auth table during registration
+      // 2. In this function, retrieve the user's stored public key from database
+      // 3. Verify the credential.response.signature against the stored public key
+      // 4. Match credential.id to specific user record
+      // 5. Only then call onLoggedIn(authenticatedUser)
+      //
+      // For now, biometric login is disabled to prevent security vulnerability.
+
+      setFeedback({
+        type: 'error',
+        message: 'Biometric authentication is temporarily disabled. Please use password login.'
       });
-      
-      if (credential) {
-        const users = await listUsers() as UserProfile[];
-        const user = users[0];
-        if (user) {
-          setFeedback({ type: 'success', message: 'Biometric authentication successful!' });
-          setTimeout(() => onLoggedIn(user), 1000);
-        }
-      }
+      console.warn('[MobileLogin] Biometric authentication disabled for security - requires proper credential verification implementation');
     } catch (error) {
       setFeedback({ type: 'error', message: 'Biometric authentication failed. Please use password login.' });
     } finally {
@@ -176,15 +176,22 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({ onLoggedIn, onCreateAc
         setFeedback({ type: 'error', message: 'Invalid credentials.' });
         return;
       }
-      
-      setFeedback({ type: 'success', message: 'Login successful!' });
-      
-      if (data.rememberMe) {
-        localStorage.setItem('rememberedUser', user.email);
+
+      // Save remembered email safely (with fallback for private browsing)
+      if (data.rememberMe && user.email) {
+        try {
+          localStorage.setItem('rememberedUser', user.email);
+        } catch (e) {
+          console.warn('[MobileLogin] Could not save remembered user (localStorage blocked):', e);
+        }
       }
-      
-      setTimeout(() => onLoggedIn(user), 1000);
+
+      setFeedback({ type: 'success', message: 'Login successful!' });
+
+      // Call onLoggedIn immediately (no setTimeout delay like browser Login.tsx)
+      onLoggedIn(user);
     } catch (error) {
+      console.error('[MobileLogin] Login failed:', error);
       setFeedback({ type: 'error', message: 'Login failed. Please try again.' });
     } finally {
       setIsLoading(false);

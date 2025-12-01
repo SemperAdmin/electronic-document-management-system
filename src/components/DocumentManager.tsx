@@ -339,11 +339,31 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
   const normalizeDocUrl = (url?: string): string | undefined => {
     if (!url) return undefined
-    if (/^https?:\/\//i.test(url)) return url
     const supaBase = getSupabaseUrl() || localStorage.getItem('supabase_url') || ((import.meta as any)?.env?.VITE_SUPABASE_URL as string || '')
     if (!supaBase) return url
-    if (url.startsWith('/')) return `${supaBase}${url}`
-    if (url.includes('/storage/v1/object/public/edms-docs/')) return `${supaBase}/${url.replace(/^\/+/, '')}`
+    try {
+      // Absolute URL: rewrite host if path matches storage
+      if (/^https?:\/\//i.test(url)) {
+        const u = new URL(url)
+        const marker = '/storage/v1/object/public/edms-docs/'
+        const idx = u.pathname.indexOf(marker)
+        if (idx >= 0) {
+          const path = u.pathname.substring(idx) // from /storage...
+          const search = u.search || ''
+          return `${supaBase}${path}${search}`
+        }
+        return url
+      }
+      // Relative URL
+      if (url.startsWith('/')) return `${supaBase}${url}`
+      if (url.startsWith('storage/')) return `${supaBase}/${url}`
+      const marker = '/storage/v1/object/public/edms-docs/'
+      const idx = url.indexOf(marker)
+      if (idx >= 0) {
+        const path = url.substring(idx)
+        return `${supaBase}${path}`
+      }
+    } catch {}
     return url
   }
 

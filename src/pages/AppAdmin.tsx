@@ -96,14 +96,7 @@ export default function AppAdmin() {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">App Administration</h2>
-      <p className="text-sm text-gray-600 mb-4">Manage Unit Admin assignments and monitor pending approvals.</p>
-
-      <div className="mb-4">
-        <button
-          className="px-4 py-2 rounded bg-brand-navy text-brand-cream hover:brightness-110"
-          onClick={migrateToSupabase}
-        >Migrate local/static data to Supabase</button>
-      </div>
+      
 
       <div className="mb-4 flex gap-2">
         <button

@@ -16,6 +16,14 @@
         })
       }
     </script>
+    <script>
+      try {
+        // Ensure Supabase config is present at runtime for static hosting
+        // Values are injected at build time via Vite define()
+        // eslint-disable-next-line no-undef
+        window.__SUPABASE_CONFIG = { url: __ENV_SUPABASE_URL, anonKey: __ENV_SUPABASE_ANON_KEY };
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="boot" style="padding:8px;background:#fff3cd;color:#5c3c00;border-bottom:1px solid #f0d98e;font-family:Segoe UI,Arial,sans-serif">Loading EDMS UI… If this stays, JS didn’t start.</div>

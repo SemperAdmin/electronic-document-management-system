@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 let client: any = null
 let warned = false
 
+// In-memory cache for environments where localStorage is blocked (private browsing, incognito mode)
+let memoryCache: { url?: string; anonKey?: string } = {}
+
 declare const __ENV_SUPABASE_URL: string
 declare const __ENV_SUPABASE_ANON_KEY: string
 
@@ -22,6 +25,7 @@ declare const __ENV_SUPABASE_ANON_KEY: string
       anonKey: typeof __ENV_SUPABASE_ANON_KEY !== 'undefined' ? __ENV_SUPABASE_ANON_KEY : undefined,
     }
     let viaStorage: { url?: string; anonKey?: string } = {}
+    let localStorageAvailable = true
     try {
       const sUrl = localStorage.getItem('supabase_url') || localStorage.getItem('VITE_SUPABASE_URL') || ''
       const sKey = localStorage.getItem('supabase_anon_key') || localStorage.getItem('VITE_SUPABASE_ANON_KEY') || ''
@@ -29,7 +33,12 @@ declare const __ENV_SUPABASE_ANON_KEY: string
         url: sUrl || undefined,
         anonKey: sKey || undefined,
       }
-    } catch {}
+    } catch (e) {
+      // localStorage blocked (private/incognito mode) - use memory cache
+      localStorageAvailable = false
+      console.warn('localStorage unavailable (private mode?), using memory cache for Supabase config')
+      viaStorage = memoryCache
+    }
     const sanitize = (v?: string) => {
       if (!v) return v
       const trimmed = String(v).trim()
@@ -45,14 +54,22 @@ declare const __ENV_SUPABASE_ANON_KEY: string
       const qpKey = sanitize(params.get('supabase_key') || undefined)
       const finalUrl = qpUrl || url
       const finalKey = qpKey || anonKey
-      try {
-        if (finalUrl && finalKey) {
-          localStorage.setItem('supabase_url', finalUrl)
-          localStorage.setItem('supabase_anon_key', finalKey)
-          localStorage.setItem('VITE_SUPABASE_URL', finalUrl)
-          localStorage.setItem('VITE_SUPABASE_ANON_KEY', finalKey)
+
+      // Cache config to both localStorage (if available) and memory
+      if (finalUrl && finalKey) {
+        if (localStorageAvailable) {
+          try {
+            localStorage.setItem('supabase_url', finalUrl)
+            localStorage.setItem('supabase_anon_key', finalKey)
+            localStorage.setItem('VITE_SUPABASE_URL', finalUrl)
+            localStorage.setItem('VITE_SUPABASE_ANON_KEY', finalKey)
+          } catch (e) {
+            console.warn('Failed to cache Supabase config to localStorage:', e)
+          }
         }
-      } catch {}
+        // Always cache to memory as fallback
+        memoryCache = { url: finalUrl, anonKey: finalKey }
+      }
       return { url: finalUrl, anonKey: finalKey }
     } catch {}
     return { url, anonKey }

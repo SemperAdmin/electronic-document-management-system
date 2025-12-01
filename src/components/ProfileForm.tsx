@@ -139,12 +139,16 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   }, [selectedUnit, roleCompany, rolePlatoonOptionsDb, rolePlatoonOptions])
 
   const companyOptionsWithCurrent = useMemo(() => {
-    return companyOptions.slice();
-  }, [companyOptions]);
+    const base = companyOptions.slice()
+    const cur = (company || (initial as any).company || (initial as any).user_company || '')
+    return (cur && !base.includes(cur)) ? [cur, ...base] : base
+  }, [companyOptions, company, initial]);
 
   const platoonOptionsWithCurrent = useMemo(() => {
-    return platoonOptionsResolved.slice();
-  }, [platoonOptionsResolved]);
+    const base = platoonOptionsResolved.slice()
+    const cur = (platoon || (initial as any).platoon || (initial as any).user_platoon || '')
+    return (cur && !base.includes(cur)) ? [cur, ...base] : base
+  }, [platoonOptionsResolved, platoon, initial]);
   const roleCompanyOptionsWithCurrent = useMemo(() => {
     const base = roleCompanyOptions.slice();
     const cur = roleCompany || (initial as any).roleCompany || '';

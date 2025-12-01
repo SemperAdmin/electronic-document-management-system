@@ -48,6 +48,8 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
       // Prefer Supabase auth for email logins to avoid REST 401 on edms_users
+      // NOTE: Dev-only fallback below must remain behind import.meta.env.DEV.
+      // Do NOT enable passwordHash fallback in production.
       if (emailPattern.test(emailForLogin)) {
         const { data, error } = await signInWithPassword(emailForLogin, password)
         if (!error) {
@@ -95,6 +97,8 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
       const user = users.find(u => String(u.edipi) === identifier)
       emailForLogin = String(user?.email || '')
       if (!user || !emailForLogin) { setFeedback({ type: 'error', message: 'Account not found.' }); return }
+      // NOTE: Dev-only fallback below must remain behind import.meta.env.DEV.
+      // Do NOT enable passwordHash fallback in production.
       const { error } = await signInWithPassword(emailForLogin, password)
       if (!error) {
         setFeedback({ type: 'success', message: 'Logged in.' })

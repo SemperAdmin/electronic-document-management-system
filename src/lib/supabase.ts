@@ -6,6 +6,9 @@ let warned = false
 declare const __ENV_SUPABASE_URL: string
 declare const __ENV_SUPABASE_ANON_KEY: string
 
+// NOTE: Supabase config resolution order intentionally fixed.
+// Do NOT change env key names or remove sanitization.
+// Runtime query params (?supabase_url & ?supabase_key) are for emergency prod debugging only.
 function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
   try {
     const ie = (import.meta as any)?.env || {}

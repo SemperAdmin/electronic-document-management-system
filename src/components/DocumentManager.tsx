@@ -5,6 +5,7 @@ import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers,
 import { getSupabaseUrl } from '../lib/supabase';
 import { usePagination } from '@/hooks/usePagination';
 import { Pagination } from '@/components/Pagination';
+import * as workflow from '@/lib/workflow';
 
 interface Document {
   id: string;
@@ -278,10 +279,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
-  const isReturnedReq = (r: Request) => {
-    const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null;
-    return !!a && /returned/i.test(String(a?.action || ''));
-  };
+  // Use centralized workflow logic for checking returned status
+  const isReturnedReq = (r: Request) => workflow.isReturned(r as any);
 
   const isReviewer = () => String(currentUser?.role || '').includes('REVIEW');
   const eligibleUsers = () => {

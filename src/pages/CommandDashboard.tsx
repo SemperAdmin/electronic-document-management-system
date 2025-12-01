@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
+import * as workflow from '@/lib/workflow'
 
 interface Request {
   id: string
@@ -63,16 +64,7 @@ export default function CommandDashboard() {
   }, [openDocsId])
   const [expandedCard, setExpandedCard] = useState<Record<string, boolean>>({})
 
-  const ORIGINATOR_STAGE = 'ORIGINATOR_REVIEW'
-  const STAGES = ['PLATOON_REVIEW', 'COMPANY_REVIEW', 'BATTALION_REVIEW', 'COMMANDER_REVIEW', 'ARCHIVED']
-  const nextStage = (stage?: string) => {
-    const i = STAGES.indexOf(stage || STAGES[0])
-    return i >= 0 && i < STAGES.length - 1 ? STAGES[i + 1] : STAGES[i] || STAGES[0]
-  }
-  const prevStage = (stage?: string) => {
-    const i = STAGES.indexOf(stage || STAGES[0])
-    return i > 0 ? STAGES[i - 1] : STAGES[0]
-  }
+  // Workflow logic centralized in src/lib/workflow.ts
 
   useEffect(() => {
     try {
@@ -597,7 +589,7 @@ export default function CommandDashboard() {
                       </button>
                       <button
                         className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
+                        onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? workflow.ORIGINATOR_STAGE : workflow.previousStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
                       >
                         Return
                       </button>

@@ -574,30 +574,3 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     </div>
   );
 };
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={readOnly}
-              />
-              {mode === 'create' && (
-                <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{mode === 'edit' ? 'Confirm New Password' : 'Confirm Password'}</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                autoComplete="new-password"
-                placeholder={mode === 'edit' ? 'Required only if changing password' : ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={readOnly || (mode === 'edit' && !password)}
-              />
-              {mode === 'edit' && !password && (
-                <p className="text-xs text-gray-500 mt-1">Enter a new password to enable confirmation</p>
-              )}
-            </div>

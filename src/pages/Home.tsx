@@ -275,19 +275,21 @@ function HomeContent() {
                 setSelectedDocument(doc);
                 setView('document-viewer');
               }}
-              onUploadClick={() => setView('upload')}
-              currentUser={currentUser}
+              onDocumentAction={(action, doc) => {
+                if (action === 'download') {
+                  /* no-op in demo */
+                }
+              }}
             />
           ) : view === 'document-viewer' ? (
             <MobileDocumentViewer
               document={selectedDocument}
-              onBack={() => setView('documents')}
+              onClose={() => setView('documents')}
             />
           ) : view === 'upload' ? (
             <MobileUpload
               onUploadComplete={() => setView('documents')}
               onCancel={() => setView('documents')}
-              currentUser={currentUser}
             />
           ) : (
             <MobileDashboard 

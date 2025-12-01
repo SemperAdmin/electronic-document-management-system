@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, DragEvent } from 'react';
+import React, { useState, useRef, useCallback, DragEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Camera, 

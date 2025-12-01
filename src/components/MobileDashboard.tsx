@@ -173,6 +173,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
       {
         id: 'upload',
         title: 'Upload Document',
+        count: 0,
         icon: <Upload className="w-6 h-6" />,
         color: 'bg-green-500',
         action: () => onNavigate('upload'),
@@ -180,6 +181,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
       {
         id: 'settings',
         title: 'Settings',
+        count: 0,
         icon: <Settings className="w-6 h-6" />,
         color: 'bg-gray-500',
         action: () => onNavigate('settings'),

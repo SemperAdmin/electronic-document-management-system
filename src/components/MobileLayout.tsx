@@ -105,13 +105,14 @@ export const MobileLayoutProvider: React.FC<MobileLayoutProviderProps> = ({ chil
 
 interface TouchOptimizedButtonProps {
   children: React.ReactNode;
-  onClick?: () => void;
+  onClick?: (...args: any[]) => void;
   disabled?: boolean;
   loading?: boolean;
   variant?: 'primary' | 'secondary' | 'danger';
   size?: 'small' | 'medium' | 'large';
   className?: string;
   ariaLabel?: string;
+  type?: 'button' | 'submit';
 }
 
 export const TouchOptimizedButton: React.FC<TouchOptimizedButtonProps> = ({
@@ -123,6 +124,7 @@ export const TouchOptimizedButton: React.FC<TouchOptimizedButtonProps> = ({
   size = 'medium',
   className,
   ariaLabel,
+  type = 'button',
 }) => {
   const { isMobile } = useMobileLayout();
   
@@ -160,6 +162,7 @@ export const TouchOptimizedButton: React.FC<TouchOptimizedButtonProps> = ({
 
   return (
     <button
+      type={type}
       onClick={handleClick}
       disabled={disabled || loading}
       className={baseClasses}

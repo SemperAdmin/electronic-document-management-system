@@ -13,7 +13,7 @@ import {
   HardDrive
 } from 'lucide-react';
 import { useMobileLayout } from './MobileLayout';
-import { clsx } from 'clsx';
+import clsx from 'clsx';
 
 interface OfflineDocument {
   id: string;
@@ -244,7 +244,7 @@ export const OfflineProvider: React.FC<{ children: ReactNode }> = ({ children })
 };
 
 export const MobileOfflineIndicator: React.FC = () => {
-  const { isOnline, syncStatus, lastSyncTime, pendingActions } = useOffline();
+  const { isOnline, syncStatus, lastSyncTime, pendingActions, offlineDocuments } = useOffline();
   const { isMobile } = useMobileLayout();
   const [showDetails, setShowDetails] = useState(false);
 

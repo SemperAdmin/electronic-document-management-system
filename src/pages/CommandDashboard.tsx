@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 
 interface Request {
@@ -117,13 +118,12 @@ export default function CommandDashboard() {
       } else {
         ;(async () => {
           try {
-            const res = await fetch('/api/unit-structure')
-            const merged = await res.json()
+            const merged = await loadUnitStructureFromBundle()
             const uic = currentUser?.unitUic || ''
-            const v = merged?.[uic]
+            const v = (merged as any)?.[uic]
             if (v && Array.isArray(v._commandSections)) sec.push(...v._commandSections)
             for (const key of Object.keys(merged || {})) {
-              const node = merged[key]
+              const node = (merged as any)[key]
               if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
             }
           } catch {}

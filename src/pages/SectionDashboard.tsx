@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { UNITS } from '../lib/units'
 import { useNavigate } from 'react-router-dom'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
@@ -163,10 +164,9 @@ export default function SectionDashboard() {
       } else {
         ;(async () => {
           try {
-            const res = await fetch('/api/unit-structure')
-            const merged = await res.json()
+            const merged = await loadUnitStructureFromBundle()
             for (const uic of Object.keys(merged || {})) {
-              const v = merged[uic]
+              const v = (merged as any)[uic]
               if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
               if (v && Array.isArray(v._sections)) secMap[uic] = v._sections
               if (v && Array.isArray(v._commandSections)) cmdMap[uic] = v._commandSections

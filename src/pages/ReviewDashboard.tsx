@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { PermissionManager } from '../components/PermissionManager'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 
@@ -125,10 +126,9 @@ export default function ReviewDashboard() {
       } else {
         ;(async () => {
           try {
-            const res = await fetch('/api/unit-structure')
-            const merged = await res.json()
+            const merged = await loadUnitStructureFromBundle()
             for (const uic of Object.keys(merged || {})) {
-              const v = merged[uic]
+              const v = (merged as any)[uic]
               if (v && Array.isArray(v._sections)) secMap[uic] = v._sections
               if (v && v._platoonSectionMap && typeof v._platoonSectionMap === 'object') pMap[uic] = v._platoonSectionMap
             }

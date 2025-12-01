@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 
 interface HierarchicalDropdownProps {
   value: { company?: string; platoon?: string }
@@ -22,10 +23,8 @@ export const HierarchicalDropdown: React.FC<HierarchicalDropdownProps> = ({ valu
     const load = async () => {
       setError('')
       try {
-        const res = await fetch('/api/unit-structure')
-        if (!res.ok) throw new Error('Failed to load unit structure')
-        const json = await res.json()
-        setData(json || {})
+        const merged = await loadUnitStructureFromBundle()
+        setData(merged as any)
       } catch (e) {
         setError('Unable to load structure')
       }

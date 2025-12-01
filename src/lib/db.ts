@@ -162,7 +162,7 @@ function fromUserRow(r: any): UserRecord {
     role: r.role ? String(r.role) : undefined,
     unitUic: r.unit_uic ? String(r.unit_uic) : undefined,
     unit: r.unit ? String(r.unit) : undefined,
-    company: r.company ? String(r.company) : undefined,
+    company: (r.company ? String(r.company) : (r.user_company ? String(r.user_company) : undefined)),
     isUnitAdmin: !!r.is_unit_admin,
     isCommandStaff: !!r.is_command_staff,
     isAppAdmin: !!r.is_app_admin,

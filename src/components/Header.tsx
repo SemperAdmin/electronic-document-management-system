@@ -54,10 +54,12 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                     <div className="text-xs text-white/80">{currentUser.service} • {currentUser.role}</div>
                     {(() => {
                       const unitName = (UNITS.find(x => x.uic === (currentUser?.unitUic || ''))?.unitName) || (currentUser?.unit || '')
+                      const company = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ((currentUser as any)?.user_company && (currentUser as any).user_company !== 'N/A' ? (currentUser as any).user_company : null)
+                      const platoon = ((currentUser as any)?.platoon && (currentUser as any).platoon !== 'N/A') ? (currentUser as any).platoon : (((currentUser as any)?.user_platoon && (currentUser as any).user_platoon !== 'N/A') ? (currentUser as any).user_platoon : null)
                       const parts = [
                         unitName || null,
-                        currentUser.company && currentUser.company !== 'N/A' ? currentUser.company : null,
-                        (currentUser as any).platoon && (currentUser as any).platoon !== 'N/A' ? (currentUser as any).platoon : null
+                        company,
+                        platoon
                       ].filter(Boolean)
                       return parts.length ? (
                         <div className="text-xs text-white/70">{parts.join(' • ')}</div>

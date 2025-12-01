@@ -138,7 +138,7 @@ function toUserRow(u: UserRecord) {
     role: u.role !== undefined ? u.role : undefined,
     unit_uic: u.unitUic !== undefined ? u.unitUic : undefined,
     unit: u.unit !== undefined ? u.unit : undefined,
-    company: u.company !== undefined ? u.company : undefined,
+    user_company: u.company !== undefined ? u.company : undefined,
     is_unit_admin: u.isUnitAdmin === undefined ? undefined : !!u.isUnitAdmin,
     is_command_staff: u.isCommandStaff === undefined ? undefined : !!u.isCommandStaff,
     is_app_admin: u.isAppAdmin === undefined ? undefined : !!u.isAppAdmin,

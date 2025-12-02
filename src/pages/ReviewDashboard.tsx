@@ -61,6 +61,8 @@ export default function ReviewDashboard() {
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
   const [permOpen, setPermOpen] = useState(false)
   const [expandedCard, setExpandedCard] = useState<Record<string, boolean>>({})
+  const [expandedUserDetails, setExpandedUserDetails] = useState<Record<string, boolean>>({})
+  const [showInScope, setShowInScope] = useState(false)
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
@@ -346,11 +348,11 @@ export default function ReviewDashboard() {
             <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
             <div className="mt-2 flex items-center gap-2">
               <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{String(currentUser?.role || 'MEMBER')}</span>
-              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
             </div>
           </div>
           {currentUser && String(currentUser.role || '') !== 'MEMBER' && (
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 hidden md:block">
               <button
                 className="px-4 py-2 rounded bg-brand-red text-brand-cream border-2 border-brand-red-2 shadow hover:bg-brand-red-2"
                 onClick={() => setPermOpen(true)}
@@ -360,7 +362,7 @@ export default function ReviewDashboard() {
             </div>
           )}
         </div>
-          <div className="mb-2 flex justify-end"><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPending}>Export Pending</button></div>
+          <div className="mb-2 flex justify-end"><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPending}>Export Pending</button></div>
           <div className="flex flex-col gap-4">
           {pendingPagination.currentData.map((r) => (
             <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
@@ -371,10 +373,18 @@ export default function ReviewDashboard() {
                   {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
                   {originatorFor(r) && (
                     <div className="text-xs text-[var(--muted)] mt-1">
-                      {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                      {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                        <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                      )}
+                      <div className="md:hidden">
+                        {originatorFor(r).rank} {originatorFor(r).lastName}
+                        <button onClick={() => setExpandedUserDetails(prev => ({...prev, [r.id]: !prev[r.id]}))} className="ml-2 text-brand-navy underline">
+                          {expandedUserDetails[r.id] ? 'Less' : 'More'}
+                        </button>
+                      </div>
+                      <div className={`${expandedUserDetails[r.id] ? 'block' : 'hidden'} md:block`}>
+                        {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
+                        {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
+                          <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -533,26 +543,42 @@ export default function ReviewDashboard() {
           <div className="text-sm text-[var(--muted)]">No requests in your stage.</div>
         )}
         {pendingPagination.totalItems > 0 && (
-          <Pagination
-            currentPage={pendingPagination.currentPage}
-            totalPages={pendingPagination.totalPages}
-            totalItems={pendingPagination.totalItems}
-            pageSize={pendingPagination.pageSize}
-            startIndex={pendingPagination.startIndex}
-            endIndex={pendingPagination.endIndex}
-            onPageChange={pendingPagination.goToPage}
-            onPageSizeChange={pendingPagination.setPageSize}
-            onNext={pendingPagination.nextPage}
-            onPrevious={pendingPagination.previousPage}
-            onFirst={pendingPagination.goToFirstPage}
-            onLast={pendingPagination.goToLastPage}
-            canGoNext={pendingPagination.canGoNext}
-            canGoPrevious={pendingPagination.canGoPrevious}
-            pageSizeOptions={[10, 25, 50, 100]}
-          />
+          <>
+            <div className="hidden md:block">
+              <Pagination
+                currentPage={pendingPagination.currentPage}
+                totalPages={pendingPagination.totalPages}
+                totalItems={pendingPagination.totalItems}
+                pageSize={pendingPagination.pageSize}
+                startIndex={pendingPagination.startIndex}
+                endIndex={pendingPagination.endIndex}
+                onPageChange={pendingPagination.goToPage}
+                onPageSizeChange={pendingPagination.setPageSize}
+                onNext={pendingPagination.nextPage}
+                onPrevious={pendingPagination.previousPage}
+                onFirst={pendingPagination.goToFirstPage}
+                onLast={pendingPagination.goToLastPage}
+                canGoNext={pendingPagination.canGoNext}
+                canGoPrevious={pendingPagination.canGoPrevious}
+                pageSizeOptions={[10, 25, 50, 100]}
+              />
+            </div>
+            <div className="md:hidden mt-4">
+              {pendingPagination.canGoNext && (
+                <button onClick={pendingPagination.nextPage} className="w-full px-4 py-2 text-center text-brand-navy bg-brand-cream border border-brand-navy/30 rounded-lg">
+                  Load More
+                </button>
+              )}
+            </div>
+          </>
         )}
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">In Your Scope</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportInScope}>Export In Scope</button></div>
+        <div className="mt-4 md:hidden">
+          <button onClick={() => setShowInScope(prev => !prev)} className="w-full px-4 py-2 text-center text-brand-navy bg-brand-cream border border-brand-navy/30 rounded-lg">
+            {showInScope ? 'Hide Other Requests' : 'Show All In-Scope Requests'} ({inScopeOther.length})
+          </button>
+        </div>
+        <div className={`mt-8 ${showInScope ? 'block' : 'hidden'} md:block`}>
+          <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">In Your Scope</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportInScope}>Export In Scope</button></div>
           <div className="flex flex-col gap-4">
             {inScopePagination.currentData.map((r) => (
               <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
@@ -563,10 +589,18 @@ export default function ReviewDashboard() {
                     {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
                     {originatorFor(r) && (
                       <div className="text-xs text-[var(--muted)] mt-1">
+                      <div className="md:hidden">
+                        {originatorFor(r).rank} {originatorFor(r).lastName}
+                        <button onClick={() => setExpandedUserDetails(prev => ({...prev, [r.id]: !prev[r.id]}))} className="ml-2 text-brand-navy underline">
+                          {expandedUserDetails[r.id] ? 'Less' : 'More'}
+                        </button>
+                      </div>
+                      <div className={`${expandedUserDetails[r.id] ? 'block' : 'hidden'} md:block`}>
                         {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
                         {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
                           <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
                         )}
+                      </div>
                       </div>
                     )}
                   </div>
@@ -642,23 +676,34 @@ export default function ReviewDashboard() {
             )}
           </div>
           {inScopePagination.totalItems > 0 && (
-            <Pagination
-              currentPage={inScopePagination.currentPage}
-              totalPages={inScopePagination.totalPages}
-              totalItems={inScopePagination.totalItems}
-              pageSize={inScopePagination.pageSize}
-              startIndex={inScopePagination.startIndex}
-              endIndex={inScopePagination.endIndex}
-              onPageChange={inScopePagination.goToPage}
-              onPageSizeChange={inScopePagination.setPageSize}
-              onNext={inScopePagination.nextPage}
-              onPrevious={inScopePagination.previousPage}
-              onFirst={inScopePagination.goToFirstPage}
-              onLast={inScopePagination.goToLastPage}
-              canGoNext={inScopePagination.canGoNext}
-              canGoPrevious={inScopePagination.canGoPrevious}
-              pageSizeOptions={[10, 25, 50, 100]}
-            />
+            <>
+              <div className="hidden md:block">
+                <Pagination
+                  currentPage={inScopePagination.currentPage}
+                  totalPages={inScopePagination.totalPages}
+                  totalItems={inScopePagination.totalItems}
+                  pageSize={inScopePagination.pageSize}
+                  startIndex={inScopePagination.startIndex}
+                  endIndex={inScopePagination.endIndex}
+                  onPageChange={inScopePagination.goToPage}
+                  onPageSizeChange={inScopePagination.setPageSize}
+                  onNext={inScopePagination.nextPage}
+                  onPrevious={inScopePagination.previousPage}
+                  onFirst={inScopePagination.goToFirstPage}
+                  onLast={inScopePagination.goToLastPage}
+                  canGoNext={inScopePagination.canGoNext}
+                  canGoPrevious={inScopePagination.canGoPrevious}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                />
+              </div>
+              <div className="md:hidden mt-4">
+                {inScopePagination.canGoNext && (
+                  <button onClick={inScopePagination.nextPage} className="w-full px-4 py-2 text-center text-brand-navy bg-brand-cream border border-brand-navy/30 rounded-lg">
+                    Load More
+                  </button>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>

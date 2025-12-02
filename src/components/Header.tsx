@@ -37,7 +37,8 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
             <img src={logoImg} alt="Semper Admin Logo" className="h-full w-auto rounded object-contain" />
             <div>
               <h1 className="text-2xl md:text-3xl font-semibold leading-tight text-brand-cream">
-                <span className="text-3xl md:text-4xl">Electronic Document Management System</span>
+                <span className="hidden md:inline text-3xl md:text-4xl">Electronic Document Management System</span>
+                <span className="md:hidden text-3xl">EDMS</span>
                 <a className="text-lg font-normal ml-3 whitespace-nowrap text-red-500" href="https://linktr.ee/semperadmin">by Semper Admin</a>
               </h1>
               <p className="text-sm font-light text-white/70 mt-0.5">Marine Corps Unit Document Management</p>

@@ -75,7 +75,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     { id: 'settings', icon: Settings, label: 'Settings', showCount: false }
   ];
 
-  if (!isMobile) return null;
+  return null;
 
   return (
     <>

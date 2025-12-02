@@ -123,8 +123,8 @@ const { url, anonKey } = resolveSupabaseConfig();
 
 // Immediately create and export the client
 export const supabaseClient = createClient(
-  url!,
-  anonKey!,
+  url || '',
+  anonKey || '',
   {
     auth: {
       persistSession: true,

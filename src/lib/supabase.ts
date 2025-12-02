@@ -47,6 +47,7 @@ declare const __ENV_SUPABASE_ANON_KEY: string
     }
     const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url)
     const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey)
+
     // allow runtime query param override for prod debugging
     try {
       const params = new URLSearchParams(window.location.search)

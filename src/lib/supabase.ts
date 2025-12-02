@@ -12,7 +12,7 @@ declare const __ENV_SUPABASE_ANON_KEY: string
 // NOTE: Supabase config resolution order intentionally fixed.
 // Do NOT change env key names or remove sanitization.
 // Runtime query params (?supabase_url & ?supabase_key) are for emergency prod debugging only.
-  function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
+function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
   try {
     const ie = (import.meta as any)?.env || {}
     const viaEnv = {
@@ -47,6 +47,7 @@ declare const __ENV_SUPABASE_ANON_KEY: string
     }
     const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url)
     const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey)
+
     // allow runtime query param override for prod debugging
     try {
       const params = new URLSearchParams(window.location.search)
@@ -71,7 +72,9 @@ declare const __ENV_SUPABASE_ANON_KEY: string
         memoryCache = { url: finalUrl, anonKey: finalKey }
       }
       return { url: finalUrl, anonKey: finalKey }
-    } catch {}
+    } catch {
+      // Errors in this block are not critical, fall through to return the base url/key
+    }
     return { url, anonKey }
   } catch {
     return {}
@@ -87,8 +90,10 @@ export function getSupabase(): any {
       return null
     }
     client = createClient(String(url), String(anonKey))
-  } catch {}
-  return client
+    return client
+  } catch {
+    return null
+  }
 }
 
 export const supabase: any = getSupabase()

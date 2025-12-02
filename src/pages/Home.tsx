@@ -10,13 +10,6 @@ import { ProfileForm } from '../components/ProfileForm';
 import { AdminPanel } from '../components/AdminPanel';
 import AppAdmin from './AppAdmin';
 import { Login } from '../components/Login';
-import { MobileLogin } from '../components/MobileLogin';
-import { MobileLayoutProvider } from '../components/MobileLayout';
-import { MobileDashboard } from '../components/MobileDashboard';
-import { MobileDocumentList } from '../components/MobileDocumentList';
-import { MobileDocumentViewer } from '../components/MobileDocumentViewer';
-import { MobileUpload } from '../components/MobileUpload';
-import { MobileBottomNav, MobileFloatingActionButton } from '../components/MobileBottomNav';
 import { AccessibilityProvider, MobileAccessibilityButton } from '../components/MobileAccessibility';
 import { OfflineProvider } from '../components/MobileOffline';
  
@@ -32,9 +25,7 @@ function HomeContent() {
   const [hasSectionDashboard, setHasSectionDashboard] = useState(false);
   const [hasCommandDashboard, setHasCommandDashboard] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
-  const [mobileActiveTab, setMobileActiveTab] = useState('dashboard');
   const navigate = useNavigate();
-  const isMobile = false;
 
   
 

@@ -119,10 +119,12 @@ const safeLocalStorage = (() => {
   }
 })();
 
+const { url, anonKey } = resolveSupabaseConfig();
+
 // Immediately create and export the client
 export const supabaseClient = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY,
+  url || '',
+  anonKey || '',
   {
     auth: {
       persistSession: true,

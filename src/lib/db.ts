@@ -257,7 +257,8 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
       console.error('[DB] getUserByEmail failed: Supabase client not initialized', { email })
       return null
     }
-    const { data, error } = await sb.from('edms_users').select('*').eq('email', email).limit(1)
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data, error } = await sb.from('edms_users').select('*').eq('email', normalizedEmail).limit(1)
     if (error) {
       console.error('[DB] getUserByEmail query failed:', { email, error: error.message })
       return null

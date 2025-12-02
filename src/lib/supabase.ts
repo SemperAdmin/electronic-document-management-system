@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
+declare const __ENV_SUPABASE_URL: string | undefined;
+declare const __ENV_SUPABASE_ANON_KEY: string | undefined;
+
 // --- Forced Initialization for Mobile Stability ---
 // This approach ensures the Supabase client is created immediately when this module
 // is loaded, preventing race conditions or initialization failures on mobile browsers
@@ -11,7 +14,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
 // *** END HARDCODE ***
 
 // In-memory cache for environments where localStorage is blocked
-const memoryCache: { [key: string]: string } = {};
+let memoryCache: { url?: string; anonKey?: string } = {};
 
 // NOTE: Supabase config resolution order intentionally fixed.
 // Do NOT change env key names or remove sanitization.
@@ -83,19 +86,22 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
   } catch {
     return {}
   }
+}
 
-export function getSupabase(): any {
-  try {
-    if (client) return client
-    const { url, anonKey } = resolveSupabaseConfig()
-    if (!url || !anonKey) {
-      if (!warned) { console.warn('Supabase env missing', { url: url || '', anonKey: anonKey || '' }); warned = true }
-      return null
-    }
-    client = createClient(String(url), String(anonKey))
-    return client
-  } catch {
-    return null
+// In-memory storage implementation for environments where localStorage is not available.
+class MemoryStorage {
+  private store: Record<string, string> = {};
+
+  getItem(key: string): string | null {
+    return this.store[key] || null;
+  }
+
+  setItem(key: string, value: string): void {
+    this.store[key] = value;
+  }
+
+  removeItem(key: string): void {
+    delete this.store[key];
   }
 }
 

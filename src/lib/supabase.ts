@@ -16,7 +16,7 @@ const memoryCache: { [key: string]: string } = {};
 // NOTE: Supabase config resolution order intentionally fixed.
 // Do NOT change env key names or remove sanitization.
 // Runtime query params (?supabase_url & ?supabase_key) are for emergency prod debugging only.
-  function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
+function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
   try {
     const ie = (import.meta as any)?.env || {}
     const viaEnv = {
@@ -60,28 +60,42 @@ const memoryCache: { [key: string]: string } = {};
       const finalUrl = qpUrl || url
       const finalKey = qpKey || anonKey
 
-  get length(): number {
-    return Object.keys(this.data).length;
+      // Cache config to both localStorage (if available) and memory
+      if (finalUrl && finalKey) {
+        if (localStorageAvailable) {
+          try {
+            localStorage.setItem('supabase_url', finalUrl)
+            localStorage.setItem('supabase_anon_key', finalKey)
+            localStorage.setItem('VITE_SUPABASE_URL', finalUrl)
+            localStorage.setItem('VITE_SUPABASE_ANON_KEY', finalKey)
+          } catch (e) {
+            console.warn('Failed to cache Supabase config to localStorage:', e)
+          }
+        }
+        // Always cache to memory as fallback
+        memoryCache = { url: finalUrl, anonKey: finalKey }
+      }
+      return { url: finalUrl, anonKey: finalKey }
+    } catch {
+      // Errors in this block are not critical, fall through to return the base url/key
+    }
+    return { url, anonKey }
+  } catch {
+    return {}
   }
 
-  clear(): void {
-    this.data = {};
-  }
-
-  getItem(key: string): string | null {
-    return this.data[key] || null;
-  }
-
-  key(index: number): string | null {
-    return Object.keys(this.data)[index] || null;
-  }
-
-  removeItem(key: string): void {
-    delete this.data[key];
-  }
-
-  setItem(key: string, value: string): void {
-    this.data[key] = value;
+export function getSupabase(): any {
+  try {
+    if (client) return client
+    const { url, anonKey } = resolveSupabaseConfig()
+    if (!url || !anonKey) {
+      if (!warned) { console.warn('Supabase env missing', { url: url || '', anonKey: anonKey || '' }); warned = true }
+      return null
+    }
+    client = createClient(String(url), String(anonKey))
+    return client
+  } catch {
+    return null
   }
 }
 

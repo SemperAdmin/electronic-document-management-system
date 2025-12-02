@@ -339,15 +339,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
       {/* Main Content */}
       <PullToRefresh onRefresh={handleRefresh}>
         <div className="px-4 py-6">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Welcome back, {currentUser?.firstName || 'User'}!
-            </h2>
-            <p className="text-gray-600">
-              {isOnline ? 'You are connected and ready to work.' : 'Working offline - changes will sync when connected.'}
-            </p>
-          </div>
-
           {/* Dashboard Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             {dashboardCards.map((card) => (
@@ -379,104 +370,8 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
               </motion.div>
             ))}
           </div>
-
-          {/* Recent Activity */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <h3 className="font-semibold text-gray-900 mb-3">Recent Activity</h3>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">Document approved</p>
-                  <p className="text-xs text-gray-500">2 minutes ago</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">Document uploaded</p>
-                  <p className="text-xs text-gray-500">15 minutes ago</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-orange-500 rounded-full mt-2"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">Pending review</p>
-                  <p className="text-xs text-gray-500">1 hour ago</p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </PullToRefresh>
-
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2">
-        <div className="flex items-center justify-around">
-          <TouchOptimizedButton
-            onClick={() => onNavigate('dashboard')}
-            variant="secondary"
-            size="small"
-            className="flex-col py-2"
-            ariaLabel="Home"
-          >
-            <Home className="w-5 h-5 mb-1" />
-            <span className="text-xs">Home</span>
-          </TouchOptimizedButton>
-
-          <TouchOptimizedButton
-            onClick={() => onNavigate('documents')}
-            variant="secondary"
-            size="small"
-            className="flex-col py-2"
-            ariaLabel="Documents"
-          >
-            <FileText className="w-5 h-5 mb-1" />
-            <span className="text-xs">Docs</span>
-          </TouchOptimizedButton>
-
-          <TouchOptimizedButton
-            onClick={() => onNavigate('upload')}
-            variant="primary"
-            size="small"
-            className="flex-col py-2 rounded-full"
-            ariaLabel="Upload"
-          >
-            <Upload className="w-6 h-6 mb-1" />
-            <span className="text-xs">Upload</span>
-          </TouchOptimizedButton>
-
-          <TouchOptimizedButton
-            onClick={() => onNavigate('notifications')}
-            variant="secondary"
-            size="small"
-            className="flex-col py-2 relative"
-            ariaLabel="Notifications"
-          >
-            <Bell className="w-5 h-5 mb-1" />
-            <span className="text-xs">Alerts</span>
-            {notifications > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                {notifications}
-              </span>
-            )}
-          </TouchOptimizedButton>
-
-          <TouchOptimizedButton
-            onClick={() => onNavigate('settings')}
-            variant="secondary"
-            size="small"
-            className="flex-col py-2"
-            ariaLabel="Settings"
-          >
-            <Settings className="w-5 h-5 mb-1" />
-            <span className="text-xs">Settings</span>
-          </TouchOptimizedButton>
-        </div>
-      </nav>
-
-      {/* Safe area padding for bottom navigation */}
-      <div className="h-20"></div>
     </div>
   );
 };

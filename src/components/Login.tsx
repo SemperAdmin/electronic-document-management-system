@@ -43,22 +43,35 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
     e.preventDefault();
     setFeedback(null);
     try {
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      const isEdipiLike = /^[0-9]{10}$/.test(identifier)
-      let user: any = null
-      let emailForLogin = identifier.trim().toLowerCase()
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const isEdipiLike = /^[0-9]{10}$/.test(identifier);
+      let user: any = null;
+      let dbError: string | null = null;
+      let emailForLogin = identifier.trim().toLowerCase();
 
       if (ALLOW_EDIPI_LOGIN && isEdipiLike) {
-        user = await getUserByEdipi(String(identifier))
-        emailForLogin = String(user?.email || '')
+        const { user: edipiUser, error } = await getUserByEdipi(String(identifier));
+        user = edipiUser;
+        dbError = error;
+        emailForLogin = String(user?.email || '');
       } else if (emailPattern.test(emailForLogin)) {
-        user = await getUserByEmail(emailForLogin)
+        const { user: emailUser, error } = await getUserByEmail(emailForLogin);
+        user = emailUser;
+        dbError = error;
       } else {
-        setFeedback({ type: 'error', message: 'Enter a valid email or 10-digit EDIPI.' })
-        return
+        setFeedback({ type: 'error', message: 'Enter a valid email or 10-digit EDIPI.' });
+        return;
       }
 
-      if (!user || !emailForLogin) { setFeedback({ type: 'error', message: 'Account not found.' }); return }
+      if (dbError) {
+        setFeedback({ type: 'error', message: `Database Error: ${dbError}` });
+        return;
+      }
+
+      if (!user || !emailForLogin) {
+        setFeedback({ type: 'error', message: 'Account not found.' });
+        return;
+      }
 
       const storedRaw = String((user as any).passwordHash || (user as any).password_hash || '').trim()
       if (!storedRaw) { setFeedback({ type: 'error', message: 'No password set for this user.' }); return }
@@ -68,7 +81,11 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
       if (!ok) { setFeedback({ type: 'error', message: 'Invalid credentials.' }); return }
 
       // success
-      const profile = await getUserByEmail(emailForLogin)
+      const { user: profile, error: profileError } = await getUserByEmail(emailForLogin)
+      if (profileError) {
+        setFeedback({ type: 'error', message: `Profile Error: ${profileError}` });
+        return;
+      }
       if (!profile) {
         console.error('[Login] User profile not found after successful password verification', { emailForLogin })
         setFeedback({ type: 'error', message: 'User profile not found.' })

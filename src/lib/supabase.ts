@@ -47,6 +47,15 @@ declare const __ENV_SUPABASE_ANON_KEY: string
     }
     const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url)
     const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey)
+
+    // Fallback for local development if environment variables are not set
+    if (!url || !anonKey) {
+      return {
+        url: 'https://rjcbsaxdkggloyzjbbln.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqY2JzYXhka2dnbG95empiYmxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMTg4NzgsImV4cCI6MjA3OTc5NDg3OH0.aUwxlvNCbNHFvM4Qv8eO1Xz0nMaFO4Dl0QX12fO4V5Y',
+      };
+    }
+
     // allow runtime query param override for prod debugging
     try {
       const params = new URLSearchParams(window.location.search)

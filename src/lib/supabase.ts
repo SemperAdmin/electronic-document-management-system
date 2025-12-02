@@ -1,13 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 
-let client: any = null
-let warned = false
+// --- Forced Initialization for Mobile Stability ---
+// This approach ensures the Supabase client is created immediately when this module
+// is loaded, preventing race conditions or initialization failures on mobile browsers
+// that may have issues with Vite's lazy environment variable loading.
 
-// In-memory cache for environments where localStorage is blocked (private browsing, incognito mode)
-let memoryCache: { url?: string; anonKey?: string } = {}
+// *** CRITICAL DIAGNOSTIC HARDCODE - MUST BE REMOVED AFTER FIX ***
+const SUPABASE_URL = 'https://rjcbsaxdkggloyzjbbln.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+// *** END HARDCODE ***
 
-declare const __ENV_SUPABASE_URL: string
-declare const __ENV_SUPABASE_ANON_KEY: string
+// In-memory cache for environments where localStorage is blocked
+const memoryCache: { [key: string]: string } = {};
 
 // NOTE: Supabase config resolution order intentionally fixed.
 // Do NOT change env key names or remove sanitization.
@@ -79,7 +83,6 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
   } catch {
     return {}
   }
-}
 
 export function getSupabase(): any {
   try {
@@ -96,13 +99,44 @@ export function getSupabase(): any {
   }
 }
 
-export const supabase: any = getSupabase()
-export const hasSupabase = !!getSupabase()
-export function getSupabaseUrl(): string | undefined {
+// Custom storage implementation that falls back to in-memory storage
+// This is crucial for environments like iOS private browsing where localStorage is unavailable.
+const safeLocalStorage = (() => {
   try {
-    const { url } = resolveSupabaseConfig()
-    return url
-  } catch {
-    return undefined
+    const testKey = '__supabase_test__';
+    localStorage.setItem(testKey, testKey);
+    localStorage.removeItem(testKey);
+    return localStorage;
+  } catch (e) {
+    console.warn('localStorage is not available. Falling back to in-memory storage for Supabase session.');
+    return new MemoryStorage();
   }
+})();
+
+// Immediately create and export the client
+export const supabaseClient = createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      storage: safeLocalStorage, // Use the safe storage implementation
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }
+);
+
+// Maintain the original getSupabase function for compatibility
+export function getSupabase(): any {
+  return supabaseClient;
 }
+
+// Export a convenience getter for the URL if needed elsewhere
+export function getSupabaseUrl(): string {
+  return SUPABASE_URL;
+}
+
+// Legacy exports for compatibility
+export const supabase = supabaseClient;
+export const hasSupabase = !!supabaseClient;

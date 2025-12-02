@@ -252,15 +252,15 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
 
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
   try {
+    const normalizedEmail = email.trim().toLowerCase();
     const sb = getSupabase()
     if (!sb?.from) {
-      console.error('[DB] getUserByEmail failed: Supabase client not initialized', { email })
+      console.error('[DB] getUserByEmail failed: Supabase client not initialized', { email: normalizedEmail })
       return null
     }
-    const normalizedEmail = email.trim().toLowerCase();
     const { data, error } = await sb.from('edms_users').select('*').eq('email', normalizedEmail).limit(1)
     if (error) {
-      console.error('[DB] getUserByEmail query failed:', { email, error: error.message })
+      console.error('[DB] getUserByEmail query failed:', { email: normalizedEmail, error: error.message })
       return null
     }
     const row = (data ?? [])[0]

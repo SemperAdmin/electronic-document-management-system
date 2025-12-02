@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
+declare const __ENV_SUPABASE_URL: string | undefined;
+declare const __ENV_SUPABASE_ANON_KEY: string | undefined;
+
 // --- Forced Initialization for Mobile Stability ---
 // This approach ensures the Supabase client is created immediately when this module
 // is loaded, preventing race conditions or initialization failures on mobile browsers
@@ -11,7 +14,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
 // *** END HARDCODE ***
 
 // In-memory cache for environments where localStorage is blocked
-const memoryCache: { [key: string]: string } = {};
+let memoryCache: { url?: string; anonKey?: string } = {};
 
 // NOTE: Supabase config resolution order intentionally fixed.
 // Do NOT change env key names or remove sanitization.
@@ -49,8 +52,8 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
       const noTicks = trimmed.replace(/^`+|`+$/g, '').replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
       return noTicks
     }
-    const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url)
-    const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey)
+    const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url || SUPABASE_URL)
+    const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey || SUPABASE_ANON_KEY)
 
     // allow runtime query param override for prod debugging
     try {
@@ -83,19 +86,22 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
   } catch {
     return {}
   }
+}
 
-export function getSupabase(): any {
-  try {
-    if (client) return client
-    const { url, anonKey } = resolveSupabaseConfig()
-    if (!url || !anonKey) {
-      if (!warned) { console.warn('Supabase env missing', { url: url || '', anonKey: anonKey || '' }); warned = true }
-      return null
-    }
-    client = createClient(String(url), String(anonKey))
-    return client
-  } catch {
-    return null
+// In-memory storage implementation for environments where localStorage is not available.
+class MemoryStorage {
+  private store: Record<string, string> = {};
+
+  getItem(key: string): string | null {
+    return this.store[key] || null;
+  }
+
+  setItem(key: string, value: string): void {
+    this.store[key] = value;
+  }
+
+  removeItem(key: string): void {
+    delete this.store[key];
   }
 }
 
@@ -113,10 +119,12 @@ const safeLocalStorage = (() => {
   }
 })();
 
+const { url, anonKey } = resolveSupabaseConfig();
+
 // Immediately create and export the client
 export const supabaseClient = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY,
+  url!,
+  anonKey!,
   {
     auth: {
       persistSession: true,

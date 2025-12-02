@@ -52,8 +52,8 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
       const noTicks = trimmed.replace(/^`+|`+$/g, '').replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
       return noTicks
     }
-    const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url || SUPABASE_URL)
-    const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey || SUPABASE_ANON_KEY)
+    const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url)
+    const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey)
 
     // allow runtime query param override for prod debugging
     try {

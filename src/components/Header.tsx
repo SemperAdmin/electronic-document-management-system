@@ -17,7 +17,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
   return (
     <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-4 md:gap-8 py-6">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 py-6">
           {isLogin ? (
             <>
               <div className="w-full">

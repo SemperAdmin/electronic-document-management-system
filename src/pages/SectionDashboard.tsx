@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { UNITS } from '../lib/units'
-import { useNavigate } from 'react-router-dom'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 
 interface UserProfile {
@@ -58,8 +57,6 @@ export default function SectionDashboard() {
   const [usersById, setUsersById] = useState<Record<string, UserProfile>>({})
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
-  const [dashOpen, setDashOpen] = useState(false)
-  const [hasSectionDashboard, setHasSectionDashboard] = useState(false)
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({})
   const [selectedBattalionSection, setSelectedBattalionSection] = useState<string>('')
   const [comments, setComments] = useState<Record<string, string>>({})
@@ -94,7 +91,6 @@ export default function SectionDashboard() {
       document.removeEventListener('keydown', handleKey)
     }
   }, [openDocsId])
-  const navigate = useNavigate()
 
   useEffect(() => {
     try {
@@ -112,21 +108,6 @@ export default function SectionDashboard() {
       setSelectedBattalionSection(linked)
     } catch {}
   }, [currentUser, platoonSectionMap])
-
-  useEffect(() => {
-    try {
-      const rawUS = localStorage.getItem('unit_structure')
-      if (!currentUser || !rawUS) { setHasSectionDashboard(false); return }
-      const us = JSON.parse(rawUS)
-      const uic = currentUser?.unitUic || ''
-      const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-      const p = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-      const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || ''
-      setHasSectionDashboard(!!linked)
-    } catch {
-      setHasSectionDashboard(false)
-    }
-  }, [currentUser])
 
   useEffect(() => {
     listRequests().then((remote) => {

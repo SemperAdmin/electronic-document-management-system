@@ -216,12 +216,27 @@ export const AdminPanel: React.FC = () => {
   const rolePlatoons = useMemo(() => {
     const key = editingUser?.unitUic || '';
     const companyKey = editingRoleCompany || '';
-    if (!key || !companyKey) return [];
-    const fromDb = rolePlatoonsDb
-    if (fromDb && fromDb.length) return fromDb
-    const val = unitStructure[key]?.[companyKey];
-    return Array.isArray(val) ? val : [];
-  }, [editingUser, editingRoleCompany, unitStructure, rolePlatoonsDb]);
+    if (!companyKey) return [];
+
+    // Try from database first
+    const fromDb = rolePlatoonsDb;
+    if (fromDb && fromDb.length > 0) return fromDb;
+
+    // Fallback to unitStructure with editingUser's unitUic
+    if (key) {
+      const val = unitStructure[key]?.[companyKey];
+      if (Array.isArray(val) && val.length > 0) return val;
+    }
+
+    // Final fallback: use selectedUnit's unitUic if available
+    const selectedKey = selectedUnit?.uic || '';
+    if (selectedKey && selectedKey !== key) {
+      const val = unitStructure[selectedKey]?.[companyKey];
+      if (Array.isArray(val)) return val;
+    }
+
+    return [];
+  }, [editingUser, editingRoleCompany, unitStructure, rolePlatoonsDb, selectedUnit]);
 
   const editCompaniesWithCurrent = useMemo(() => {
     const base = editCompanies.slice();

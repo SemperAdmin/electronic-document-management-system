@@ -931,7 +931,7 @@ export const AdminPanel: React.FC = () => {
                       id="admin-platoon"
                       value={editingRolePlatoon || ''}
                       onChange={(e) => setEditingRolePlatoon(e.target.value || undefined)}
-                      disabled={!editingRole.includes('REVIEW') || !editingRoleCompany || rolePlatoonsWithCurrent.length === 0}
+                      disabled={!editingRole.includes('REVIEW') || !editingRoleCompany}
                       className="w-full px-3 py-2 border rounded disabled:bg-gray-50"
                     >
                       <option value="">{rolePlatoonsWithCurrent.length ? 'Select platoon' : 'No platoons configured'}</option>

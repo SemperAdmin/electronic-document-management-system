@@ -801,17 +801,6 @@ export const AdminPanel: React.FC = () => {
                   <td className="py-2 px-3">
                     <div className="flex gap-2">
                       <button className="px-2 py-1 text-xs bg-gray-100 rounded" onClick={() => setViewUser(u)}>View</button>
-                      {currentUser && currentUser.id === u.id && (
-                        <button
-                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
-                          onClick={() => {
-                            setEditMode('profile');
-                            setEditingUser(u);
-                          }}
-                        >
-                          Edit
-                        </button>
-                      )}
                       {(currentUser?.isUnitAdmin || currentUser?.role === 'COMMANDER') && (
                         <button className="px-2 py-1 text-xs bg-purple-700 text-white rounded" onClick={() => {
                           setEditMode('admin');

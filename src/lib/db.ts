@@ -342,16 +342,20 @@ export async function listPlatoonsForCompany(unitUic: string, company: string): 
     if (!sb?.from) return []
     const { data, error } = await sb
       .from('edms_users')
-      .select('user_platoon, unit_uic, company, user_company')
+      .select('user_platoon, role_platoon, unit_uic, company, user_company, role_company')
       .eq('unit_uic', uic)
-      .or(`company.eq.${comp},user_company.eq.${comp}`)
-      .neq('user_platoon', 'N/A')
+      .or(`company.eq.${comp},user_company.eq.${comp},role_company.eq.${comp}`)
     if (error) return []
     const rows: any[] = Array.isArray(data) ? (data as any[]) : []
-    const vals: string[] = rows
-      .map((r: any) => String(r.user_platoon || '').trim())
-      .filter((v: string) => !!v)
-    const uniq: string[] = Array.from(new Set<string>(vals))
+    const vals: string[] = []
+    // Collect both user_platoon and role_platoon values
+    rows.forEach((r: any) => {
+      const userPlatoon = String(r.user_platoon || '').trim()
+      const rolePlatoon = String(r.role_platoon || '').trim()
+      if (userPlatoon && userPlatoon !== 'N/A') vals.push(userPlatoon)
+      if (rolePlatoon && rolePlatoon !== 'N/A') vals.push(rolePlatoon)
+    })
+    const uniq: string[] = Array.from(new Set<string>(vals.filter(v => !!v)))
     return uniq.sort((a: string, b: string) => a.localeCompare(b))
   } catch {
     return []

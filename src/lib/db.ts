@@ -151,6 +151,10 @@ function toUserRow(u: UserRecord) {
 }
 
 function fromUserRow(r: any): UserRecord {
+  let role = r.role ? String(r.role) : undefined
+  if (role === 'COMMANDER' && r.role_company && r.role_company !== 'N/A') {
+    role = 'COMPANY_REVIEWER'
+  }
   return {
     id: String(r.id),
     email: r.email ? String(r.email) : undefined,
@@ -159,7 +163,7 @@ function fromUserRow(r: any): UserRecord {
     lastName: r.last_name ? String(r.last_name) : undefined,
     mi: r.mi ? String(r.mi) : undefined,
     service: r.service ? String(r.service) : undefined,
-    role: r.role ? String(r.role) : undefined,
+    role: role,
     unitUic: r.unit_uic ? String(r.unit_uic) : undefined,
     unit: r.unit ? String(r.unit) : undefined,
     company: (r.company ? String(r.company) : (r.user_company ? String(r.user_company) : undefined)),

@@ -151,10 +151,23 @@ function toUserRow(u: UserRecord) {
 }
 
 function fromUserRow(r: any): UserRecord {
-  let role = r.role ? String(r.role) : undefined
-  if (role === 'COMMANDER' && r.role_company && r.role_company !== 'N/A') {
-    role = 'COMPANY_REVIEWER'
+  const dbRole = r.role ? String(r.role) : 'MEMBER';
+  let displayRole = dbRole;
+
+  const roleCompany = r.role_company ? String(r.role_company) : undefined;
+  const rolePlatoon = r.role_platoon ? String(r.role_platoon) : undefined;
+
+  // Determine the display role based on review scope.
+  if (rolePlatoon && rolePlatoon !== 'N/A') {
+    displayRole = 'PLATOON_REVIEWER';
+  } else if (roleCompany && roleCompany !== 'N/A') {
+    displayRole = 'COMPANY_REVIEWER';
   }
+
+  // A user with a DB role of COMMANDER should always have command staff access,
+  // even if their display role is overridden to a reviewer role.
+  const hasCommandAccess = dbRole === 'COMMANDER' || !!r.is_command_staff;
+
   return {
     id: String(r.id),
     email: r.email ? String(r.email) : undefined,
@@ -163,18 +176,18 @@ function fromUserRow(r: any): UserRecord {
     lastName: r.last_name ? String(r.last_name) : undefined,
     mi: r.mi ? String(r.mi) : undefined,
     service: r.service ? String(r.service) : undefined,
-    role: role,
+    role: displayRole,
     unitUic: r.unit_uic ? String(r.unit_uic) : undefined,
     unit: r.unit ? String(r.unit) : undefined,
     company: (r.company ? String(r.company) : (r.user_company ? String(r.user_company) : undefined)),
     isUnitAdmin: !!r.is_unit_admin,
-    isCommandStaff: !!r.is_command_staff,
+    isCommandStaff: hasCommandAccess,
     isAppAdmin: !!r.is_app_admin,
     edipi: r.edipi ? String(r.edipi) : undefined,
     passwordHash: r.password_hash ? String(r.password_hash) : undefined,
     platoon: r.user_platoon ? String(r.user_platoon) : undefined,
-    roleCompany: r.role_company ? String(r.role_company) : undefined,
-    rolePlatoon: r.role_platoon ? String(r.role_platoon) : undefined,
+    roleCompany: roleCompany,
+    rolePlatoon: rolePlatoon,
   }
 }
 

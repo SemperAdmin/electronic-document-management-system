@@ -632,7 +632,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
             <div className="space-y-3">
               {requestsPagination.currentData.map((r) => (
                 <div key={r.id}>
-                  <div className={isReturnedReq(r) ? "flex items-center justify-between p-4 border border-brand-red-2 rounded-lg bg-brand-cream" : "flex items-center justify-between p-4 border border-brand-navy/20 rounded-lg hover:bg-brand-cream/50"}>
+                  <div className={isReturnedReq(r) ? "flex flex-col md:flex-row md:items-start md:justify-between gap-2 p-4 border border-brand-red-2 rounded-lg bg-brand-cream" : "flex flex-col md:flex-row md:items-start md:justify-between gap-2 p-4 border border-brand-navy/20 rounded-lg hover:bg-brand-cream/50"}>
                     <div>
                       <div className="font-medium text-[var(--text)]">{r.subject}</div>
                       <div className="text-sm text-[var(--muted)]">

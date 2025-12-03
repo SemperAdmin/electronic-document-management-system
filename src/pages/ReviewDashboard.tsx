@@ -366,7 +366,7 @@ export default function ReviewDashboard() {
           <div className="flex flex-col gap-4">
           {pendingPagination.currentData.map((r) => (
             <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
-              <div className="flex items-start justify-between">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                 <div>
                   <div className="font-medium text-[var(--text)]">{r.subject}</div>
                   <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
@@ -582,7 +582,7 @@ export default function ReviewDashboard() {
           <div className="flex flex-col gap-4">
             {inScopePagination.currentData.map((r) => (
               <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                   <div>
                     <div className="font-medium text-[var(--text)]">{r.subject}</div>
                     <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>

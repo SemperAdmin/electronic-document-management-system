@@ -511,6 +511,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
           </div>
         )}
 
+        {mode === 'edit' && (
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-3 text-center">Roles (View Only)</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -568,6 +569,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
             </div>
           </div>
         </div>
+        )}
 
 
         <h3 className="text-lg font-semibold text-gray-900 mb-3 text-center">Unit Assignment</h3>

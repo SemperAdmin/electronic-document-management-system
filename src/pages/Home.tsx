@@ -24,23 +24,55 @@ function HomeContent() {
   const [hasCommandDashboard, setHasCommandDashboard] = useState(false);
   const navigate = useNavigate();
 
-  
+  // Load user from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('currentUser');
+      if (savedUser) {
+        setCurrentUser(JSON.parse(savedUser));
+      }
+    } catch (error) {
+      console.error('Failed to load user from localStorage:', error);
+    }
+  }, []);
 
+  // Load view from URL params or localStorage
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const v = params.get('view');
-      if (v === 'admin' || v === 'profile' || v === 'dashboard' || v === 'login' || v === 'appadmin' || v === 'review' || v === 'section' || v === 'command' || v === 'documents' || v === 'document-viewer' || v === 'upload') {
-        setView(v as any);
+      const urlView = params.get('view');
+      if (urlView === 'admin' || urlView === 'profile' || urlView === 'dashboard' || urlView === 'login' || urlView === 'appadmin' || urlView === 'review' || urlView === 'section' || urlView === 'command' || urlView === 'documents' || urlView === 'document-viewer' || urlView === 'upload') {
+        setView(urlView as any);
       } else {
-        setView('login');
+        const savedView = localStorage.getItem('currentView');
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedView && savedUser) {
+          setView(savedView as any);
+        } else {
+          setView('login');
+        }
       }
     } catch {
       setView('login');
     }
   }, []);
 
-  useEffect(() => {}, [])
+  // Save user to localStorage when it changes
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('currentView');
+    }
+  }, [currentUser]);
+
+  // Save view to localStorage when it changes (except login)
+  useEffect(() => {
+    if (view !== 'login' && currentUser) {
+      localStorage.setItem('currentView', view);
+    }
+  }, [view, currentUser]);
 
   useEffect(() => {
     setHasSectionDashboard(false);
@@ -54,19 +86,19 @@ function HomeContent() {
         currentUser={currentUser}
         hasSectionDashboard={hasSectionDashboard}
         hasCommandDashboard={hasCommandDashboard}
-        onManageProfile={() => { setProfileMode('edit'); setView('profile') }}
+        onManageProfile={() => { setProfileMode('edit'); setView('profile'); navigate('/?view=profile') }}
         onLogout={() => { setCurrentUser(null); setView('login'); navigate('/?view=login') }}
-        onNavigate={(v) => setView(v as any)}
+        onNavigate={(v) => { setView(v as any); navigate(`/?view=${v}`) }}
         isLogin={view === 'login'}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
         {view === 'profile' ? (
-          <ProfileForm 
+          <ProfileForm
             mode={profileMode}
             initial={profileMode === 'edit' ? (currentUser || {}) : {}}
-            onSaved={(user) => { setCurrentUser(user); setView('dashboard'); }} 
+            onSaved={(user) => { setCurrentUser(user); setView('dashboard'); navigate('/?view=dashboard'); }}
           />
         ) : view === 'admin' ? (
           <AdminPanel />
@@ -74,8 +106,8 @@ function HomeContent() {
           <AppAdmin />
         ) : view === 'login' ? (
           <Login
-            onLoggedIn={(user) => { setCurrentUser(user); setView('dashboard'); }}
-            onCreateAccount={() => { setProfileMode('create'); setView('profile'); }}
+            onLoggedIn={(user) => { setCurrentUser(user); setView('dashboard'); navigate('/?view=dashboard'); }}
+            onCreateAccount={() => { setProfileMode('create'); setView('profile'); navigate('/?view=profile'); }}
           />
         ) : view === 'review' ? (
           <ReviewDashboard />

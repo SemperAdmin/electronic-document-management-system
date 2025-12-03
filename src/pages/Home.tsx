@@ -44,8 +44,8 @@ function HomeContent() {
 
   useEffect(() => {
     setHasSectionDashboard(false);
-    const isCmd = String(currentUser?.role || '') === 'COMMANDER';
-    setHasCommandDashboard(isCmd);
+    const isCmd = currentUser?.isCommandStaff;
+    setHasCommandDashboard(!!isCmd);
   }, [currentUser]);
 
   return (

@@ -10,7 +10,7 @@ declare const __ENV_SUPABASE_ANON_KEY: string | undefined;
 
 // *** CRITICAL DIAGNOSTIC HARDCODE - MUST BE REMOVED AFTER FIX ***
 const SUPABASE_URL = 'https://rjcbsaxdkggloyzjbbln.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqY2JzYXhka2dnbG95empiYmxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMTg4NzgsImV4cCI6MjA3OTc5NDg3OH0.aUwxlvNCbNHFvM4Qv8eO1Xz0nMaFO4Dl0QX12fO4V5Y';
 // *** END HARDCODE ***
 
 // In-memory cache for environments where localStorage is blocked

@@ -4,21 +4,8 @@ import { PermissionManager } from '../components/PermissionManager'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/Pagination'
-
-interface Request {
-  id: string
-  subject: string
-  dueDate?: string
-  notes?: string
-  unitUic: string
-  uploadedById: string
-  submitForUserId?: string
-  documentIds: string[]
-  createdAt: string
-  currentStage?: string
-  activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>
-  routeSection?: string
-}
+import RequestTable from '../components/RequestTable'
+import { Request } from '../types'
 
 interface DocumentItem {
   id: string
@@ -66,6 +53,7 @@ export default function ReviewDashboard() {
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
+  const [activeTab, setActiveTab] = useState<'Pending' | 'In Scope'>('Pending');
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -373,348 +361,178 @@ export default function ReviewDashboard() {
             </div>
           )}
         </div>
-          <div className="mb-2 flex justify-end"><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPending}>Export Pending</button></div>
-          <div className="flex flex-col gap-4">
-          {pendingPagination.currentData.map((r) => (
-            <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
-                <div>
-                  <div className={`font-medium ${isReturned(r) ? 'text-red-800 font-bold' : 'text-[var(--text)]'}`}>{r.subject}</div>
-                  <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
-                  {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
-                  {originatorFor(r) && (
-                    <div className="text-xs text-[var(--muted)] mt-1">
-                      <div className="md:hidden">
-                        {originatorFor(r).rank} {originatorFor(r).lastName}
-                        <button onClick={() => setExpandedUserDetails(prev => ({...prev, [r.id]: !prev[r.id]}))} className="ml-2 text-brand-navy underline">
-                          {expandedUserDetails[r.id] ? 'Less' : 'More'}
-                        </button>
-                      </div>
-                      <div className={`${expandedUserDetails[r.id] ? 'block' : 'hidden'} md:block`}>
-                        {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                        {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                          <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(r)}</span>
-                  {isReturned(r) && (
-                    <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
-                  )}
-                  <button
-                    className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                    onClick={() => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                    aria-expanded={!!expandedCard[r.id]}
-                    aria-controls={`details-rev-${r.id}`}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] })) } }}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('Pending')}
+              className={`${activeTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setActiveTab('In Scope')}
+              className={`${activeTab === 'In Scope' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              In Scope
+            </button>
+          </nav>
+        </div>
+        <div className="mt-4">
+          {activeTab === 'Pending' && (
+            <RequestTable
+              title="Pending"
+              requests={pendingPagination.currentData}
+              users={users}
+              onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+              expandedRows={expandedCard}
+            >
+              {(r: Request) => (
+                <div id={`details-rev-${r.id}`}>
+                  <div className="mt-3">
+                    <button
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                      aria-expanded={!!expandedDocs[r.id]}
+                      aria-controls={`docs-rev-${r.id}`}
+                      onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                    >
+                      <span>Show Documents</span>
+                      <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                    </button>
+                  </div>
+                  <div
+                    id={`docs-rev-${r.id}`}
+                    ref={expandedDocs[r.id] ? docsRef : undefined}
+                    className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                   >
-                    {expandedCard[r.id] ? 'Hide Details' : 'Edit / Details'}
-                  </button>
-                </div>
-              </div>
-              {String(currentUser?.role || '').includes('COMPANY') && r.routeSection && (
-                <div className="mt-2 text-sm text-[var(--muted)]">Previously routed to: {r.routeSection}</div>
-              )}
-              <div id={`details-rev-${r.id}`} className={expandedCard[r.id] ? '' : 'hidden'}>
-              <div className="mt-3">
-                <button
-                  className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                  aria-expanded={!!expandedDocs[r.id]}
-                  aria-controls={`docs-rev-${r.id}`}
-                  onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
-                >
-                  <span>Show Documents</span>
-                  <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                </button>
-              </div>
-              <div
-                id={`docs-rev-${r.id}`}
-                ref={expandedDocs[r.id] ? docsRef : undefined}
-                className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
-              >
-                {docsFor(r.id).map(d => (
-                  <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                    <div className="text-sm text-[var(--muted)]">
-                      <div className="font-medium text-[var(--text)]">{d.name}</div>
-                      <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        { (d as any).fileUrl ? (
-                        <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+                    {docsFor(r.id).map(d => (
+                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                        <div className="text-sm text-[var(--muted)]">
+                          <div className="font-medium text-[var(--text)]">{d.name}</div>
+                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            { (d as any).fileUrl ? (
+                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+                          ) : (
+                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {docsFor(r.id).length === 0 && (
+                      <div className="text-sm text-[var(--muted)]">No documents</div>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <button
+                      className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      aria-expanded={!!expandedLogs[r.id]}
+                      aria-controls={`logs-${r.id}`}
+                    >
+                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                    </button>
+                    <div id={`logs-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                      {r.activity && r.activity.length ? (
+                        r.activity.map((a, idx) => (
+                          <div key={idx} className="text-xs text-gray-700">
+                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                            {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                          </div>
+                        ))
                       ) : (
-                          <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                        <div className="text-xs text-gray-500">No activity</div>
                       )}
                     </div>
                   </div>
-                ))}
-                {docsFor(r.id).length === 0 && (
-                  <div className="text-sm text-[var(--muted)]">No documents</div>
-                )}
-              </div>
-              <div className="mt-3">
-                <button
-                  className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                  onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                  aria-expanded={!!expandedLogs[r.id]}
-                  aria-controls={`logs-${r.id}`}
-                >
-                  {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                </button>
-                <div id={`logs-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                  {r.activity && r.activity.length ? (
-                    r.activity.map((a, idx) => (
-                      <div key={idx} className="text-xs text-gray-700">
-                        <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                        {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-xs text-gray-500">No activity</div>
-                  )}
-                </div>
-              </div>
-              <div className="mt-3">
-                <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
-                <textarea
-                  rows={2}
-                  value={comments[r.id] || ''}
-                  onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
-                  className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
-                  placeholder="Optional notes"
-                />
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
-                  <input
-                    type="file"
-                    multiple
-                    onChange={(e) => setAttach(prev => ({ ...prev, [r.id]: e.target.files ? Array.from(e.target.files) : [] }))}
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                  />
-                  Add Files
-                </label>
-                <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
-                <button
-                  className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
-                  onClick={() => addFilesToRequest(r)}
-                  disabled={!attach[r.id] || !(attach[r.id] || []).length}
-                >
-                  Save Files
-                </button>
-              </div>
-              <div className="mt-3 flex items-center justify-end gap-2">
-                {String(currentUser?.role || '').includes('COMPANY') && (
-                  <div className="flex items-center gap-2 mr-auto">
-                    <label className="sr-only">Battalion Section</label>
-                    <select
-                      aria-label="Battalion Section"
-                      value={selectedSection[r.id] || ''}
-                      onChange={(e) => setSelectedSection(prev => ({ ...prev, [r.id]: e.target.value }))}
-                      className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
+                    <textarea
+                      rows={2}
+                      value={comments[r.id] || ''}
+                      onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                      placeholder="Optional notes"
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(e) => setAttach(prev => ({ ...prev, [r.id]: e.target.files ? Array.from(e.target.files) : [] }))}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                      />
+                      Add Files
+                    </label>
+                    <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
+                    <button
+                      className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
+                      onClick={() => addFilesToRequest(r)}
+                      disabled={!attach[r.id] || !(attach[r.id] || []).length}
                     >
-                      <option value="">Select section</option>
-                      {(unitSections[currentUser?.unitUic || ''] || []).map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
+                      Save Files
+                    </button>
                   </div>
-                )}
-                <button
-                  className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                  onClick={() => {
-                    const role = String(currentUser?.role || '')
-                    if (role.includes('COMPANY')) {
-                      if (!selectedSection[r.id]) return
-                      updateRequest(r, 'BATTALION_REVIEW', `Approved and routed to ${selectedSection[r.id]}`)
-                    } else {
-                      updateRequest(r, nextStage(r.currentStage), 'Approved')
-                    }
-                  }}
-                  disabled={String(currentUser?.role || '').includes('COMPANY') && !selectedSection[r.id]}
-                >
-                  Approve
-                </button>
-                <button
-                  className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                  onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
-                >
-                  Return
-                </button>
-              </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        {pendingPagination.totalItems === 0 && (
-          <div className="text-sm text-[var(--muted)]">No requests in your stage.</div>
-        )}
-        {pendingPagination.totalItems > 0 && (
-          <>
-            <div className="hidden md:block">
-              <Pagination
-                currentPage={pendingPagination.currentPage}
-                totalPages={pendingPagination.totalPages}
-                totalItems={pendingPagination.totalItems}
-                pageSize={pendingPagination.pageSize}
-                startIndex={pendingPagination.startIndex}
-                endIndex={pendingPagination.endIndex}
-                onPageChange={pendingPagination.goToPage}
-                onPageSizeChange={pendingPagination.setPageSize}
-                onNext={pendingPagination.nextPage}
-                onPrevious={pendingPagination.previousPage}
-                onFirst={pendingPagination.goToFirstPage}
-                onLast={pendingPagination.goToLastPage}
-                canGoNext={pendingPagination.canGoNext}
-                canGoPrevious={pendingPagination.canGoPrevious}
-                pageSizeOptions={[10, 25, 50, 100]}
-              />
-            </div>
-            <div className="md:hidden mt-4">
-              {pendingPagination.canGoNext && (
-                <button onClick={pendingPagination.nextPage} className="w-full px-4 py-2 text-center text-brand-navy bg-brand-cream border border-brand-navy/30 rounded-lg">
-                  Load More
-                </button>
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    {String(currentUser?.role || '').includes('COMPANY') && (
+                      <div className="flex items-center gap-2 mr-auto">
+                        <label className="sr-only">Battalion Section</label>
+                        <select
+                          aria-label="Battalion Section"
+                          value={selectedSection[r.id] || ''}
+                          onChange={(e) => setSelectedSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                          className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                        >
+                          <option value="">Select section</option>
+                          {(unitSections[currentUser?.unitUic || ''] || []).map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                      onClick={() => {
+                        const role = String(currentUser?.role || '')
+                        if (role.includes('COMPANY')) {
+                          if (!selectedSection[r.id]) return
+                          updateRequest(r, 'BATTALION_REVIEW', `Approved and routed to ${selectedSection[r.id]}`)
+                        } else {
+                          updateRequest(r, nextStage(r.currentStage), 'Approved')
+                        }
+                      }}
+                      disabled={String(currentUser?.role || '').includes('COMPANY') && !selectedSection[r.id]}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                      onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
+                    >
+                      Return
+                    </button>
+                  </div>
+                </div>
               )}
-            </div>
-          </>
-        )}
-        <div className="mt-4 md:hidden">
-          <button onClick={() => setShowInScope(prev => !prev)} className="w-full px-4 py-2 text-center text-brand-navy bg-brand-cream border border-brand-navy/30 rounded-lg">
-            {showInScope ? 'Hide Other Requests' : 'Show All In-Scope Requests'} ({inScopeOther.length})
-          </button>
-        </div>
-        <div className={`mt-8 ${showInScope ? 'block' : 'hidden'} md:block`}>
-          <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">In Your Scope</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportInScope}>Export In Scope</button></div>
-          <div className="flex flex-col gap-4">
-            {inScopePagination.currentData.map((r) => (
-              <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
-                  <div>
-                    <div className={`font-medium ${isReturned(r) ? 'text-red-800 font-bold' : 'text-[var(--text)]'}`}>{r.subject}</div>
-                    <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
-                    {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
-                    {originatorFor(r) && (
-                      <div className="text-xs text-[var(--muted)] mt-1">
-                      <div className="md:hidden">
-                        {originatorFor(r).rank} {originatorFor(r).lastName}
-                        <button onClick={() => setExpandedUserDetails(prev => ({...prev, [r.id]: !prev[r.id]}))} className="ml-2 text-brand-navy underline">
-                          {expandedUserDetails[r.id] ? 'Less' : 'More'}
-                        </button>
-                      </div>
-                      <div className={`${expandedUserDetails[r.id] ? 'block' : 'hidden'} md:block`}>
-                        {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                        {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                          <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                        )}
-                      </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(r)}</span>
-                    {isReturned(r) && (
-                      <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
-                    )}
-                  </div>
+            </RequestTable>
+          )}
+          {activeTab === 'In Scope' && (
+            <RequestTable
+              title="In Scope"
+              requests={inScopePagination.currentData}
+              users={users}
+              onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+              expandedRows={expandedCard}
+            >
+              {(r: Request) => (
+                <div>
+                  {/* Detailed view content goes here */}
                 </div>
-                <div className="mt-3">
-                  <button
-                    className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                    aria-expanded={!!expandedDocs[r.id]}
-                    aria-controls={`docs-scope-${r.id}`}
-                    onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
-                  >
-                    <span>Show Documents</span>
-                    <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                  </button>
-                </div>
-                <div
-                  id={`docs-scope-${r.id}`}
-                  ref={expandedDocs[r.id] ? docsRef : undefined}
-                  className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
-                >
-                  {docsFor(r.id).map(d => (
-                    <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                      <div className="text-sm text-[var(--muted)]">
-                        <div className="font-medium text-[var(--text)]">{d.name}</div>
-                        <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        { (d as any).fileUrl ? (
-                          <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                        ) : (
-                          <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {docsFor(r.id).length === 0 && (
-                    <div className="text-sm text-[var(--muted)]">No documents</div>
-                  )}
-                </div>
-                <div className="mt-3">
-                  <button
-                    className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                    onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                    aria-expanded={!!expandedLogs[r.id]}
-                    aria-controls={`logs-scope-${r.id}`}
-                  >
-                    {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                  </button>
-                  <div id={`logs-scope-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                    {r.activity && r.activity.length ? (
-                      r.activity.map((a, idx) => (
-                        <div key={idx} className="text-xs text-gray-700">
-                          <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                          {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-xs text-gray-500">No activity</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {inScopePagination.totalItems === 0 && (
-              <div className="text-sm text-[var(--muted)]">No requests in your scope.</div>
-            )}
-          </div>
-          {inScopePagination.totalItems > 0 && (
-            <>
-              <div className="hidden md:block">
-                <Pagination
-                  currentPage={inScopePagination.currentPage}
-                  totalPages={inScopePagination.totalPages}
-                  totalItems={inScopePagination.totalItems}
-                  pageSize={inScopePagination.pageSize}
-                  startIndex={inScopePagination.startIndex}
-                  endIndex={inScopePagination.endIndex}
-                  onPageChange={inScopePagination.goToPage}
-                  onPageSizeChange={inScopePagination.setPageSize}
-                  onNext={inScopePagination.nextPage}
-                  onPrevious={inScopePagination.previousPage}
-                  onFirst={inScopePagination.goToFirstPage}
-                  onLast={inScopePagination.goToLastPage}
-                  canGoNext={inScopePagination.canGoNext}
-                  canGoPrevious={inScopePagination.canGoPrevious}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                />
-              </div>
-              <div className="md:hidden mt-4">
-                {inScopePagination.canGoNext && (
-                  <button onClick={inScopePagination.nextPage} className="w-full px-4 py-2 text-center text-brand-navy bg-brand-cream border border-brand-navy/30 rounded-lg">
-                    Load More
-                  </button>
-                )}
-              </div>
-            </>
+              )}
+            </RequestTable>
           )}
         </div>
       </div>

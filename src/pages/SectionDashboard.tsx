@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { UNITS } from '../lib/units'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
+import RequestTable from '../components/RequestTable'
+import { Request } from '../types'
 
 interface UserProfile {
   id: string
@@ -20,24 +22,6 @@ interface RequestActivity {
   timestamp: string
   action: string
   comment?: string
-}
-
-interface Request {
-  id: string
-  subject: string
-  notes?: string
-  unitUic?: string
-  uploadedById: string
-  submitForUserId?: string
-  documentIds: string[]
-  createdAt: string
-  currentStage?: string
-  routeSection?: string
-  activity?: RequestActivity[]
-  commanderApprovalDate?: string
-  externalPendingUnitUic?: string
-  externalPendingUnitName?: string
-  externalPendingStage?: string
 }
 
 interface DocumentItem {
@@ -70,6 +54,7 @@ export default function SectionDashboard() {
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Previously in Section'>('Pending');
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -659,22 +644,52 @@ export default function SectionDashboard() {
               </div>
             </div>
           )}
-          <div>
-            <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">Pending in Section</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPending}>Export Pending</button></div>
-            <div className="flex flex-col gap-4">
-              {pendingInSection.map(r => renderCard(r))}
-            </div>
-            {pendingInSection.length === 0 && (
-              <div className="text-sm text-[var(--muted)]">No pending requests in this section.</div>
-            )}
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              <button
+                onClick={() => setActiveTab('Pending')}
+                className={`${activeTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Pending
+              </button>
+              <button
+                onClick={() => setActiveTab('Previously in Section')}
+                className={`${activeTab === 'Previously in Section' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Previously in Section
+              </button>
+            </nav>
           </div>
-          <div>
-            <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">Previously in Section</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPrevious}>Export Previous</button></div>
-            <div className="flex flex-col gap-4">
-              {previousInSection.map(r => renderCard(r))}
-            </div>
-            {previousInSection.length === 0 && (
-              <div className="text-sm text-[var(--muted)]">No historical requests for this section.</div>
+          <div className="mt-4">
+            {activeTab === 'Pending' && (
+              <RequestTable
+                title="Pending"
+                requests={pendingInSection}
+                users={usersById}
+                onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                expandedRows={expandedCard}
+              >
+                {(r: Request) => (
+                  <div>
+                    {renderCard(r)}
+                  </div>
+                )}
+              </RequestTable>
+            )}
+            {activeTab === 'Previously in Section' && (
+              <RequestTable
+                title="Previously in Section"
+                requests={previousInSection}
+                users={usersById}
+                onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                expandedRows={expandedCard}
+              >
+                {(r: Request) => (
+                  <div>
+                    {renderCard(r)}
+                  </div>
+                )}
+              </RequestTable>
             )}
           </div>
         </div>

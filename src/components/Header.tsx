@@ -44,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
               <p className="text-sm font-light text-white/70 mt-0.5">Marine Corps Unit Document Management</p>
             </div>
           </div>
-          <div className="flex items-center gap-4 md:justify-self-end">
+          <div className="flex flex-col md:flex-row items-center gap-4 md:justify-self-end">
             <div className="text-sm text-[var(--muted)]">
               {currentUser ? (
                 <div className="relative flex items-center gap-3 group">

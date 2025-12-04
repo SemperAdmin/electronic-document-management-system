@@ -10,8 +10,7 @@ import { ProfileForm } from '../components/ProfileForm';
 import { AdminPanel } from '../components/AdminPanel';
 import AppAdmin from './AppAdmin';
 import { Login } from '../components/Login';
- 
-import logoImg from '../assets/images/logo.png';
+import { loadUnitStructureFromBundle } from '../lib/unitStructure';
 import { Header } from '../components/Header';
 
 function HomeContent() {
@@ -75,7 +74,32 @@ function HomeContent() {
   }, [view, currentUser]);
 
   useEffect(() => {
-    setHasSectionDashboard(false);
+    (async () => {
+      try {
+        const raw = localStorage.getItem('unit_structure');
+        if (raw) return;
+        const us = await loadUnitStructureFromBundle();
+        localStorage.setItem('unit_structure', JSON.stringify(us));
+      } catch (error) {
+        console.error("Failed to load unit structure:", error);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const rawUS = localStorage.getItem('unit_structure')
+      if (!currentUser || !rawUS) { setHasSectionDashboard(false); return }
+      const us = JSON.parse(rawUS)
+      const uic = currentUser?.unitUic || ''
+      const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+      const p = (currentUser?.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
+      const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || ''
+      setHasSectionDashboard(!!linked)
+    } catch (e) {
+      console.error('Failed to parse unit structure for section dashboard check', e)
+      setHasSectionDashboard(false)
+    }
     const isCmd = currentUser?.isCommandStaff;
     setHasCommandDashboard(!!isCmd);
   }, [currentUser]);

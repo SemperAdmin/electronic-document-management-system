@@ -17,7 +17,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
   return (
     <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 py-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8 py-6">
           {isLogin ? (
             <>
               <div className="w-full">
@@ -44,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
               <p className="text-sm font-light text-white/70 mt-0.5">Marine Corps Unit Document Management</p>
             </div>
           </div>
-          <div className="flex flex-col md:flex-row items-center gap-4 md:justify-self-end">
+          <div className="flex flex-col md:flex-row items-center gap-4 self-end md:self-auto">
             <div className="text-sm text-[var(--muted)]">
               {currentUser ? (
                 <div className="relative flex items-center gap-3 group">

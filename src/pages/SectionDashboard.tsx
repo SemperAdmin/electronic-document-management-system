@@ -103,7 +103,7 @@ export default function SectionDashboard() {
     try {
       const uic = currentUser?.unitUic || ''
       const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-      const p = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
+      const p = (currentUser?.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
       const linked = platoonSectionMap[uic]?.[c]?.[p] || ''
       setSelectedBattalionSection(linked)
     } catch {}
@@ -195,7 +195,7 @@ export default function SectionDashboard() {
     const ouic = r.unitUic || ''
     const originator = usersById[r.uploadedById]
     const oc = (originator?.company && originator.company !== 'N/A') ? originator.company : ''
-    const ou = (originator?.unit && originator.unit !== 'N/A') ? originator.unit : ''
+    const ou = (originator?.platoon && originator.platoon !== 'N/A') ? originator.platoon : ''
     const mapped = platoonSectionMap[ouic]?.[oc]?.[ou] || ''
     return norm(mapped)
   }

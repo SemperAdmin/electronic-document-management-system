@@ -153,6 +153,17 @@ export default function ReviewDashboard() {
     return 'PLATOON_REVIEW'
   }, [currentUser])
 
+  const formatStage = (r: Request) => {
+    const stage = r.currentStage || 'PLATOON_REVIEW'
+    if (stage === 'PLATOON_REVIEW') return 'Platoon'
+    if (stage === 'COMPANY_REVIEW') return 'Company'
+    if (stage === 'BATTALION_REVIEW') return r.routeSection || 'Battalion'
+    if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander'
+    if (stage === 'EXTERNAL_REVIEW') return (r as any).externalPendingUnitName || 'External'
+    if (stage === 'ARCHIVED') return 'Archived'
+    return stage
+  }
+
   const originatorFor = (r: Request) => users[r.uploadedById] || null
 
   const pending = useMemo(() => {
@@ -368,7 +379,7 @@ export default function ReviewDashboard() {
             <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                 <div>
-                  <div className="font-medium text-[var(--text)]">{r.subject}</div>
+                  <div className={`font-medium ${isReturned(r) ? 'text-red-800 font-bold' : 'text-[var(--text)]'}`}>{r.subject}</div>
                   <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
                   {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
                   {originatorFor(r) && (
@@ -389,7 +400,7 @@ export default function ReviewDashboard() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage === 'BATTALION_REVIEW' && r.routeSection ? `BATTALION_REVIEW - ${r.routeSection}` : r.currentStage}</span>
+                  <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(r)}</span>
                   {isReturned(r) && (
                     <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
                   )}
@@ -584,7 +595,7 @@ export default function ReviewDashboard() {
               <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                   <div>
-                    <div className="font-medium text-[var(--text)]">{r.subject}</div>
+                    <div className={`font-medium ${isReturned(r) ? 'text-red-800 font-bold' : 'text-[var(--text)]'}`}>{r.subject}</div>
                     <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
                     {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
                     {originatorFor(r) && (
@@ -605,7 +616,7 @@ export default function ReviewDashboard() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage === 'BATTALION_REVIEW' && r.routeSection ? `BATTALION_REVIEW - ${r.routeSection}` : r.currentStage}</span>
+                    <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(r)}</span>
                     {isReturned(r) && (
                       <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
                     )}

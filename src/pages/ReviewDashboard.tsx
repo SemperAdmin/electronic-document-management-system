@@ -528,8 +528,65 @@ export default function ReviewDashboard() {
               expandedRows={expandedCard}
             >
               {(r: Request) => (
-                <div>
-                  {/* Detailed view content goes here */}
+                <div id={`details-rev-${r.id}`}>
+                  <div className="mt-3">
+                    <button
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                      aria-expanded={!!expandedDocs[r.id]}
+                      aria-controls={`docs-rev-${r.id}`}
+                      onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                    >
+                      <span>Show Documents</span>
+                      <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                    </button>
+                  </div>
+                  <div
+                    id={`docs-rev-${r.id}`}
+                    ref={expandedDocs[r.id] ? docsRef : undefined}
+                    className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
+                  >
+                    {docsFor(r.id).map(d => (
+                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                        <div className="text-sm text-[var(--muted)]">
+                          <div className="font-medium text-[var(--text)]">{d.name}</div>
+                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            { (d as any).fileUrl ? (
+                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+                          ) : (
+                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {docsFor(r.id).length === 0 && (
+                      <div className="text-sm text-[var(--muted)]">No documents</div>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <button
+                      className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      aria-expanded={!!expandedLogs[r.id]}
+                      aria-controls={`logs-${r.id}`}
+                    >
+                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                    </button>
+                    <div id={`logs-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                      {r.activity && r.activity.length ? (
+                        r.activity.map((a, idx) => (
+                          <div key={idx} className="text-xs text-gray-700">
+                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                            {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-gray-500">No activity</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </RequestTable>

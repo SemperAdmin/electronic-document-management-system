@@ -93,7 +93,7 @@ function HomeContent() {
       const us = JSON.parse(rawUS)
       const uic = currentUser?.unitUic || ''
       const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-      const p = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
+      const p = (currentUser?.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
       const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || ''
       setHasSectionDashboard(!!linked)
     } catch (e) {

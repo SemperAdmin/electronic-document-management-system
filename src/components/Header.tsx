@@ -17,7 +17,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
   return (
     <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8 py-6">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 md:gap-8 py-6">
           {isLogin ? (
             <>
               <div className="w-full">
@@ -33,19 +33,19 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
             </>
           ) : (
             <>
-          <div className="flex items-center gap-4 h-12 md:h-14">
+          <div className="flex items-center gap-3 md:gap-4 h-12 md:h-14 self-start">
             <img src={logoImg} alt="Semper Admin Logo" className="h-full w-auto rounded object-contain" />
-            <div>
-              <h1 className="text-2xl md:text-3xl font-semibold leading-tight text-brand-cream">
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-3xl font-semibold leading-tight text-brand-cream">
                 <span className="hidden md:inline text-3xl md:text-4xl">Electronic Document Management System</span>
-                <span className="md:hidden text-xl">EDMS</span>
-                <a className="text-xs md:text-lg font-normal ml-2 md:ml-3 whitespace-nowrap text-red-500" href="https://linktr.ee/semperadmin">by Semper Admin</a>
+                <span className="md:hidden text-lg">EDMS</span>
+                <a className="text-xs md:text-lg font-normal ml-1 md:ml-3 whitespace-nowrap text-red-500" href="https://linktr.ee/semperadmin">by Semper Admin</a>
               </h1>
-              <p className="text-sm font-light text-white/70 mt-0.5">Marine Corps Unit Document Management</p>
+              <p className="text-xs md:text-sm font-light text-white/70 mt-0.5 hidden md:block">Marine Corps Unit Document Management</p>
             </div>
           </div>
-          <div className="flex flex-row items-center gap-2 md:gap-4 self-end md:self-auto">
-            <div className="text-sm text-[var(--muted)]">
+          <div className="flex flex-row items-center gap-2 md:gap-4 self-end flex-shrink-0">
+            <div className="text-sm text-[var(--muted)] hidden md:block">
               {currentUser ? (
                 <div className="relative flex items-center gap-3 group">
                   <div className="text-right">
@@ -79,11 +79,16 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                 <div className="text-xs text-[var(--muted)]">Not signed in</div>
               )}
             </div>
+            {currentUser && (
+              <div className="md:hidden h-8 w-8 rounded-full bg-brand-cream text-brand-navy flex items-center justify-center text-xs font-semibold border border-white/30 select-none cursor-pointer" onClick={onManageProfile}>
+                {`${(currentUser.lastName || '').charAt(0)}${(currentUser.firstName || '').charAt(0)}`.toUpperCase()}
+              </div>
+            )}
             {!currentUser && (
-              <button className="bg-brand-charcoal text-brand-cream px-3 py-2 rounded-lg hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold" onClick={() => onNavigate('login')}>Login</button>
+              <button className="bg-brand-charcoal text-brand-cream px-2 md:px-3 py-1 md:py-2 text-sm md:text-base rounded-lg hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold" onClick={() => onNavigate('login')}>Login</button>
             )}
             <div className="relative inline-block">
-              <button className="bg-brand-red text-brand-cream px-3 py-2 rounded-lg hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-4" aria-haspopup="menu" aria-expanded={dashOpen} onClick={() => setDashOpen(prev => !prev)}>Dashboards</button>
+              <button className="bg-brand-red text-brand-cream px-2 md:px-3 py-1 md:py-2 text-sm md:text-base rounded-lg hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold whitespace-nowrap" aria-haspopup="menu" aria-expanded={dashOpen} onClick={() => setDashOpen(prev => !prev)}>Dashboards</button>
               <div className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-[var(--surface)] border-2 border-brand-red-2 rounded-lg shadow-lg text-brand-navy`} role="menu" aria-label="Dashboards">
                 <div className="px-4 py-2 bg-brand-red text-brand-cream rounded-t-lg text-sm font-medium">Dashboards</div>
                 <div role="group" aria-label="My">

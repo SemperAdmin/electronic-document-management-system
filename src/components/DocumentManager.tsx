@@ -329,7 +329,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       </div>
       <div className="flex items-center space-x-2">
         {doc.currentStage && (
-          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{doc.currentStage === 'BATTALION_REVIEW' && (doc as any).routeSection ? `BATTALION_REVIEW - ${(doc as any).routeSection}` : doc.currentStage}</span>
+          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(doc as any)}</span>
         )}
         {doc.fileUrl && (
           <a
@@ -352,6 +352,17 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       </div>
     </div>
   );
+
+  const formatStage = (r: Request) => {
+    const stage = r.currentStage || 'PLATOON_REVIEW'
+    if (stage === 'PLATOON_REVIEW') return 'Platoon'
+    if (stage === 'COMPANY_REVIEW') return 'Company'
+    if (stage === 'BATTALION_REVIEW') return r.routeSection || 'Battalion'
+    if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander'
+    if (stage === 'EXTERNAL_REVIEW') return (r as any).externalPendingUnitName || 'External'
+    if (stage === 'ARCHIVED') return 'Archived'
+    return stage
+  }
 
   const normalizeDocUrl = (url?: string): string | undefined => {
     if (!url) return undefined
@@ -635,7 +646,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                 <div key={r.id}>
                   <div className={isReturnedReq(r) ? "flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-4 border border-brand-red-2 rounded-lg bg-brand-cream" : "flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-4 border border-brand-navy/20 rounded-lg hover:bg-brand-cream/50"}>
                     <div>
-                      <div className="font-medium text-[var(--text)]">{r.subject}</div>
+                      <div className={`font-medium ${isReturnedReq(r) ? 'text-red-800 font-bold' : 'text-[var(--text)]'}`}>{r.subject}</div>
                       <div className="text-sm text-[var(--muted)]">
                         {new Date(r.createdAt).toLocaleDateString()} • {documents.filter(d => d.requestId === r.id && d.type !== 'request').length} document(s)
                       </div>
@@ -645,7 +656,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                     </div>
                     <div className="flex items-center gap-2">
                       {r.currentStage && (
-                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage === 'BATTALION_REVIEW' && r.routeSection ? `BATTALION_REVIEW - ${r.routeSection}` : r.currentStage}</span>
+                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(r)}</span>
                       )}
                       {isReturnedReq(r) && (
                         <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>

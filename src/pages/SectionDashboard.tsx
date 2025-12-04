@@ -200,6 +200,17 @@ export default function SectionDashboard() {
     return norm(mapped)
   }
 
+  const formatStage = (r: Request) => {
+    const stage = r.currentStage || 'PLATOON_REVIEW'
+    if (stage === 'PLATOON_REVIEW') return 'Platoon'
+    if (stage === 'COMPANY_REVIEW') return 'Company'
+    if (stage === 'BATTALION_REVIEW') return r.routeSection || 'Battalion'
+    if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander'
+    if (stage === 'EXTERNAL_REVIEW') return (r as any).externalPendingUnitName || 'External'
+    if (stage === 'ARCHIVED') return 'Archived'
+    return stage
+  }
+
   const originatorName = (r: Request) => {
     const u = usersById[r.uploadedById]
     if (!u) return '—'
@@ -377,7 +388,7 @@ export default function SectionDashboard() {
           <div>
             <div className="font-medium text-[var(--text)]">{r.subject}</div>
             <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
-            <div className="text-xs text-[var(--muted)]">Stage {(r.currentStage || 'PLATOON_REVIEW') === 'BATTALION_REVIEW' && r.routeSection ? `BATTALION_REVIEW - ${r.routeSection}` : (r.currentStage || 'PLATOON_REVIEW')}</div>
+            <div className="text-xs text-[var(--muted)]">Stage: {formatStage(r)}</div>
             <div className="text-xs text-[var(--muted)] mt-1">{originatorName(r)}{originatorAffiliation(r) ? ` • ${originatorAffiliation(r)}` : ''}</div>
             {r.commanderApprovalDate && (
               <div className="text-xs text-[var(--muted)] mt-1">Commander Approval: {new Date(r.commanderApprovalDate).toLocaleDateString()}</div>

@@ -444,8 +444,95 @@ export default function SectionDashboard() {
                 expandedRows={expandedCard}
               >
                 {(r: Request) => (
-                  <div id={`details-sec-${r.id}`}>
-                    {/* Detailed view content goes here */}
+                  <div id={`details-sec-${r.id}`} className="p-4 bg-gray-50">
+                    <div className="mt-3">
+                      <button
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                        aria-expanded={!!expandedDocs[r.id]}
+                        aria-controls={`docs-sec-${r.id}`}
+                        onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                      >
+                        <span>Show Documents</span>
+                        <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                      </button>
+                    </div>
+                    <div
+                      id={`docs-sec-${r.id}`}
+                      ref={expandedDocs[r.id] ? docsRef : undefined}
+                      className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
+                    >
+                      {docsFor(r.id).map(d => (
+                        <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                          <div className="text-sm text-[var(--muted)]">
+                            <div className="font-medium text-[var(--text)]">{d.name}</div>
+                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {(d as any).fileUrl ? (
+                              <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+                            ) : (
+                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {docsFor(r.id).length === 0 && (
+                        <div className="text-sm text-[var(--muted)]">No documents</div>
+                      )}
+                    </div>
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
+                      <textarea
+                        rows={2}
+                        value={comments[r.id] || ''}
+                        onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                        placeholder="Optional notes"
+                      />
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
+                        <input
+                          type="file"
+                          multiple
+                          onChange={(e) => setAttach(prev => ({ ...prev, [r.id]: e.target.files ? Array.from(e.target.files) : [] }))}
+                          className="hidden"
+                          accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                        />
+                        Add Files
+                      </label>
+                      <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
+                      <button
+                        className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
+                        onClick={() => addFilesToRequest(r)}
+                        disabled={!attach[r.id] || !(attach[r.id] || []).length}
+                      >
+                        Save Files
+                      </button>
+                    </div>
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      <select
+                        value={selectedCmdSection[r.id] || 'COMMANDER'}
+                        onChange={e => setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))}
+                        className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                      >
+                        <option value="COMMANDER">Commander</option>
+                        {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <button
+                        className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                        onClick={() => approveRequest(r)}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                        onClick={() => rejectRequest(r)}
+                      >
+                        Return
+                      </button>
+                    </div>
                   </div>
                 )}
               </RequestTable>
@@ -459,8 +546,43 @@ export default function SectionDashboard() {
                 expandedRows={expandedCard}
               >
                 {(r: Request) => (
-                  <div id={`details-sec-${r.id}`}>
-                    {/* Detailed view content goes here */}
+                  <div id={`details-sec-${r.id}`} className="p-4 bg-gray-50">
+                    <div className="mt-3">
+                      <button
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                        aria-expanded={!!expandedDocs[r.id]}
+                        aria-controls={`docs-sec-${r.id}`}
+                        onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                      >
+                        <span>Show Documents</span>
+                        <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                      </button>
+                    </div>
+                    <div
+                      id={`docs-sec-${r.id}`}
+                      ref={expandedDocs[r.id] ? docsRef : undefined}
+                      className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
+                    >
+                      {docsFor(r.id).map(d => (
+                        <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                          <div className="text-sm text-[var(--muted)]">
+                            <div className="font-medium text-[var(--text)]">{d.name}</div>
+                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {(d as any).fileUrl ? (
+                              <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+                            ) : (
+                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {docsFor(r.id).length === 0 && (
+                        <div className="text-sm text-[var(--muted)]">No documents</div>
+                      )}
+                    </div>
                   </div>
                 )}
               </RequestTable>

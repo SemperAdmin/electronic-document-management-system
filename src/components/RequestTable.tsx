@@ -19,17 +19,28 @@ interface RequestTableProps {
 }
 
 const formatStage = (r: Request) => {
-  const stage = r.currentStage || 'PLATOON_REVIEW'
-  if (stage === 'PLATOON_REVIEW') return 'Platoon'
-  if (stage === 'COMPANY_REVIEW') return 'Company'
-  if (stage === 'BATTALION_REVIEW') return r.routeSection || 'Battalion'
-  if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander'
-  if (stage === 'ARCHIVED') return 'Archived'
-  return stage
-}
+  const stage = r.currentStage || 'PLATOON_REVIEW';
+  if (stage === 'PLATOON_REVIEW') return 'Platoon';
+  if (stage === 'COMPANY_REVIEW') return 'Company';
+  if (stage === 'BATTALION_REVIEW') {
+    return r.routeSection && r.routeSection !== '' ? r.routeSection : 'Battalion';
+  }
+  if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander';
+  if (stage === 'ARCHIVED') return 'Archived';
+  return stage;
+};
 
 const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, expandedRows, children }) => {
   const originatorFor = (r: Request) => users[r.uploadedById] || null;
+
+  const isReturned = (r: Request) => {
+    const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null;
+    return !!a && /returned/i.test(String(a.action || ''));
+  };
+
+  const isApproved = (r: Request) => {
+    return r.activity?.some(a => /approved|endorsed/i.test(String(a.action || '')));
+  };
 
   return (
     <div>
@@ -48,10 +59,15 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
             {requests.map((r) => (
               <React.Fragment key={r.id}>
                 <tr
-                  className="border-b border-brand-navy/20 hover:bg-brand-cream/50 cursor-pointer"
+                  className={`border-b border-brand-navy/20 hover:bg-brand-cream/50 cursor-pointer ${
+                    isApproved(r) ? 'bg-green-100' : ''
+                  }`}
                   onClick={() => onRowClick(r)}
                 >
-                  <td className="p-3 text-sm text-[var(--text)]">{r.subject}</td>
+                  <td className={`p-3 text-sm text-[var(--text)] ${isReturned(r) ? 'text-red-500 font-bold' : ''}`}>
+                    {isReturned(r) && <span className="font-bold">Returned: </span>}
+                    {r.subject}
+                  </td>
                   <td className="p-3 text-sm text-[var(--text)]">
                     <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">
                       {formatStage(r)}
@@ -64,7 +80,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                 </tr>
                 {expandedRows[r.id] && (
                   <tr>
-                    <td colSpan={4} className="p-4">
+                    <td colSpan={4} className="p-4 bg-gray-50">
                       {children(r)}
                     </td>
                   </tr>

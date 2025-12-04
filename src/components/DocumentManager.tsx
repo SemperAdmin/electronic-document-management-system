@@ -5,6 +5,8 @@ import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers,
 import { getSupabaseUrl } from '../lib/supabase';
 import { usePagination } from '@/hooks/usePagination';
 import { Pagination } from '@/components/Pagination';
+import RequestTable from './RequestTable';
+import { Request } from '../types';
 
 interface Document {
   id: string;
@@ -22,21 +24,6 @@ interface Document {
   currentStage?: string;
   requestId?: string;
   fileUrl?: string;
-}
-
-interface Request {
-  id: string;
-  subject: string;
-  dueDate?: string;
-  notes?: string;
-  unitUic: string;
-  uploadedById: string;
-  submitForUserId?: string;
-  documentIds: string[];
-  createdAt: string;
-  currentStage?: string;
-  routeSection?: string;
-  activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>;
 }
 
 interface ActionEntry {
@@ -76,6 +63,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [docsExpanded, setDocsExpanded] = useState<boolean>(false);
   const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
   const [submitForUserId, setSubmitForUserId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Archived'>('Pending');
 
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -522,8 +510,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   // Filter user's requests
   const myRequests = useMemo(() => {
     if (!currentUser?.id) return [];
-    return userRequests.filter(r => r.uploadedById === currentUser.id);
-  }, [userRequests, currentUser]);
+    const filtered = userRequests.filter(r => r.uploadedById === currentUser.id);
+    if (activeTab === 'Pending') {
+      return filtered.filter(r => r.currentStage !== 'ARCHIVED');
+    }
+    return filtered.filter(r => r.currentStage === 'ARCHIVED');
+  }, [userRequests, currentUser, activeTab]);
 
   // Pagination for user requests
   const requestsPagination = usePagination(myRequests, { pageSize: 10 });
@@ -640,57 +632,40 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       <div className="p-6">
         {currentUser && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-[var(--text)] mb-3">Your Requests</h3>
-            <div className="space-y-3">
-              {requestsPagination.currentData.map((r) => (
-                <div key={r.id}>
-                  <div className={isReturnedReq(r) ? "flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-4 border border-brand-red-2 rounded-lg bg-brand-cream" : "flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-4 border border-brand-navy/20 rounded-lg hover:bg-brand-cream/50"}>
-                    <div>
-                      <div className={`font-medium ${isReturnedReq(r) ? 'text-red-800 font-bold' : 'text-[var(--text)]'}`}>{r.subject}</div>
-                      <div className="text-sm text-[var(--muted)]">
-                        {new Date(r.createdAt).toLocaleDateString()} • {documents.filter(d => d.requestId === r.id && d.type !== 'request').length} document(s)
-                      </div>
-                      {r.dueDate && (
-                        <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {r.currentStage && (
-                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(r)}</span>
-                      )}
-                      {isReturnedReq(r) && (
-                        <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
-                      )}
-                      <button
-                        className="px-3 py-1 text-xs bg-brand-navy text-brand-cream rounded hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
-                        onClick={() => setExpandedRequests(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                        aria-expanded={!!expandedRequests[r.id]}
-                        aria-controls={`req-docs-${r.id}`}
-                      >
-                        {expandedRequests[r.id] ? 'Hide' : 'Show'} Documents
-                      </button>
-                      <button
-                        className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
-                        onClick={() => setSelectedRequest(r)}
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                  <div id={`req-docs-${r.id}`} className={expandedRequests[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                    {documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
-                      <DocCard key={d.id} doc={d} />
-                    ))}
-                    {documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
-                      <div className="text-sm text-[var(--muted)]">No documents</div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {requestsPagination.totalItems === 0 && (
-                <div className="text-sm text-[var(--muted)]">No requests submitted</div>
-              )}
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                <button
+                  onClick={() => setActiveTab('Pending')}
+                  className={`${activeTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Pending
+                </button>
+                <button
+                  onClick={() => setActiveTab('Archived')}
+                  className={`${activeTab === 'Archived' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Archived
+                </button>
+              </nav>
             </div>
+            <RequestTable
+              title="Your Requests"
+              requests={requestsPagination.currentData}
+              users={users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {})}
+              onRowClick={(r) => setSelectedRequest(r)}
+              expandedRows={expandedRequests}
+            >
+              {(r: Request) => (
+                <div id={`req-docs-${r.id}`}>
+                  {documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
+                    <DocCard key={d.id} doc={d} />
+                  ))}
+                  {documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
+                    <div className="text-sm text-[var(--muted)]">No documents</div>
+                  )}
+                </div>
+              )}
+            </RequestTable>
             {requestsPagination.totalItems > 0 && (
               <Pagination
                 currentPage={requestsPagination.currentPage}

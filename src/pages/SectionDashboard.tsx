@@ -182,12 +182,7 @@ export default function SectionDashboard() {
   }, [sectionRouted, selectedBattalionSection])
 
   const pendingInSection = useMemo(() => {
-    return visibleRequests.filter(r => {
-      const stage = r.currentStage || ''
-      if (stage === 'BATTALION_REVIEW') return true
-      if (stage === 'EXTERNAL_REVIEW' && !!r.routeSection) return true
-      return false
-    })
+    return visibleRequests.filter(r => (r.currentStage || '') === 'BATTALION_REVIEW')
   }, [visibleRequests])
 
   const previousInSection = useMemo(() => {

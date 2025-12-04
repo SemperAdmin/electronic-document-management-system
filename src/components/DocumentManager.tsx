@@ -35,6 +35,7 @@ interface Request {
   documentIds: string[];
   createdAt: string;
   currentStage?: string;
+  routeSection?: string;
   activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>;
 }
 

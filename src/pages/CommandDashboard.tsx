@@ -341,7 +341,7 @@ export default function CommandDashboard() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
+                      <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage === 'BATTALION_REVIEW' && r.routeSection ? `BATTALION_REVIEW - ${r.routeSection}` : r.currentStage}</span>
                       {isReturned(r) && (
                         <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
                       )}
@@ -502,7 +502,7 @@ export default function CommandDashboard() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
+                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage === 'BATTALION_REVIEW' && r.routeSection ? `BATTALION_REVIEW - ${r.routeSection}` : r.currentStage}</span>
                         {isReturned(r) && (
                           <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
                         )}

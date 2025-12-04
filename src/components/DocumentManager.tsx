@@ -328,7 +328,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       </div>
       <div className="flex items-center space-x-2">
         {doc.currentStage && (
-          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{doc.currentStage}</span>
+          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{doc.currentStage === 'BATTALION_REVIEW' && (doc as any).routeSection ? `BATTALION_REVIEW - ${(doc as any).routeSection}` : doc.currentStage}</span>
         )}
         {doc.fileUrl && (
           <a
@@ -644,7 +644,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                     </div>
                     <div className="flex items-center gap-2">
                       {r.currentStage && (
-                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
+                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage === 'BATTALION_REVIEW' && r.routeSection ? `BATTALION_REVIEW - ${r.routeSection}` : r.currentStage}</span>
                       )}
                       {isReturnedReq(r) && (
                         <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>

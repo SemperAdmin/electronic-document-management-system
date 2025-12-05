@@ -161,7 +161,10 @@ export default function CommandDashboard() {
     const normalize = (s: string) => String(s || '').trim().toUpperCase()
     const normSections = commandSections.map(s => normalize(s))
 
+    // Initialize with known command sections
     for (const name of commandSections) result[name] = []
+
+    // Process all requests
     for (const r of requests) {
       const stage = r.currentStage || ''
       const ouic = r.unitUic || ''
@@ -169,11 +172,20 @@ export default function CommandDashboard() {
       const normRouteSec = normalize(routeSec)
 
       if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec && (cuic ? ouic === cuic : true)) {
+        // Try to find matching section name
         const idx = normSections.indexOf(normRouteSec)
         if (idx >= 0) {
+          // Found exact match
           const actualName = commandSections[idx]
           result[actualName] = result[actualName] || []
           result[actualName].push(r)
+        } else {
+          // No exact match found - add to result with the original routeSec as key
+          // This ensures the request shows up even if there's a mismatch
+          if (!result[routeSec]) {
+            result[routeSec] = []
+          }
+          result[routeSec].push(r)
         }
       }
     }
@@ -543,7 +555,7 @@ export default function CommandDashboard() {
             </div>
           </div>
 
-          {commandSections.map((name) => {
+          {Object.keys(byCommandSection).filter(name => (byCommandSection[name] || []).length > 0).map((name) => {
             const pending = (byCommandSection[name] || []).filter(r => r.currentStage !== 'ARCHIVED');
             const archived = (byCommandSection[name] || []).filter(r => r.currentStage === 'ARCHIVED');
             const currentTab = activeTab[name] || 'Pending';

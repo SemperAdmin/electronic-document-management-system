@@ -84,9 +84,9 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
   const isRejected = (r: Request) => checkLastActivity(r, /rejected/i);
 
   const getApprovalStatus = (r: Request): 'approved' | 'endorsed' | null => {
-    const approved = r.activity?.some(a => /commander.*approved/i.test(String(a.action || '')));
+    const approved = r.activity?.some(a => /(approved by commander|commander.*approved)/i.test(String(a.action || '')));
     if (approved) return 'approved';
-    const endorsed = r.activity?.some(a => /commander.*endorsed/i.test(String(a.action || '')));
+    const endorsed = r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || '')));
     if (endorsed) return 'endorsed';
     return null;
   };
@@ -154,10 +154,10 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
             <tr>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Subject</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Status</th>
+              <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Unit</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Originator</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Company</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Platoon</th>
-              <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Unit</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Created</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Actions</th>
             </tr>
@@ -193,6 +193,9 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                       </span>
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
+                      {getCurrentUnit(r)}
+                    </td>
+                    <td className="p-3 text-sm text-[var(--text)]">
                       {originator ? `${originator.rank} ${originator.lastName}, ${originator.firstName}` : 'N/A'}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
@@ -200,9 +203,6 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
                       {displayUnitPart(originator?.platoon)}
-                    </td>
-                    <td className="p-3 text-sm text-[var(--text)]">
-                      {getCurrentUnit(r)}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">{new Date(r.createdAt).toLocaleDateString()}</td>
                     <td className="p-3 text-sm text-[var(--text)]">

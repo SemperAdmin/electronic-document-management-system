@@ -385,6 +385,7 @@ export default function ReviewDashboard() {
               users={users}
               onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
               expandedRows={expandedCard}
+              platoonSectionMap={platoonSectionMap}
             >
               {(r: Request) => (
                 <div id={`details-rev-${r.id}`}>
@@ -526,6 +527,7 @@ export default function ReviewDashboard() {
               users={users}
               onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
               expandedRows={expandedCard}
+              platoonSectionMap={platoonSectionMap}
             >
               {(r: Request) => (
                 <div id={`details-rev-${r.id}`}>

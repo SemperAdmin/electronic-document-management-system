@@ -171,8 +171,38 @@ export default function SectionDashboard() {
   }, [visibleRequests])
 
   const previousInSection = useMemo(() => {
-    return visibleRequests.filter(r => (r.currentStage || '') !== 'BATTALION_REVIEW')
-  }, [visibleRequests])
+    const norm = (n: string) => String(n || '').trim().replace(/^S(\d)\b/, 'S-$1')
+    const sel = norm(selectedBattalionSection)
+    if (!sel) return []
+
+    return requests.filter(r => {
+      const stage = r.currentStage || ''
+      const cuic = currentUser?.unitUic || ''
+      const effectiveUic = stage === 'EXTERNAL_REVIEW' ? (r.externalPendingUnitUic || r.unitUic || '') : (r.unitUic || '')
+
+      // Filter by unit
+      if (cuic && effectiveUic !== cuic) return false
+
+      // Skip if currently in battalion review with this section (those go to pending)
+      if (stage === 'BATTALION_REVIEW' && norm(battalionSectionFor(r)) === sel) return false
+
+      // Check if this section was involved based on activity log
+      const hasActivity = r.activity?.some(a => {
+        const action = String(a.action || '')
+        // Look for actions that mention routing to this section or approval by this section
+        return action.includes(sel) || action.includes(selectedBattalionSection)
+      })
+
+      // Also check if request has this section in routeSection history
+      // (for cases where it was routed through this section before)
+      const wasRoutedHere = r.activity?.some(a => {
+        const action = String(a.action || '')
+        return action.includes(`routed to ${sel}`) || action.includes(`routed to ${selectedBattalionSection}`)
+      })
+
+      return hasActivity || wasRoutedHere
+    })
+  }, [requests, currentUser, selectedBattalionSection])
 
   function battalionSectionFor(r: Request) {
     const norm = (n: string) => String(n || '').trim().replace(/^S(\d)\b/, 'S-$1')

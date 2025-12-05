@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Request } from '../types';
 
 interface User {
@@ -26,9 +26,13 @@ interface RequestTableProps {
 }
 
 const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, expandedRows, children, platoonSectionMap }) => {
-  const [showContactModal, setShowContactModal] = useState<string | null>(null);
+  const [modalPeople, setModalPeople] = useState<User[] | null>(null);
+
+  const allUsers = useMemo(() => Object.values(users), [users]);
 
   const originatorFor = (r: Request) => users[r.uploadedById] || null;
+
+  const displayUnitPart = (part?: string) => (part && part !== 'N/A') ? part : '—';
 
   const battalionSectionFor = (r: Request) => {
     const norm = (n: string) => String(n || '').trim().replace(/^S(\d)\b/, 'S-$1');
@@ -94,7 +98,6 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
 
   const getPeopleAtActionLevel = (r: Request): User[] => {
     const stage = r.currentStage || 'PLATOON_REVIEW';
-    const allUsers = Object.values(users);
 
     switch (stage) {
       case 'PLATOON_REVIEW': {
@@ -186,10 +189,10 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                       {originator ? `${originator.rank} ${originator.lastName}, ${originator.firstName}` : 'N/A'}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
-                      {originator?.company && originator.company !== 'N/A' ? originator.company : '—'}
+                      {displayUnitPart(originator?.company)}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
-                      {originator?.platoon && originator.platoon !== 'N/A' ? originator.platoon : '—'}
+                      {displayUnitPart(originator?.platoon)}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
                       {getCurrentUnit(r)}
@@ -199,7 +202,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowContactModal(r.id);
+                          setModalPeople(peopleAtLevel);
                         }}
                         className="px-2 py-1 text-xs bg-brand-navy text-brand-cream rounded hover:bg-brand-red-2"
                       >
@@ -229,10 +232,10 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
       </div>
 
       {/* Contact Modal */}
-      {showContactModal && (
+      {modalPeople && (
         <div
           className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
-          onClick={() => setShowContactModal(null)}
+          onClick={() => setModalPeople(null)}
         >
           <div
             className="bg-[var(--surface)] rounded-lg shadow-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
@@ -241,49 +244,41 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[var(--text)]">Contacts at Current Action Level</h3>
               <button
-                onClick={() => setShowContactModal(null)}
+                onClick={() => setModalPeople(null)}
                 className="text-[var(--muted)] hover:text-[var(--text)]"
               >
                 ✕
               </button>
             </div>
-            {(() => {
-              const request = requests.find(r => r.id === showContactModal);
-              if (!request) return null;
-              const people = getPeopleAtActionLevel(request);
-
-              return (
-                <div className="space-y-3">
-                  {people.length === 0 ? (
-                    <p className="text-sm text-[var(--muted)]">No contacts found at this action level.</p>
-                  ) : (
-                    people.map((person) => (
-                      <div
-                        key={person.id}
-                        className="p-4 border border-brand-navy/20 rounded-lg bg-brand-cream/30"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-semibold text-[var(--text)]">
-                              {person.rank} {person.lastName}, {person.firstName} {person.mi || ''}
-                            </div>
-                            <div className="text-sm text-[var(--muted)] mt-1">
-                              {person.email || 'No email provided'}
-                            </div>
-                            {person.company && person.company !== 'N/A' && (
-                              <div className="text-xs text-[var(--muted)] mt-1">
-                                Company: {person.company}
-                                {person.platoon && person.platoon !== 'N/A' && ` • Platoon: ${person.platoon}`}
-                              </div>
-                            )}
-                          </div>
+            <div className="space-y-3">
+              {modalPeople.length === 0 ? (
+                <p className="text-sm text-[var(--muted)]">No contacts found at this action level.</p>
+              ) : (
+                modalPeople.map((person) => (
+                  <div
+                    key={person.id}
+                    className="p-4 border border-brand-navy/20 rounded-lg bg-brand-cream/30"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="font-semibold text-[var(--text)]">
+                          {person.rank} {person.lastName}, {person.firstName} {person.mi || ''}
                         </div>
+                        <div className="text-sm text-[var(--muted)] mt-1">
+                          {person.email || 'No email provided'}
+                        </div>
+                        {person.company && person.company !== 'N/A' && (
+                          <div className="text-xs text-[var(--muted)] mt-1">
+                            Company: {person.company}
+                            {person.platoon && person.platoon !== 'N/A' && ` • Platoon: ${person.platoon}`}
+                          </div>
+                        )}
                       </div>
-                    ))
-                  )}
-                </div>
-              );
-            })()}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

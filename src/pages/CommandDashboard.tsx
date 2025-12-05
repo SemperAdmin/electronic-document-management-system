@@ -28,6 +28,8 @@ export default function CommandDashboard() {
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
+  const [externalUnit, setExternalUnit] = useState<Record<string, string>>({})
+  const [externalSection, setExternalSection] = useState<Record<string, string>>({})
   // Removed activeTab state - only showing pending items now
 
   useEffect(() => {
@@ -280,6 +282,33 @@ export default function CommandDashboard() {
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
+  const sendToExternal = async (r: Request) => {
+    const extUnit = externalUnit[r.id] || ''
+    const extSec = externalSection[r.id] || ''
+    if (!extUnit.trim()) {
+      alert('Please enter an external unit name')
+      return
+    }
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
+    const actionText = extSec ? `Sent to external unit: ${extUnit} - ${extSec}` : `Sent to external unit: ${extUnit}`
+    const updated: Request = {
+      ...r,
+      currentStage: 'EXTERNAL_REVIEW',
+      externalPendingUnitName: extUnit,
+      externalPendingUnitUic: '',
+      externalPendingStage: extSec || 'REVIEW',
+      routeSection: extSec || '',
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+    }
+    try {
+      await upsertRequest(updated as any)
+    } catch {}
+    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+    setComments(prev => ({ ...prev, [r.id]: '' }))
+    setExternalUnit(prev => ({ ...prev, [r.id]: '' }))
+    setExternalSection(prev => ({ ...prev, [r.id]: '' }))
+  }
+
   const addFilesToRequest = async (r: Request) => {
     const files = attach[r.id] || []
     if (!files.length || !currentUser?.id) return
@@ -427,6 +456,31 @@ export default function CommandDashboard() {
                         >
                           Rejected
                         </button>
+                      </div>
+                      <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
+                        <label className="block text-sm font-medium text-[var(--text)] mb-2">Send to External Unit</label>
+                        <div className="flex flex-col gap-2">
+                          <input
+                            type="text"
+                            value={externalUnit[r.id] || ''}
+                            onChange={(e) => setExternalUnit(prev => ({ ...prev, [r.id]: e.target.value }))}
+                            placeholder="External Unit Name (required)"
+                            className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={externalSection[r.id] || ''}
+                            onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                            placeholder="Section/Office (optional)"
+                            className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
+                          />
+                          <button
+                            className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2"
+                            onClick={() => sendToExternal(r)}
+                          >
+                            Send to External
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-3">
                         <button

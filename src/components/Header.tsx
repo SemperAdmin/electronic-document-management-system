@@ -14,6 +14,7 @@ type HeaderProps = {
 
 export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, onManageProfile, onLogout, onNavigate, isLogin = false }) => {
   const [dashOpen, setDashOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   return (
     <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -80,8 +81,16 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
               )}
             </div>
             {currentUser && (
-              <div className="md:hidden h-8 w-8 rounded-full bg-brand-cream text-brand-navy flex items-center justify-center text-xs font-semibold border border-white/30 select-none cursor-pointer" onClick={onManageProfile}>
-                {`${(currentUser.lastName || '').charAt(0)}${(currentUser.firstName || '').charAt(0)}`.toUpperCase()}
+              <div className="md:hidden relative">
+                <div className="h-8 w-8 rounded-full bg-brand-cream text-brand-navy flex items-center justify-center text-xs font-semibold border border-white/30 select-none cursor-pointer" onClick={() => setProfileOpen(!profileOpen)}>
+                  {`${(currentUser.lastName || '').charAt(0)}${(currentUser.firstName || '').charAt(0)}`.toUpperCase()}
+                </div>
+                {profileOpen && (
+                  <div className="absolute right-0 top-full mt-2 min-w-40 bg-white text-brand-navy border border-brand-navy/20 rounded-md shadow-lg z-50">
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream" onClick={() => { onManageProfile(); setProfileOpen(false); }}>Manage Profile</button>
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream" onClick={() => { onLogout(); setProfileOpen(false); }}>Logout</button>
+                  </div>
+                )}
               </div>
             )}
             {!currentUser && (

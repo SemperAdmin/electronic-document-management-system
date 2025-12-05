@@ -83,8 +83,12 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
   const isReturned = (r: Request) => checkLastActivity(r, /returned/i);
   const isRejected = (r: Request) => checkLastActivity(r, /rejected/i);
 
-  const isApproved = (r: Request) => {
-    return r.activity?.some(a => /commander.*approved|commander.*endorsed/i.test(String(a.action || '')));
+  const getApprovalStatus = (r: Request): 'approved' | 'endorsed' | null => {
+    const approved = r.activity?.some(a => /commander.*approved/i.test(String(a.action || '')));
+    if (approved) return 'approved';
+    const endorsed = r.activity?.some(a => /commander.*endorsed/i.test(String(a.action || '')));
+    if (endorsed) return 'endorsed';
+    return null;
   };
 
   const getCurrentUnit = (r: Request) => {
@@ -163,7 +167,8 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
               const returned = isReturned(r);
               const rejected = isRejected(r);
               const isNegative = returned || rejected;
-              const approved = isApproved(r);
+              const approvalStatus = getApprovalStatus(r);
+              const isPositive = !!approvalStatus;
               const originator = originatorFor(r);
               const peopleAtLevel = getPeopleAtActionLevel(r);
 
@@ -171,13 +176,15 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                 <React.Fragment key={r.id}>
                   <tr
                     className={`border-b border-brand-navy/20 hover:bg-brand-cream/50 cursor-pointer ${
-                      isNegative ? 'bg-red-100' : approved ? 'bg-green-100' : ''
+                      isNegative ? 'bg-red-100' : isPositive ? 'bg-green-100' : ''
                     }`}
                     onClick={() => onRowClick(r)}
                   >
-                    <td className={`p-3 text-sm ${isNegative ? 'text-red-700 font-bold' : 'text-[var(--text)]'}`}>
+                    <td className={`p-3 text-sm ${isNegative ? 'text-red-700 font-bold' : isPositive ? 'text-green-700 font-bold' : 'text-[var(--text)]'}`}>
                       {returned && <span className="font-bold">Returned: </span>}
                       {rejected && <span className="font-bold">Rejected: </span>}
+                      {approvalStatus === 'approved' && <span className="font-bold">Approved: </span>}
+                      {approvalStatus === 'endorsed' && <span className="font-bold">Endorsed: </span>}
                       {r.subject}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">

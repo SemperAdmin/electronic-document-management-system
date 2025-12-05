@@ -513,6 +513,28 @@ export default function SectionDashboard() {
                       )}
                     </div>
                     <div className="mt-3">
+                      <button
+                        className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                        onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                        aria-expanded={!!expandedLogs[r.id]}
+                        aria-controls={`logs-sec-${r.id}`}
+                      >
+                        {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                      </button>
+                      <div id={`logs-sec-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                        {r.activity && r.activity.length ? (
+                          r.activity.map((a, idx) => (
+                            <div key={idx} className="text-xs text-gray-700">
+                              <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                              {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-xs text-gray-500">No activity</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3">
                       <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
                       <textarea
                         rows={2}

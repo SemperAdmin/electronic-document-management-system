@@ -158,14 +158,23 @@ export default function CommandDashboard() {
   const byCommandSection = useMemo(() => {
     const cuic = currentUser?.unitUic || ''
     const result: Record<string, Request[]> = {}
+    const normalize = (s: string) => String(s || '').trim().toUpperCase()
+    const normSections = commandSections.map(s => normalize(s))
+
     for (const name of commandSections) result[name] = []
     for (const r of requests) {
       const stage = r.currentStage || ''
       const ouic = r.unitUic || ''
-      const name = r.routeSection || ''
-      if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && name && (cuic ? ouic === cuic : true) && commandSections.includes(name)) {
-        result[name] = result[name] || []
-        result[name].push(r)
+      const routeSec = r.routeSection || ''
+      const normRouteSec = normalize(routeSec)
+
+      if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec && (cuic ? ouic === cuic : true)) {
+        const idx = normSections.indexOf(normRouteSec)
+        if (idx >= 0) {
+          const actualName = commandSections[idx]
+          result[actualName] = result[actualName] || []
+          result[actualName].push(r)
+        }
       }
     }
     return result

@@ -342,6 +342,7 @@ export default function CommandDashboard() {
                   users={users}
                   onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                   expandedRows={expandedCard}
+                  platoonSectionMap={platoonSectionMap}
                 >
                   {(r: Request) => (
                     <div id={`details-cmd-${r.id}`}>
@@ -464,6 +465,7 @@ export default function CommandDashboard() {
                   users={users}
                   onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                   expandedRows={expandedCard}
+                  platoonSectionMap={platoonSectionMap}
                 >
                   {(r: Request) => (
                     <div id={`details-cmd-${r.id}`}>
@@ -567,6 +569,7 @@ export default function CommandDashboard() {
                       users={users}
                       onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                       expandedRows={expandedCard}
+                      platoonSectionMap={platoonSectionMap}
                     >
                       {(r: Request) => (
                         <div id={`details-csec-${r.id}`}>
@@ -683,6 +686,7 @@ export default function CommandDashboard() {
                       users={users}
                       onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                       expandedRows={expandedCard}
+                      platoonSectionMap={platoonSectionMap}
                     >
                       {(r: Request) => (
                         <div>

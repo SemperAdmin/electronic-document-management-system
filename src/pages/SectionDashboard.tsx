@@ -442,6 +442,7 @@ export default function SectionDashboard() {
                 users={usersById}
                 onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                 expandedRows={expandedCard}
+                platoonSectionMap={platoonSectionMap}
               >
                 {(r: Request) => (
                   <div id={`details-sec-${r.id}`} className="p-4 bg-gray-50">
@@ -544,6 +545,7 @@ export default function SectionDashboard() {
                 users={usersById}
                 onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                 expandedRows={expandedCard}
+                platoonSectionMap={platoonSectionMap}
               >
                 {(r: Request) => (
                   <div id={`details-sec-${r.id}`} className="p-4 bg-gray-50">

@@ -7,6 +7,8 @@ interface User {
   lastName: string;
   firstName: string;
   mi?: string;
+  company?: string;
+  platoon?: string;
 }
 
 interface RequestTableProps {
@@ -16,22 +18,36 @@ interface RequestTableProps {
   title: string;
   expandedRows: Record<string, boolean>;
   children: (request: Request) => React.ReactNode;
+  platoonSectionMap?: Record<string, Record<string, Record<string, string>>>;
 }
 
-const formatStage = (r: Request) => {
-  const stage = r.currentStage || 'PLATOON_REVIEW';
-  if (stage === 'PLATOON_REVIEW') return 'Platoon';
-  if (stage === 'COMPANY_REVIEW') return 'Company';
-  if (stage === 'BATTALION_REVIEW') {
-    return r.routeSection && r.routeSection !== '' ? r.routeSection : 'Battalion';
-  }
-  if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander';
-  if (stage === 'ARCHIVED') return 'Archived';
-  return stage;
-};
-
-const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, expandedRows, children }) => {
+const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, expandedRows, children, platoonSectionMap }) => {
   const originatorFor = (r: Request) => users[r.uploadedById] || null;
+
+  const battalionSectionFor = (r: Request) => {
+    const norm = (n: string) => String(n || '').trim().replace(/^S(\d)\b/, 'S-$1');
+    if (r.routeSection) return norm(r.routeSection);
+    if (!platoonSectionMap) return '';
+    const ouic = r.unitUic || '';
+    const originator = users[r.uploadedById];
+    const oc = (originator?.company && originator.company !== 'N/A') ? originator.company : '';
+    const ou = (originator?.platoon && originator.platoon !== 'N/A') ? originator.platoon : '';
+    const mapped = platoonSectionMap[ouic]?.[oc]?.[ou] || '';
+    return norm(mapped);
+  };
+
+  const formatStage = (r: Request) => {
+    const stage = r.currentStage || 'PLATOON_REVIEW';
+    if (stage === 'PLATOON_REVIEW') return 'Platoon';
+    if (stage === 'COMPANY_REVIEW') return 'Company';
+    if (stage === 'BATTALION_REVIEW') {
+      const section = battalionSectionFor(r);
+      return section || 'Battalion';
+    }
+    if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander';
+    if (stage === 'ARCHIVED') return 'Archived';
+    return stage;
+  };
 
   const isReturned = (r: Request) => {
     const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null;
@@ -39,7 +55,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
   };
 
   const isApproved = (r: Request) => {
-    return r.activity?.some(a => /approved|endorsed/i.test(String(a.action || '')));
+    return r.activity?.some(a => /commander.*approved|commander.*endorsed/i.test(String(a.action || '')));
   };
 
   return (

@@ -28,7 +28,7 @@ export default function CommandDashboard() {
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
-  const [activeTab, setActiveTab] = useState<Record<string, 'Pending' | 'Archived'>>({});
+  // Removed activeTab state - only showing pending items now
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -172,21 +172,13 @@ export default function CommandDashboard() {
       const normRouteSec = normalize(routeSec)
 
       if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec && (cuic ? ouic === cuic : true)) {
-        // Try to find matching section name
         const idx = normSections.indexOf(normRouteSec)
-        if (idx >= 0) {
-          // Found exact match
-          const actualName = commandSections[idx]
-          result[actualName] = result[actualName] || []
-          result[actualName].push(r)
-        } else {
-          // No exact match found - add to result with the original routeSec as key
-          // This ensures the request shows up even if there's a mismatch
-          if (!result[routeSec]) {
-            result[routeSec] = []
-          }
-          result[routeSec].push(r)
+        const sectionKey = idx >= 0 ? commandSections[idx] : routeSec
+
+        if (!result[sectionKey]) {
+          result[sectionKey] = []
         }
+        result[sectionKey].push(r)
       }
     }
     return result
@@ -339,25 +331,8 @@ export default function CommandDashboard() {
               <h3 className="text-lg font-semibold text-[var(--text)]">Commander</h3>
               <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportCommander}>Export Commander</button>
             </div>
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                <button
-                  onClick={() => setActiveTab(prev => ({ ...prev, commander: 'Pending' }))}
-                  className={`${(activeTab['commander'] || 'Pending') === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                >
-                  Pending
-                </button>
-                <button
-                  onClick={() => setActiveTab(prev => ({ ...prev, commander: 'Archived' }))}
-                  className={`${activeTab['commander'] === 'Archived' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                >
-                  Archived
-                </button>
-              </nav>
-            </div>
             <div className="mt-4">
-              {(activeTab['commander'] || 'Pending') === 'Pending' && (
-                <RequestTable
+              <RequestTable
                   title="Pending"
                   requests={inCommander.filter(r => r.currentStage !== 'ARCHIVED')}
                   users={users}
@@ -478,87 +453,11 @@ export default function CommandDashboard() {
                     </div>
                   )}
                 </RequestTable>
-              )}
-              {activeTab['commander'] === 'Archived' && (
-                <RequestTable
-                  title="Archived"
-                  requests={inCommander.filter(r => r.currentStage === 'ARCHIVED')}
-                  users={users}
-                  onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                  expandedRows={expandedCard}
-                  platoonSectionMap={platoonSectionMap}
-                >
-                  {(r: Request) => (
-                    <div id={`details-cmd-${r.id}`}>
-                      <div className="mt-3">
-                        <button
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                          aria-expanded={!!expandedDocs[r.id]}
-                          aria-controls={`docs-cmd-${r.id}`}
-                          onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
-                        >
-                          <span>Show Documents</span>
-                          <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                        </button>
-                      </div>
-                      <div
-                        id={`docs-cmd-${r.id}`}
-                        ref={expandedDocs[r.id] ? docsRef : undefined}
-                        className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
-                      >
-                        {docsFor(r.id).map(d => (
-                          <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                            <div className="text-sm text-[var(--muted)]">
-                              <div className="font-medium text-[var(--text)]">{d.name}</div>
-                              <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {(d as any).fileUrl ? (
-                                <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                              ) : (
-                                <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        {docsFor(r.id).length === 0 && (
-                          <div className="text-sm text-[var(--muted)]">No documents</div>
-                        )}
-                      </div>
-                      <div className="mt-3">
-                        <button
-                          className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                          onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                          aria-expanded={!!expandedLogs[r.id]}
-                          aria-controls={`logs-cmd-${r.id}`}
-                        >
-                          {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                        </button>
-                        <div id={`logs-cmd-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                          {r.activity && r.activity.length ? (
-                            r.activity.map((a, idx) => (
-                              <div key={idx} className="text-xs text-gray-700">
-                                <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                                {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-xs text-gray-500">No activity</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </RequestTable>
-              )}
             </div>
           </div>
 
           {Object.keys(byCommandSection).filter(name => (byCommandSection[name] || []).length > 0).map((name) => {
             const pending = (byCommandSection[name] || []).filter(r => r.currentStage !== 'ARCHIVED');
-            const archived = (byCommandSection[name] || []).filter(r => r.currentStage === 'ARCHIVED');
-            const currentTab = activeTab[name] || 'Pending';
 
             return (
               <div key={name}>
@@ -566,32 +465,15 @@ export default function CommandDashboard() {
                   <h3 className="text-lg font-semibold text-[var(--text)]">{name}</h3>
                   <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(name)}>Export {name}</button>
                 </div>
-                <div className="border-b border-gray-200">
-                  <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button
-                      onClick={() => setActiveTab(prev => ({ ...prev, [name]: 'Pending' }))}
-                      className={`${currentTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                    >
-                      Pending
-                    </button>
-                    <button
-                      onClick={() => setActiveTab(prev => ({ ...prev, [name]: 'Archived' }))}
-                      className={`${currentTab === 'Archived' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                    >
-                      Archived
-                    </button>
-                  </nav>
-                </div>
                 <div className="mt-4">
-                  {currentTab === 'Pending' && (
-                    <RequestTable
-                      title="Pending"
-                      requests={pending}
-                      users={users}
-                      onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                      expandedRows={expandedCard}
-                      platoonSectionMap={platoonSectionMap}
-                    >
+                  <RequestTable
+                    title="Pending"
+                    requests={pending}
+                    users={users}
+                    onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                    expandedRows={expandedCard}
+                    platoonSectionMap={platoonSectionMap}
+                  >
                       {(r: Request) => (
                         <div id={`details-csec-${r.id}`}>
                           <div className="mt-3">
@@ -699,23 +581,6 @@ export default function CommandDashboard() {
                         </div>
                       )}
                     </RequestTable>
-                  )}
-                  {currentTab === 'Archived' && (
-                    <RequestTable
-                      title="Archived"
-                      requests={archived}
-                      users={users}
-                      onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                      expandedRows={expandedCard}
-                      platoonSectionMap={platoonSectionMap}
-                    >
-                      {(r: Request) => (
-                        <div>
-                          {/* Detailed view content goes here */}
-                        </div>
-                      )}
-                    </RequestTable>
-                  )}
                 </div>
               </div>
             );

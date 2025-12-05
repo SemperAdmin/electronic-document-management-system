@@ -45,6 +45,11 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
       return section || 'Battalion';
     }
     if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander';
+    if (stage === 'EXTERNAL_REVIEW') {
+      const unitName = (r as any).externalPendingUnitName || 'External';
+      const section = r.routeSection;
+      return section ? `${unitName} - ${section}` : unitName;
+    }
     if (stage === 'ARCHIVED') return 'Archived';
     return stage;
   };
@@ -52,6 +57,11 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
   const isReturned = (r: Request) => {
     const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null;
     return !!a && /returned/i.test(String(a.action || ''));
+  };
+
+  const isRejected = (r: Request) => {
+    const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null;
+    return !!a && /rejected/i.test(String(a.action || ''));
   };
 
   const isApproved = (r: Request) => {
@@ -76,12 +86,13 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
               <React.Fragment key={r.id}>
                 <tr
                   className={`border-b border-brand-navy/20 hover:bg-brand-cream/50 cursor-pointer ${
-                    isApproved(r) ? 'bg-green-100' : ''
+                    isReturned(r) || isRejected(r) ? 'bg-red-100' : isApproved(r) ? 'bg-green-100' : ''
                   }`}
                   onClick={() => onRowClick(r)}
                 >
-                  <td className={`p-3 text-sm text-[var(--text)] ${isReturned(r) ? 'text-red-500 font-bold' : ''}`}>
+                  <td className={`p-3 text-sm ${(isReturned(r) || isRejected(r)) ? 'text-red-700 font-bold' : 'text-[var(--text)]'}`}>
                     {isReturned(r) && <span className="font-bold">Returned: </span>}
+                    {isRejected(r) && <span className="font-bold">Rejected: </span>}
                     {r.subject}
                   </td>
                   <td className="p-3 text-sm text-[var(--text)]">

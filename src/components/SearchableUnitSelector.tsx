@@ -16,9 +16,9 @@ export const SearchableUnitSelector: React.FC<SearchableUnitSelectorProps> = ({
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Filter units based on search query
+  // Filter units based on search query - show all only when dropdown is first opened
   const filteredUnits = useMemo(() => {
-    if (!searchQuery.trim()) return UNITS
+    if (!searchQuery.trim()) return []
 
     const query = searchQuery.toLowerCase().trim()
     return UNITS.filter(unit =>
@@ -96,7 +96,9 @@ export const SearchableUnitSelector: React.FC<SearchableUnitSelectorProps> = ({
               </button>
             ))
           ) : (
-            <div className="px-3 py-2 text-sm text-gray-500">No units found</div>
+            <div className="px-3 py-2 text-sm text-gray-500">
+              {searchQuery.trim() ? 'No units found' : 'Start typing to search...'}
+            </div>
           )}
         </div>
       )}

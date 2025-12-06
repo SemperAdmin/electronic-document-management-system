@@ -93,34 +93,51 @@ export default function CommandDashboard() {
   useEffect(() => {
     try {
       const rawUs = localStorage.getItem('unit_structure')
+      console.log('CommandDashboard - localStorage has unit_structure:', !!rawUs)
+      console.log('CommandDashboard - currentUser UIC:', currentUser?.unitUic)
+
       const sec: string[] = []
       const pMap: Record<string, Record<string, Record<string, string>>> = {}
       if (rawUs) {
         const parsed = JSON.parse(rawUs)
         const uic = currentUser?.unitUic || ''
+        console.log('CommandDashboard - parsed unit_structure keys:', Object.keys(parsed))
         const v = parsed?.[uic]
+        console.log('CommandDashboard - unit data for UIC:', uic, v)
+        console.log('CommandDashboard - _commandSections:', v?._commandSections)
         if (v && Array.isArray(v._commandSections)) sec.push(...v._commandSections)
         for (const key of Object.keys(parsed || {})) {
           const node = parsed[key]
           if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
         }
+        console.log('CommandDashboard - loaded sections:', sec)
+        setCommandSections(sec)
+        setPlatoonSectionMap(pMap)
       } else {
+        console.log('CommandDashboard - loading from bundle (async)')
         ;(async () => {
           try {
             const merged = await loadUnitStructureFromBundle()
             const uic = currentUser?.unitUic || ''
             const v = (merged as any)?.[uic]
-            if (v && Array.isArray(v._commandSections)) sec.push(...v._commandSections)
+            const bundleSec: string[] = []
+            const bundlePMap: Record<string, Record<string, Record<string, string>>> = {}
+            if (v && Array.isArray(v._commandSections)) bundleSec.push(...v._commandSections)
             for (const key of Object.keys(merged || {})) {
               const node = (merged as any)[key]
-              if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
+              if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') bundlePMap[key] = node._platoonSectionMap
             }
-          } catch {}
+            console.log('CommandDashboard - loaded from bundle:', bundleSec)
+            setCommandSections(bundleSec)
+            setPlatoonSectionMap(bundlePMap)
+          } catch (err) {
+            console.error('CommandDashboard - failed to load from bundle:', err)
+          }
         })()
       }
-      setCommandSections(sec)
-      setPlatoonSectionMap(pMap)
-    } catch {}
+    } catch (err) {
+      console.error('CommandDashboard - error in useEffect:', err)
+    }
   }, [currentUser])
 
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)

@@ -30,6 +30,11 @@ export type RequestRecord = {
   createdAt: string
   currentStage?: string
   activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>
+  routeSection?: string
+  commanderApprovalDate?: string
+  externalPendingUnitName?: string
+  externalPendingUnitUic?: string
+  externalPendingStage?: string
 }
 
 export type UserRecord = {
@@ -107,6 +112,11 @@ function toReqRow(r: RequestRecord) {
     created_at: r.createdAt ?? new Date().toISOString(),
     current_stage: r.currentStage ?? null,
     activity: r.activity ?? [],
+    route_section: r.routeSection ?? null,
+    commander_approval_date: r.commanderApprovalDate ?? null,
+    external_pending_unit_name: r.externalPendingUnitName ?? null,
+    external_pending_unit_uic: r.externalPendingUnitUic ?? null,
+    external_pending_stage: r.externalPendingStage ?? null,
   }
 }
 
@@ -123,6 +133,11 @@ function fromReqRow(r: any): RequestRecord {
     createdAt: String(r.created_at || new Date().toISOString()),
     currentStage: r.current_stage ? String(r.current_stage) : undefined,
     activity: Array.isArray(r.activity) ? r.activity : [],
+    routeSection: r.route_section ? String(r.route_section) : undefined,
+    commanderApprovalDate: r.commander_approval_date ? String(r.commander_approval_date) : undefined,
+    externalPendingUnitName: r.external_pending_unit_name ? String(r.external_pending_unit_name) : undefined,
+    externalPendingUnitUic: r.external_pending_unit_uic ? String(r.external_pending_unit_uic) : undefined,
+    externalPendingStage: r.external_pending_stage ? String(r.external_pending_stage) : undefined,
   }
 }
 

@@ -66,8 +66,14 @@ export default function CommandDashboard() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem('currentUser')
-      if (raw) setCurrentUser(JSON.parse(raw))
-    } catch {}
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        console.log('CommandDashboard - loaded currentUser from localStorage:', parsed)
+        setCurrentUser(parsed)
+      }
+    } catch (err) {
+      console.error('CommandDashboard - failed to load currentUser:', err)
+    }
   }, [])
 
   useEffect(() => {
@@ -94,13 +100,20 @@ export default function CommandDashboard() {
     try {
       const rawUs = localStorage.getItem('unit_structure')
       console.log('CommandDashboard - localStorage has unit_structure:', !!rawUs)
+      console.log('CommandDashboard - currentUser:', currentUser)
       console.log('CommandDashboard - currentUser UIC:', currentUser?.unitUic)
+
+      // Early return if no currentUser or no UIC
+      if (!currentUser || !currentUser.unitUic) {
+        console.log('CommandDashboard - skipping section load: no currentUser or UIC')
+        return
+      }
 
       const sec: string[] = []
       const pMap: Record<string, Record<string, Record<string, string>>> = {}
       if (rawUs) {
         const parsed = JSON.parse(rawUs)
-        const uic = currentUser?.unitUic || ''
+        const uic = currentUser.unitUic
         console.log('CommandDashboard - parsed unit_structure keys:', Object.keys(parsed))
         const v = parsed?.[uic]
         console.log('CommandDashboard - unit data for UIC:', uic, v)
@@ -115,10 +128,10 @@ export default function CommandDashboard() {
         setPlatoonSectionMap(pMap)
       } else {
         console.log('CommandDashboard - loading from bundle (async)')
+        const uic = currentUser.unitUic
         ;(async () => {
           try {
             const merged = await loadUnitStructureFromBundle()
-            const uic = currentUser?.unitUic || ''
             const v = (merged as any)?.[uic]
             const bundleSec: string[] = []
             const bundlePMap: Record<string, Record<string, Record<string, string>>> = {}

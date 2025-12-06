@@ -222,12 +222,27 @@ export default function CommandDashboard() {
     const normalize = (s: string) => String(s || '').trim().toUpperCase()
     const normSections = commandSections.map(s => normalize(s))
 
+    console.log('CommandDashboard - byCommandSection START')
     console.log('CommandDashboard - commandSections:', commandSections)
     console.log('CommandDashboard - normalized sections:', normSections)
     console.log('CommandDashboard - filtering by UIC:', cuic)
 
     // Initialize with known command sections
     for (const name of commandSections) result[name] = []
+
+    // Process all requests - check ALL COMMANDER_REVIEW requests
+    const commanderReviewRequests = requests.filter(r => r.currentStage === 'COMMANDER_REVIEW')
+    console.log('CommandDashboard - Total COMMANDER_REVIEW requests:', commanderReviewRequests.length)
+
+    for (const r of commanderReviewRequests) {
+      console.log('CommandDashboard - Processing request:', {
+        id: r.id,
+        subject: r.subject?.substring(0, 30),
+        routeSection: r.routeSection,
+        hasRouteSection: !!r.routeSection,
+        unitUic: r.unitUic
+      })
+    }
 
     // Process all requests
     for (const r of requests) {
@@ -241,24 +256,36 @@ export default function CommandDashboard() {
         const idx = normSections.indexOf(normRouteSec)
         const sectionKey = idx >= 0 ? commandSections[idx] : routeSec
 
-        console.log('CommandDashboard - routing request:', {
+        console.log('CommandDashboard - MATCHED request to command section:', {
           id: r.id,
+          subject: r.subject?.substring(0, 30),
           stage,
           routeSec,
           normRouteSec,
           sectionKey,
           idx,
+          foundInSections: idx >= 0,
           ouic,
           cuic
         })
 
         if (!result[sectionKey]) {
+          console.log('CommandDashboard - Creating new section key:', sectionKey)
           result[sectionKey] = []
         }
         result[sectionKey].push(r)
+      } else if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec) {
+        console.log('CommandDashboard - Request NOT matched (wrong UIC?):', {
+          id: r.id,
+          subject: r.subject?.substring(0, 30),
+          routeSec,
+          ouic,
+          cuic,
+          uicMatch: cuic ? ouic === cuic : true
+        })
       }
     }
-    console.log('CommandDashboard - byCommandSection result:', result)
+    console.log('CommandDashboard - byCommandSection FINAL result:', result)
     return result
   }, [requests, commandSections, currentUser])
 
@@ -352,11 +379,28 @@ export default function CommandDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
     }
 
-    console.log('CommandDashboard - sending to command section:', { cmdSection, routeSec: updated.routeSection, actionText })
+    console.log('CommandDashboard - sendToCommandSection BEFORE SAVE:', {
+      requestId: r.id,
+      cmdSection,
+      updatedRouteSec: updated.routeSection,
+      updatedStage: updated.currentStage,
+      actionText
+    })
 
     try {
       await upsertRequest(updated as any)
-    } catch {}
+      console.log('CommandDashboard - sendToCommandSection AFTER SAVE SUCCESS')
+
+      // Verify the request was saved correctly
+      const savedRequest = await listRequests().then(reqs => reqs.find((req: any) => req.id === r.id))
+      console.log('CommandDashboard - VERIFICATION after save:', {
+        requestId: r.id,
+        savedRouteSec: (savedRequest as any)?.routeSection,
+        savedStage: (savedRequest as any)?.currentStage
+      })
+    } catch (error) {
+      console.error('CommandDashboard - sendToCommandSection SAVE FAILED:', error)
+    }
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
     setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))

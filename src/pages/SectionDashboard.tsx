@@ -375,6 +375,29 @@ export default function SectionDashboard() {
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
+  const handleExternalUnitChange = (requestId: string, selectedUic: string) => {
+    const selectedUnit = UNITS.find(u => u.uic === selectedUic)
+    setExternalUnitUic(prev => ({ ...prev, [requestId]: selectedUic }))
+    setExternalUnit(prev => ({ ...prev, [requestId]: selectedUnit?.unitName || '' }))
+
+    let sections: string[] = []
+    try {
+      const rawUs = localStorage.getItem('unit_structure')
+      if (rawUs) {
+        const parsed = JSON.parse(rawUs)
+        const unitData = parsed[selectedUic]
+        const unitSections = (unitData?._sections && Array.isArray(unitData._sections)) ? unitData._sections : []
+        const commandSections = (unitData?._commandSections && Array.isArray(unitData._commandSections)) ? unitData._commandSections : []
+        sections = [...unitSections, ...commandSections]
+      }
+    } catch (error) {
+      console.error('Failed to load or parse unit sections from localStorage:', error)
+    }
+
+    setExternalUnitSections(prev => ({ ...prev, [requestId]: sections }))
+    setExternalSection(prev => ({ ...prev, [requestId]: '' }))
+  }
+
   const sendToExternal = async (r: Request) => {
     const extUnitUic = externalUnitUic[r.id] || ''
     const extUnit = externalUnit[r.id] || ''
@@ -643,36 +666,7 @@ export default function SectionDashboard() {
                         <div className="flex flex-col gap-2">
                           <select
                             value={externalUnitUic[r.id] || ''}
-                            onChange={(e) => {
-                              const selectedUic = e.target.value
-                              const selectedUnit = UNITS.find(u => u.uic === selectedUic)
-                              setExternalUnitUic(prev => ({ ...prev, [r.id]: selectedUic }))
-                              setExternalUnit(prev => ({ ...prev, [r.id]: selectedUnit?.unitName || '' }))
-
-                              // Load sections for the selected unit
-                              const rawUs = localStorage.getItem('unit_structure')
-                              if (rawUs) {
-                                try {
-                                  const parsed = JSON.parse(rawUs)
-                                  const unitData = parsed[selectedUic]
-                                  const sections: string[] = []
-                                  if (unitData && Array.isArray(unitData._sections)) {
-                                    sections.push(...unitData._sections)
-                                  }
-                                  if (unitData && Array.isArray(unitData._commandSections)) {
-                                    sections.push(...unitData._commandSections)
-                                  }
-                                  setExternalUnitSections(prev => ({ ...prev, [r.id]: sections }))
-                                } catch {
-                                  setExternalUnitSections(prev => ({ ...prev, [r.id]: [] }))
-                                }
-                              } else {
-                                setExternalUnitSections(prev => ({ ...prev, [r.id]: [] }))
-                              }
-
-                              // Reset section selection when unit changes
-                              setExternalSection(prev => ({ ...prev, [r.id]: '' }))
-                            }}
+                            onChange={(e) => handleExternalUnitChange(r.id, e.target.value)}
                             className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
                           >
                             <option value="">Select External Unit (required)</option>

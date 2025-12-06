@@ -150,6 +150,9 @@ export default function SectionDashboard() {
       setPlatoonSectionMap(pMap)
       setUnitSections(secMap)
       setCommandSections(cmdMap)
+      console.log('SectionDashboard - loaded commandSections:', cmdMap)
+      console.log('SectionDashboard - current user UIC:', currentUser?.unitUic)
+      console.log('SectionDashboard - command sections for current user:', cmdMap[currentUser?.unitUic || ''])
     } catch {}
   }, [])
 
@@ -348,11 +351,13 @@ export default function SectionDashboard() {
       routeSection: dest === 'COMMANDER' ? '' : dest,
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
+    console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })
     try {
       await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
+    setSelectedCmdSection(prev => ({ ...prev, [r.id]: '' }))
   }
 
   const rejectRequest = async (r: Request) => {
@@ -610,7 +615,10 @@ export default function SectionDashboard() {
                     <div className="mt-3 flex items-center justify-end gap-2">
                       <select
                         value={selectedCmdSection[r.id] || 'COMMANDER'}
-                        onChange={e => setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))}
+                        onChange={e => {
+                          console.log('SectionDashboard - Command section selected:', e.target.value, 'for request:', r.id)
+                          setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))
+                        }}
                         className="px-3 py-2 border border-brand-navy/30 rounded-lg"
                       >
                         <option value="COMMANDER">Commander</option>

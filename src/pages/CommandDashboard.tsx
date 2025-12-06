@@ -161,6 +161,9 @@ export default function CommandDashboard() {
     const normalize = (s: string) => String(s || '').trim().toUpperCase()
     const normSections = commandSections.map(s => normalize(s))
 
+    console.log('CommandDashboard - commandSections:', commandSections)
+    console.log('CommandDashboard - normalized sections:', normSections)
+
     // Initialize with known command sections
     for (const name of commandSections) result[name] = []
 
@@ -175,12 +178,22 @@ export default function CommandDashboard() {
         const idx = normSections.indexOf(normRouteSec)
         const sectionKey = idx >= 0 ? commandSections[idx] : routeSec
 
+        console.log('CommandDashboard - routing request:', {
+          id: r.id,
+          stage,
+          routeSec,
+          normRouteSec,
+          sectionKey,
+          idx
+        })
+
         if (!result[sectionKey]) {
           result[sectionKey] = []
         }
         result[sectionKey].push(r)
       }
     }
+    console.log('CommandDashboard - byCommandSection result:', result)
     return result
   }, [requests, currentUser, commandSections])
 

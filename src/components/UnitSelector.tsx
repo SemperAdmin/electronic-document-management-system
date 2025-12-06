@@ -11,9 +11,9 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ onUnitSelect, select
   const [isOpen, setIsOpen] = useState(false);
 
   const filteredUnits = UNITS.filter(unit =>
-    unit.unitName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    unit.uic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    unit.ruc.toLowerCase().includes(searchTerm.toLowerCase())
+    unit.unitName.toLowerCase().startsWith(searchTerm.toLowerCase()) ||
+    unit.uic.toLowerCase().startsWith(searchTerm.toLowerCase()) ||
+    unit.ruc.toLowerCase().startsWith(searchTerm.toLowerCase())
   );
 
   const handleUnitSelect = (unit: Unit) => {

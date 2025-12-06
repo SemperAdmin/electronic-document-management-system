@@ -431,6 +431,27 @@ export default function CommandDashboard() {
     setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
   }
 
+  const commandSectionReturn = async (r: Request) => {
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Command Section'
+    const dest = battalionSectionFor(r)
+    const actionText = `Returned to ${dest || 'Battalion'} by ${r.routeSection || 'Command Section'}`
+
+    const updated: Request = {
+      ...r,
+      currentStage: 'BATTALION_REVIEW',
+      routeSection: dest || r.routeSection || '',
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+    }
+
+    console.log('CommandDashboard - command section return:', { stage: updated.currentStage, routeSec: updated.routeSection, actionText })
+
+    try {
+      await upsertRequest(updated as any)
+    } catch {}
+    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+    setComments(prev => ({ ...prev, [r.id]: '' }))
+  }
+
   const addFilesToRequest = async (r: Request) => {
     const files = attach[r.id] || []
     if (!files.length || !currentUser?.id) return
@@ -757,7 +778,7 @@ export default function CommandDashboard() {
                             </button>
                             <button
                               className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                              onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
+                              onClick={() => commandSectionReturn(r)}
                             >
                               Return
                             </button>

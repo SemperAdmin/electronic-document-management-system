@@ -3,6 +3,7 @@ import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
+import { UNITS } from '../lib/units'
 
 interface DocumentItem {
   id: string
@@ -96,50 +97,79 @@ export default function CommandDashboard() {
     }).catch(() => setUsers({}))
   }, [])
 
+  // Get current user's UIC with fallback
+  const getCurrentUserUic = (): string => {
+    if (currentUser?.unitUic) return currentUser.unitUic
+    if (currentUser?.unit) {
+      const foundUnit = UNITS.find(u => u.unitName === currentUser.unit)
+      if (foundUnit) return foundUnit.uic
+    }
+    return ''
+  }
+
   useEffect(() => {
     try {
       const rawUs = localStorage.getItem('unit_structure')
       console.log('CommandDashboard - localStorage has unit_structure:', !!rawUs)
       console.log('CommandDashboard - currentUser:', currentUser)
-      console.log('CommandDashboard - currentUser UIC:', currentUser?.unitUic)
 
-      // Early return if no currentUser or no UIC
-      if (!currentUser || !currentUser.unitUic) {
-        console.log('CommandDashboard - skipping section load: no currentUser or UIC')
+      // Get current user's UIC
+      const cuic = getCurrentUserUic()
+      console.log('CommandDashboard - currentUser UIC (with fallback):', cuic)
+
+      if (!cuic) {
+        console.log('CommandDashboard - skipping section load: no UIC available')
         return
       }
 
-      const sec: string[] = []
+      const allSections: string[] = []
       const pMap: Record<string, Record<string, Record<string, string>>> = {}
+
       if (rawUs) {
         const parsed = JSON.parse(rawUs)
-        const uic = currentUser.unitUic
         console.log('CommandDashboard - parsed unit_structure keys:', Object.keys(parsed))
-        const v = parsed?.[uic]
-        console.log('CommandDashboard - unit data for UIC:', uic, v)
-        console.log('CommandDashboard - _commandSections:', v?._commandSections)
-        if (v && Array.isArray(v._commandSections)) sec.push(...v._commandSections)
+
+        // Load command sections only for current user's unit
+        const v = parsed?.[cuic]
+        console.log(`CommandDashboard - unit data for UIC ${cuic}:`, v)
+        console.log(`CommandDashboard - _commandSections for ${cuic}:`, v?._commandSections)
+        if (v && Array.isArray(v._commandSections)) {
+          allSections.push(...v._commandSections)
+        }
+
+        // Load platoon section maps for all units
         for (const key of Object.keys(parsed || {})) {
           const node = parsed[key]
-          if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
+          if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') {
+            pMap[key] = node._platoonSectionMap
+          }
         }
-        console.log('CommandDashboard - loaded sections:', sec)
-        setCommandSections(sec)
+
+        console.log('CommandDashboard - loaded sections:', allSections)
+        setCommandSections(allSections)
         setPlatoonSectionMap(pMap)
       } else {
         console.log('CommandDashboard - loading from bundle (async)')
-        const uic = currentUser.unitUic
         ;(async () => {
           try {
             const merged = await loadUnitStructureFromBundle()
-            const v = (merged as any)?.[uic]
             const bundleSec: string[] = []
             const bundlePMap: Record<string, Record<string, Record<string, string>>> = {}
-            if (v && Array.isArray(v._commandSections)) bundleSec.push(...v._commandSections)
+
+            // Load command sections only for current user's unit
+            const v = (merged as any)?.[cuic]
+            if (v && Array.isArray(v._commandSections)) {
+              bundleSec.push(...v._commandSections)
+            }
+
+            // Load platoon section maps
             for (const key of Object.keys(merged || {})) {
               const node = (merged as any)[key]
-              if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') bundlePMap[key] = node._platoonSectionMap
+              if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') {
+                bundlePMap[key] = node._platoonSectionMap
+              }
             }
+
             console.log('CommandDashboard - loaded from bundle:', bundleSec)
             setCommandSections(bundleSec)
             setPlatoonSectionMap(bundlePMap)
@@ -177,7 +207,7 @@ export default function CommandDashboard() {
   }
 
   const inCommander = useMemo(() => {
-    const cuic = currentUser?.unitUic || ''
+    const cuic = getCurrentUserUic()
     return requests.filter(r => {
       const stage = r.currentStage || ''
       const ouic = r.unitUic || ''
@@ -186,13 +216,14 @@ export default function CommandDashboard() {
   }, [requests, currentUser])
 
   const byCommandSection = useMemo(() => {
-    const cuic = currentUser?.unitUic || ''
+    const cuic = getCurrentUserUic()
     const result: Record<string, Request[]> = {}
     const normalize = (s: string) => String(s || '').trim().toUpperCase()
     const normSections = commandSections.map(s => normalize(s))
 
     console.log('CommandDashboard - commandSections:', commandSections)
     console.log('CommandDashboard - normalized sections:', normSections)
+    console.log('CommandDashboard - filtering by UIC:', cuic)
 
     // Initialize with known command sections
     for (const name of commandSections) result[name] = []
@@ -204,6 +235,7 @@ export default function CommandDashboard() {
       const routeSec = r.routeSection || ''
       const normRouteSec = normalize(routeSec)
 
+      // Only include requests from the current user's unit
       if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec && (cuic ? ouic === cuic : true)) {
         const idx = normSections.indexOf(normRouteSec)
         const sectionKey = idx >= 0 ? commandSections[idx] : routeSec
@@ -214,7 +246,9 @@ export default function CommandDashboard() {
           routeSec,
           normRouteSec,
           sectionKey,
-          idx
+          idx,
+          ouic,
+          cuic
         })
 
         if (!result[sectionKey]) {
@@ -225,7 +259,7 @@ export default function CommandDashboard() {
     }
     console.log('CommandDashboard - byCommandSection result:', result)
     return result
-  }, [requests, currentUser, commandSections])
+  }, [requests, commandSections, currentUser])
 
   const isReturned = (r: Request) => {
     const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null

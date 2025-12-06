@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "check": "tsc -b --noEmit",
     "migrate:supabase": "node scripts/migrate-to-supabase.mjs",
+    "migrate:routing": "node scripts/apply-routing-migration.mjs",
     "backfill:auth": "node scripts/backfill-auth-users.mjs",
     "admin:set-password": "node scripts/admin-set-password.mjs"
   },

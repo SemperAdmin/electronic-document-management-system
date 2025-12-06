@@ -5,6 +5,8 @@ import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments 
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
 
+const DEFAULT_EXTERNAL_STAGE = 'REVIEW';
+
 interface UserProfile {
   id: string
   firstName: string
@@ -52,7 +54,9 @@ export default function SectionDashboard() {
   const [endorseUnitSel, setEndorseUnitSel] = useState<Record<string, string>>({})
   const [externalAssignSel, setExternalAssignSel] = useState<Record<string, string>>({})
   const [externalUnit, setExternalUnit] = useState<Record<string, string>>({})
+  const [externalUnitUic, setExternalUnitUic] = useState<Record<string, string>>({})
   const [externalSection, setExternalSection] = useState<Record<string, string>>({})
+  const [externalUnitSections, setExternalUnitSections] = useState<Record<string, string[]>>({})
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
@@ -367,30 +371,40 @@ export default function SectionDashboard() {
   }
 
   const sendToExternal = async (r: Request) => {
+    const extUnitUic = externalUnitUic[r.id] || ''
     const extUnit = externalUnit[r.id] || ''
     const extSec = externalSection[r.id] || ''
-    if (!extUnit.trim()) {
-      alert('Please enter an external unit name')
+
+    if (!extUnitUic.trim()) {
+      alert('Please select an external unit')
       return
     }
+
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
     const actionText = extSec ? `Sent to external unit: ${extUnit} - ${extSec}` : `Sent to external unit: ${extUnit}`
+    const newActivity = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+
     const updated: Request = {
       ...r,
       currentStage: 'EXTERNAL_REVIEW',
       externalPendingUnitName: extUnit,
-      externalPendingUnitUic: '',
-      externalPendingStage: extSec || 'REVIEW',
+      externalPendingUnitUic: extUnitUic,
+      externalPendingStage: extSec || DEFAULT_EXTERNAL_STAGE,
       routeSection: extSec || '',
-      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+      activity: [...(r.activity || []), newActivity]
     }
+
     try {
       await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
-    setExternalUnit(prev => ({ ...prev, [r.id]: '' }))
-    setExternalSection(prev => ({ ...prev, [r.id]: '' }))
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setExternalUnit(prev => ({ ...prev, [r.id]: '' }))
+      setExternalUnitUic(prev => ({ ...prev, [r.id]: '' }))
+      setExternalSection(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to send request to external unit:', error)
+      alert('Failed to send request to external unit. Please try again.')
+    }
   }
 
   const externalPending = useMemo(() => {
@@ -615,27 +629,68 @@ export default function SectionDashboard() {
                         Return
                       </button>
                     </div>
-                    {r.activity?.some(a => /Endorsed by Commander/i.test(String(a.action || ''))) && (
+                    {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
                       <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
                         <label className="block text-sm font-medium text-[var(--text)] mb-2">Send to External Unit</label>
                         <div className="flex flex-col gap-2">
-                          <input
-                            type="text"
-                            value={externalUnit[r.id] || ''}
-                            onChange={(e) => setExternalUnit(prev => ({ ...prev, [r.id]: e.target.value }))}
-                            placeholder="External Unit Name (required)"
+                          <select
+                            value={externalUnitUic[r.id] || ''}
+                            onChange={(e) => {
+                              const selectedUic = e.target.value
+                              const selectedUnit = UNITS.find(u => u.uic === selectedUic)
+                              setExternalUnitUic(prev => ({ ...prev, [r.id]: selectedUic }))
+                              setExternalUnit(prev => ({ ...prev, [r.id]: selectedUnit?.unitName || '' }))
+
+                              // Load sections for the selected unit
+                              const rawUs = localStorage.getItem('unit_structure')
+                              if (rawUs) {
+                                try {
+                                  const parsed = JSON.parse(rawUs)
+                                  const unitData = parsed[selectedUic]
+                                  const sections: string[] = []
+                                  if (unitData && Array.isArray(unitData._sections)) {
+                                    sections.push(...unitData._sections)
+                                  }
+                                  if (unitData && Array.isArray(unitData._commandSections)) {
+                                    sections.push(...unitData._commandSections)
+                                  }
+                                  setExternalUnitSections(prev => ({ ...prev, [r.id]: sections }))
+                                } catch {
+                                  setExternalUnitSections(prev => ({ ...prev, [r.id]: [] }))
+                                }
+                              } else {
+                                setExternalUnitSections(prev => ({ ...prev, [r.id]: [] }))
+                              }
+
+                              // Reset section selection when unit changes
+                              setExternalSection(prev => ({ ...prev, [r.id]: '' }))
+                            }}
                             className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
-                          />
-                          <input
-                            type="text"
+                          >
+                            <option value="">Select External Unit (required)</option>
+                            {UNITS.map(unit => (
+                              <option key={unit.uic} value={unit.uic}>
+                                {unit.unitName}
+                              </option>
+                            ))}
+                          </select>
+                          <select
                             value={externalSection[r.id] || ''}
                             onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))}
-                            placeholder="Section/Office (optional)"
-                            className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
-                          />
+                            disabled={!externalUnitUic[r.id] || !(externalUnitSections[r.id] || []).length}
+                            className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <option value="">Select Section/Office (optional)</option>
+                            {(externalUnitSections[r.id] || []).map(section => (
+                              <option key={section} value={section}>
+                                {section}
+                              </option>
+                            ))}
+                          </select>
                           <button
-                            className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2"
+                            className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={() => sendToExternal(r)}
+                            disabled={!externalUnitUic[r.id]}
                           >
                             Send to External
                           </button>

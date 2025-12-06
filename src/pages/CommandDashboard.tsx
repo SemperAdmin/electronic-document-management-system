@@ -338,41 +338,46 @@ export default function CommandDashboard() {
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
-  const commanderDecision = async (r: Request, type: 'Approved' | 'Endorsed' | 'Rejected') => {
-    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
+  const sendToCommandSection = async (r: Request) => {
     const cmdSection = selectedCommandSection[r.id] || ''
+    if (!cmdSection || cmdSection === 'NONE') return
 
-    // Determine routing based on command section selection
-    let stage: string
-    let routeSec: string
-    let actionText: string
-
-    if (cmdSection && cmdSection !== 'NONE') {
-      // Route to command section for review
-      stage = 'COMMANDER_REVIEW'
-      routeSec = cmdSection
-      actionText = type === 'Approved' ? `Approved by Commander - Routed to ${cmdSection} for review`
-        : type === 'Endorsed' ? `Endorsed by Commander - Routed to ${cmdSection} for review`
-        : `Rejected by Commander - Routed to ${cmdSection} for action`
-    } else {
-      // Route back to battalion section
-      const dest = battalionSectionFor(r)
-      stage = 'BATTALION_REVIEW'
-      routeSec = dest || r.routeSection || ''
-      actionText = type === 'Approved' ? 'Approved by Commander'
-        : type === 'Endorsed' ? 'Endorsed by Commander'
-        : 'Rejected by Commander — requires action'
-    }
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
+    const actionText = `Sent to ${cmdSection} for review by Commander`
 
     const updated: Request = {
       ...r,
-      currentStage: stage,
-      routeSection: routeSec,
+      currentStage: 'COMMANDER_REVIEW',
+      routeSection: cmdSection,
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+    }
+
+    console.log('CommandDashboard - sending to command section:', { cmdSection, routeSec: updated.routeSection, actionText })
+
+    try {
+      await upsertRequest(updated as any)
+    } catch {}
+    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+    setComments(prev => ({ ...prev, [r.id]: '' }))
+    setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
+  }
+
+  const commanderDecision = async (r: Request, type: 'Approved' | 'Endorsed' | 'Rejected') => {
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
+    const dest = battalionSectionFor(r)
+    const actionText = type === 'Approved' ? 'Approved by Commander'
+      : type === 'Endorsed' ? 'Endorsed by Commander'
+      : 'Rejected by Commander — requires action'
+
+    const updated: Request = {
+      ...r,
+      currentStage: 'BATTALION_REVIEW',
+      routeSection: dest || r.routeSection || '',
       commanderApprovalDate: type === 'Approved' ? new Date().toISOString() : r.commanderApprovalDate,
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
     }
 
-    console.log('CommandDashboard - commander decision:', { type, cmdSection, stage, routeSec, actionText })
+    console.log('CommandDashboard - commander decision:', { type, stage: updated.currentStage, routeSec: updated.routeSection, actionText })
 
     try {
       await upsertRequest(updated as any)
@@ -511,38 +516,57 @@ export default function CommandDashboard() {
                         </button>
                       </div>
                       <div className="mt-3">
-                        <label className="block text-sm font-medium text-[var(--text)] mb-2">Optional: Route to Command Section for Review</label>
+                        <label className="block text-sm font-medium text-[var(--text)] mb-2">Route to Command Section for Review</label>
                         <select
                           value={selectedCommandSection[r.id] || 'NONE'}
                           onChange={e => setSelectedCommandSection(prev => ({...prev, [r.id]: e.target.value}))}
-                          className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                          className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg"
                         >
-                          <option value="NONE">None (send to battalion section)</option>
+                          <option value="NONE">None - Make final decision below</option>
                           {commandSections.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
-                        <p className="text-xs text-[var(--muted)] mt-1">
-                          Select a command section to get their input before final decision
-                        </p>
+                        {selectedCommandSection[r.id] && selectedCommandSection[r.id] !== 'NONE' ? (
+                          <p className="text-xs text-[var(--muted)] mt-1">
+                            Click "Send to {selectedCommandSection[r.id]}" to route for their review
+                          </p>
+                        ) : (
+                          <p className="text-xs text-[var(--muted)] mt-1">
+                            Select a command section to get their input first, or make your final decision below
+                          </p>
+                        )}
                       </div>
-                      <div className="mt-3 flex items-center justify-end gap-2">
-                        <button
-                          className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                          onClick={() => commanderDecision(r, 'Approved')}
-                        >
-                          Approved
-                        </button>
-                        <button
-                          className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                          onClick={() => commanderDecision(r, 'Endorsed')}
-                        >
-                          Endorsed
-                        </button>
-                        <button
-                          className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                          onClick={() => commanderDecision(r, 'Rejected')}
-                        >
-                          Rejected
-                        </button>
+                      {selectedCommandSection[r.id] && selectedCommandSection[r.id] !== 'NONE' && (
+                        <div className="mt-3 flex items-center justify-end">
+                          <button
+                            className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => sendToCommandSection(r)}
+                          >
+                            Send to {selectedCommandSection[r.id]}
+                          </button>
+                        </div>
+                      )}
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-[var(--text)] mb-2">Final Decision</label>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => commanderDecision(r, 'Approved')}
+                          >
+                            Approved
+                          </button>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => commanderDecision(r, 'Endorsed')}
+                          >
+                            Endorsed
+                          </button>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => commanderDecision(r, 'Rejected')}
+                          >
+                            Rejected
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-3">
                         <button

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
-import { UNITS } from '../lib/units'
+import { UNITS, Unit } from '../lib/units'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
+import { SearchableUnitSelector } from '../components/SearchableUnitSelector'
 import { Request } from '../types'
 
 const DEFAULT_EXTERNAL_STAGE = 'REVIEW';
@@ -375,10 +376,18 @@ export default function SectionDashboard() {
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
-  const handleExternalUnitChange = (requestId: string, selectedUic: string) => {
-    const selectedUnit = UNITS.find(u => u.uic === selectedUic)
+  const handleExternalUnitChange = (requestId: string, selectedUnit: Unit | undefined) => {
+    if (!selectedUnit) {
+      setExternalUnitUic(prev => ({ ...prev, [requestId]: '' }))
+      setExternalUnit(prev => ({ ...prev, [requestId]: '' }))
+      setExternalUnitSections(prev => ({ ...prev, [requestId]: [] }))
+      setExternalSection(prev => ({ ...prev, [requestId]: '' }))
+      return
+    }
+
+    const selectedUic = selectedUnit.uic
     setExternalUnitUic(prev => ({ ...prev, [requestId]: selectedUic }))
-    setExternalUnit(prev => ({ ...prev, [requestId]: selectedUnit?.unitName || '' }))
+    setExternalUnit(prev => ({ ...prev, [requestId]: selectedUnit.unitName }))
 
     let sections: string[] = []
     try {
@@ -664,18 +673,11 @@ export default function SectionDashboard() {
                       <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
                         <label className="block text-sm font-medium text-[var(--text)] mb-2">Send to External Unit</label>
                         <div className="flex flex-col gap-2">
-                          <select
-                            value={externalUnitUic[r.id] || ''}
-                            onChange={(e) => handleExternalUnitChange(r.id, e.target.value)}
-                            className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
-                          >
-                            <option value="">Select External Unit (required)</option>
-                            {UNITS.map(unit => (
-                              <option key={unit.uic} value={unit.uic}>
-                                {unit.unitName}
-                              </option>
-                            ))}
-                          </select>
+                          <SearchableUnitSelector
+                            onUnitSelect={(unit) => handleExternalUnitChange(r.id, unit)}
+                            selectedUnit={UNITS.find(u => u.uic === externalUnitUic[r.id])}
+                            placeholder="Search by UIC, RUC, MCC, or Unit Name"
+                          />
                           <select
                             value={externalSection[r.id] || ''}
                             onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))}

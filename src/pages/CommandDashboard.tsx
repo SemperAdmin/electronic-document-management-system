@@ -29,6 +29,7 @@ export default function CommandDashboard() {
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
+  const [selectedCommandSection, setSelectedCommandSection] = useState<Record<string, string>>({})
   // Removed activeTab state - only showing pending items now
 
   useEffect(() => {
@@ -339,22 +340,46 @@ export default function CommandDashboard() {
 
   const commanderDecision = async (r: Request, type: 'Approved' | 'Endorsed' | 'Rejected') => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
-    const dest = battalionSectionFor(r)
-    const actionText = type === 'Approved' ? 'Approved by Commander'
-      : type === 'Endorsed' ? 'Endorsed by Commander'
-      : 'Rejected by Commander — requires action'
+    const cmdSection = selectedCommandSection[r.id] || ''
+
+    // Determine routing based on command section selection
+    let stage: string
+    let routeSec: string
+    let actionText: string
+
+    if (cmdSection && cmdSection !== 'NONE') {
+      // Route to command section for review
+      stage = 'COMMANDER_REVIEW'
+      routeSec = cmdSection
+      actionText = type === 'Approved' ? `Approved by Commander - Routed to ${cmdSection} for review`
+        : type === 'Endorsed' ? `Endorsed by Commander - Routed to ${cmdSection} for review`
+        : `Rejected by Commander - Routed to ${cmdSection} for action`
+    } else {
+      // Route back to battalion section
+      const dest = battalionSectionFor(r)
+      stage = 'BATTALION_REVIEW'
+      routeSec = dest || r.routeSection || ''
+      actionText = type === 'Approved' ? 'Approved by Commander'
+        : type === 'Endorsed' ? 'Endorsed by Commander'
+        : 'Rejected by Commander — requires action'
+    }
+
     const updated: Request = {
       ...r,
-      currentStage: 'BATTALION_REVIEW',
-      routeSection: dest || r.routeSection || '',
+      currentStage: stage,
+      routeSection: routeSec,
       commanderApprovalDate: type === 'Approved' ? new Date().toISOString() : r.commanderApprovalDate,
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
     }
+
+    console.log('CommandDashboard - commander decision:', { type, cmdSection, stage, routeSec, actionText })
+
     try {
       await upsertRequest(updated as any)
     } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
+    setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
   }
 
   const addFilesToRequest = async (r: Request) => {
@@ -484,6 +509,20 @@ export default function CommandDashboard() {
                         >
                           Save Files
                         </button>
+                      </div>
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-[var(--text)] mb-2">Optional: Route to Command Section for Review</label>
+                        <select
+                          value={selectedCommandSection[r.id] || 'NONE'}
+                          onChange={e => setSelectedCommandSection(prev => ({...prev, [r.id]: e.target.value}))}
+                          className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                        >
+                          <option value="NONE">None (send to battalion section)</option>
+                          {commandSections.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <p className="text-xs text-[var(--muted)] mt-1">
+                          Select a command section to get their input before final decision
+                        </p>
                       </div>
                       <div className="mt-3 flex items-center justify-end gap-2">
                         <button

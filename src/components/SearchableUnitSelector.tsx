@@ -22,10 +22,10 @@ export const SearchableUnitSelector: React.FC<SearchableUnitSelectorProps> = ({
 
     const query = searchQuery.toLowerCase().trim()
     return UNITS.filter(unit =>
-      unit.uic.toLowerCase().includes(query) ||
-      unit.ruc.toLowerCase().includes(query) ||
-      unit.mcc.toLowerCase().includes(query) ||
-      unit.unitName.toLowerCase().includes(query)
+      unit.uic.toLowerCase().startsWith(query) ||
+      unit.ruc.toLowerCase().startsWith(query) ||
+      unit.mcc.toLowerCase().startsWith(query) ||
+      unit.unitName.toLowerCase().startsWith(query)
     )
   }, [searchQuery])
 

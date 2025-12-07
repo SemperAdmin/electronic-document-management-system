@@ -2,20 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
-import { Request } from '../types'
+import { Request, DocumentItem } from '../types'
 import { UNITS } from '../lib/units'
 import CommanderRequestDetails from '../components/CommanderRequestDetails'
 import CommandSectionRequestDetails from '../components/CommandSectionRequestDetails'
-
-interface DocumentItem {
-  id: string
-  name: string
-  type: string
-  size: number
-  uploadedAt: string | Date
-  subject: string
-  requestId?: string
-}
 
 export default function CommandDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -594,15 +584,18 @@ export default function CommandDashboard() {
                           <div>
                             <button
                               className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                              aria-expanded={!!expandedDocs[r.id]}
+                              aria-controls={`docs-csec-archived-${r.id}`}
                               onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
                             >
                               Show Documents
                             </button>
                             <div
+                              id={`docs-csec-archived-${r.id}`}
                               className={`${expandedDocs[r.id] ? 'mt-2 space-y-2' : 'hidden'}`}
                             >
                               {docsFor(r.id).map(d => (
-                                <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-white">
+                                <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
                                   <div className="text-sm">
                                     <div className="font-medium">{d.name}</div>
                                     <div className="text-gray-500">{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
@@ -621,11 +614,13 @@ export default function CommandDashboard() {
                           <div>
                             <button
                               className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                              aria-expanded={!!expandedLogs[r.id]}
+                              aria-controls={`logs-csec-archived-${r.id}`}
                               onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                             >
                               {expandedLogs[r.id] ? 'Hide' : 'Show'} Full Activity Log
                             </button>
-                            <div className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                            <div id={`logs-csec-archived-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
                               {r.activity && r.activity.length ? (
                                 r.activity.map((a, idx) => (
                                   <div key={idx} className="text-xs text-gray-700">

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { PermissionManager } from '../components/PermissionManager'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
+import { UserRecord } from '@/types'
 import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/Pagination'
 import RequestTable from '../components/RequestTable'
@@ -36,11 +37,12 @@ const isReturned = (r: Request) => {
 }
 
 export default function ReviewDashboard() {
-  const [currentUser, setCurrentUser] = useState<any>(() => {
+  const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
     try {
       const raw = localStorage.getItem('currentUser');
       return raw ? JSON.parse(raw) : null;
-    } catch {
+    } catch (error) {
+      console.error('Failed to parse user from localStorage:', error);
       return null;
     }
   });
@@ -154,87 +156,45 @@ export default function ReviewDashboard() {
 
   const originatorFor = (r: Request) => users[r.uploadedById] || null
 
-  const pending = useMemo(() => {
-    const inStage = requests.filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage)
-    const role = String(currentUser?.role || '')
-    const byScope = inStage.filter(r => {
-      const o = originatorFor(r)
-      if (!o) return false
-      if (role.includes('PLATOON')) {
-        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const ou = (o.platoon && o.platoon !== 'N/A') ? o.platoon : ''
-        const ouic = o.unitUic || ''
-        const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
-        const cu = (currentUser?.rolePlatoon && currentUser.rolePlatoon !== 'N/A') ? currentUser.rolePlatoon : ''
-        const cuic = currentUser?.unitUic || ''
-        return oc === cc && ou === cu && (!cuic || ouic === cuic)
-      }
-      if (role.includes('COMPANY')) {
-        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
-        const ouic = o.unitUic || ''
-        const cuic = currentUser?.unitUic || ''
-        return oc === cc && (!cuic || ouic === cuic)
-      }
-      if (role.includes('BATTALION')) {
-        const cuic = currentUser?.unitUic || ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-        const linked = platoonSectionMap[cuic]?.[cc]?.[cu] || ''
-        if (r.routeSection) {
-          return linked ? (r.routeSection === linked) : true
-        }
-        return cuic ? (o.unitUic === cuic) : true
-      }
-      if (role.includes('COMMANDER')) {
-        const ouic = o.unitUic || ''
-        const cuic = currentUser?.unitUic || ''
-        return cuic ? (ouic === cuic) : true
-      }
-      return true
-    })
-    return byScope
-  }, [requests, myStage, currentUser, users])
+  const getValidUnitPart = (part?: string) => (part && part !== 'N/A' ? part : '');
 
-  const inScope = useMemo(() => {
-    const role = String(currentUser?.role || '')
-    return requests.filter(r => {
-      const o = originatorFor(r)
-      if (!o) return false
-      if (role.includes('PLATOON')) {
-        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const ou = (o.platoon && o.platoon !== 'N/A') ? o.platoon : ''
-        const ouic = o.unitUic || ''
-        const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
-        const cu = (currentUser?.rolePlatoon && currentUser.rolePlatoon !== 'N/A') ? currentUser.rolePlatoon : ''
-        const cuic = currentUser?.unitUic || ''
-        return oc === cc && ou === cu && (!cuic || ouic === cuic)
+  const isRequestInScope = (r: Request) => {
+    const o = originatorFor(r);
+    if (!o) return false;
+
+    const role = String(currentUser?.role || '');
+    const cuic = currentUser?.unitUic || '';
+
+    if (role.includes('PLATOON')) {
+      const oc = getValidUnitPart(o.company);
+      const op = getValidUnitPart(o.platoon);
+      const cc = getValidUnitPart(currentUser?.roleCompany);
+      const cp = getValidUnitPart(currentUser?.rolePlatoon);
+      return oc === cc && op === cp && (!cuic || o.unitUic === cuic);
+    }
+    if (role.includes('COMPANY')) {
+      const oc = getValidUnitPart(o.company);
+      const cc = getValidUnitPart(currentUser?.roleCompany);
+      return oc === cc && (!cuic || o.unitUic === cuic);
+    }
+    if (role.includes('BATTALION')) {
+      const cc = getValidUnitPart(currentUser?.company);
+      const cp = getValidUnitPart(currentUser?.platoon);
+      const linked = platoonSectionMap[cuic]?.[cc]?.[cp] || '';
+      if (r.routeSection) {
+        return linked ? (r.routeSection === linked) : true;
       }
-      if (role.includes('COMPANY')) {
-        const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
-        const ouic = o.unitUic || ''
-        const cuic = currentUser?.unitUic || ''
-        return oc === cc && (!cuic || ouic === cuic)
-      }
-      if (role.includes('BATTALION')) {
-        const cuic = currentUser?.unitUic || ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
-        const linked = platoonSectionMap[cuic]?.[cc]?.[cu] || ''
-        if (r.routeSection) {
-          return linked ? (r.routeSection === linked) : true
-        }
-        return cuic ? (o.unitUic === cuic) : true
-      }
-      if (role.includes('COMMANDER')) {
-        const ouic = o.unitUic || ''
-        const cuic = currentUser?.unitUic || ''
-        return cuic ? (ouic === cuic) : true
-      }
-      return true
-    })
-  }, [requests, currentUser, users, platoonSectionMap])
+      return cuic ? (o.unitUic === cuic) : true;
+    }
+    if (role.includes('COMMANDER')) {
+      return cuic ? (o.unitUic === cuic) : true;
+    }
+    return true;
+  };
+
+  const inScope = useMemo(() => requests.filter(isRequestInScope), [requests, currentUser, users, platoonSectionMap]);
+
+  const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage), [inScope, myStage]);
 
   const inScopeOther = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [inScope, myStage])
 

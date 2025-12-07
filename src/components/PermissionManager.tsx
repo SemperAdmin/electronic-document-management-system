@@ -1,34 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listUsers, upsertUser } from '@/lib/db'
-
-interface UserProfile {
-  id: string
-  name: string
-  firstName: string
-  lastName: string
-  mi?: string
-  email: string
-  edipi: string
-  service: string
-  rank: string
-  role: string
-  battalion: string
-  company: string
-  unit: string
-  platoon?: string
-  unitUic?: string
-  passwordHash: string
-  isUnitAdmin?: boolean
-  isCommandStaff?: boolean
-}
+import { UserRecord } from '@/types'
 
 interface PermissionManagerProps {
-  currentUser: UserProfile
+  currentUser: UserRecord
   onClose: () => void
 }
 
 export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUser, onClose }) => {
-  const [users, setUsers] = useState<UserProfile[]>([])
+  const [users, setUsers] = useState<UserRecord[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>('')
@@ -47,14 +27,14 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
   }, [currentUser])
 
   const eligibleUsers = useMemo(() => {
-    const scopeFilter = (u: UserProfile) => {
+    const scopeFilter = (u: UserRecord) => {
       const cuic = currentUser.unitUic || ''
       const role = String(currentUser.role || '')
       if (role.includes('PLATOON')) {
         const oc = (u.company && u.company !== 'N/A') ? u.company : ''
-        const ou = (u.platoon && u.platoon !== 'N/A') ? u.platoon : ((u.unit && u.unit !== 'N/A') ? u.unit : '')
+        const ou = (u.platoon && u.platoon !== 'N/A') ? u.platoon : ''
         const cc = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = ((currentUser as any).platoon && (currentUser as any).platoon !== 'N/A') ? (currentUser as any).platoon : ((currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : '')
+        const cu = (currentUser.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
         return oc === cc && ou === cu
       }
       if (role.includes('COMPANY')) {
@@ -72,13 +52,13 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
 
   const currentAccess = useMemo(() => {
     const role = String(currentUser.role || '')
-    const scopeFilter = (u: UserProfile) => {
+    const scopeFilter = (u: UserRecord) => {
       const cuic = currentUser.unitUic || ''
       if (role.includes('PLATOON')) {
         const oc = (u.company && u.company !== 'N/A') ? u.company : ''
-        const ou = (u.platoon && u.platoon !== 'N/A') ? u.platoon : ((u.unit && u.unit !== 'N/A') ? u.unit : '')
+        const ou = (u.platoon && u.platoon !== 'N/A') ? u.platoon : ''
         const cc = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = ((currentUser as any).platoon && (currentUser as any).platoon !== 'N/A') ? (currentUser as any).platoon : ((currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : '')
+        const cu = (currentUser.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
         return oc === cc && ou === cu
       }
       if (role.includes('COMPANY')) {
@@ -101,18 +81,18 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
       const target = users.find(u => u.id === selectedUserId)
     if (!canManage || !target) { setBusy(false); return }
     const role = String(currentUser.role || '')
-    const next: UserProfile = { ...target }
+    const next: UserRecord = { ...target }
     next.role = role
     if (role.includes('PLATOON')) {
-      ;(next as any).roleCompany = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : 'N/A'
-      const cu = ((currentUser as any).platoon && (currentUser as any).platoon !== 'N/A') ? (currentUser as any).platoon : ((currentUser.unit && currentUser.unit !== 'N/A') ? currentUser.unit : 'N/A')
-      ;(next as any).rolePlatoon = cu
+      next.roleCompany = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : 'N/A'
+      const cu = (currentUser.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : 'N/A'
+      next.rolePlatoon = cu
     } else if (role.includes('COMPANY')) {
-      ;(next as any).roleCompany = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : 'N/A'
-      ;(next as any).rolePlatoon = 'N/A'
+      next.roleCompany = (currentUser.company && currentUser.company !== 'N/A') ? currentUser.company : 'N/A'
+      next.rolePlatoon = 'N/A'
     } else if (role.includes('COMMANDER')) {
-      ;(next as any).roleCompany = 'N/A'
-      ;(next as any).rolePlatoon = 'N/A'
+      next.roleCompany = 'N/A'
+      next.rolePlatoon = 'N/A'
     }
       try {
         const res = await upsertUser({
@@ -145,7 +125,6 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
         grantedRole: next.role,
         timestamp: new Date().toISOString(),
         scope: {
-          battalion: currentUser.battalion,
           unitUic: currentUser.unitUic || '',
           company: currentUser.company,
           unit: currentUser.unit
@@ -174,7 +153,7 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
       // ensure scope
       const inList = currentAccess.some(u => u.id === targetId)
       if (!inList) { setBusy(false); setError('Target not in scope'); return }
-      const next: UserProfile = { ...target }
+      const next: UserRecord = { ...target }
       next.role = 'MEMBER'
       next.company = 'N/A'
       next.unit = 'N/A'

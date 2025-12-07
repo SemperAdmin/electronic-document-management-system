@@ -23,3 +23,34 @@ export interface Installation {
   name: string;
   unitUics: string[];
 }
+export interface DocumentItem {
+  id: string;
+  name: string;
+  uploadedAt: string | Date;
+  fileUrl?: string;
+  requestId?: string;
+}
+export type UserRecord = {
+  id: string
+  email?: string
+  rank?: string
+  firstName?: string
+  lastName?: string
+  mi?: string
+  service?: string
+  role?: string
+  unitUic?: string
+  unit?: string
+  company?: string
+  isUnitAdmin?: boolean
+  isInstallationAdmin?: boolean
+  isCommandStaff?: boolean
+  isAppAdmin?: boolean
+  edipi?: string | number
+  passwordHash?: string
+  platoon?: string
+  roleCompany?: string
+  rolePlatoon?: string
+  installationId?: string
+  commandOrder?: number
+}

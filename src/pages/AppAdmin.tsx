@@ -21,6 +21,7 @@ interface UserProfile {
   passwordHash: string
   isUnitAdmin?: boolean
   isInstallationAdmin?: boolean
+  isCommandStaff?: boolean
   installationId?: string
 }
 

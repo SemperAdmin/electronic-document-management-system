@@ -162,7 +162,7 @@ export default function ReviewDashboard() {
       if (!o) return false
       if (role.includes('PLATOON')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
+        const ou = (o.platoon && o.platoon !== 'N/A') ? o.platoon : ''
         const ouic = o.unitUic || ''
         const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
         const cu = (currentUser?.rolePlatoon && currentUser.rolePlatoon !== 'N/A') ? currentUser.rolePlatoon : ''
@@ -203,7 +203,7 @@ export default function ReviewDashboard() {
       if (!o) return false
       if (role.includes('PLATOON')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
+        const ou = (o.platoon && o.platoon !== 'N/A') ? o.platoon : ''
         const ouic = o.unitUic || ''
         const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
         const cu = (currentUser?.rolePlatoon && currentUser.rolePlatoon !== 'N/A') ? currentUser.rolePlatoon : ''

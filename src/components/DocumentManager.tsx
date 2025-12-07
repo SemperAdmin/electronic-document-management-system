@@ -170,6 +170,39 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
     try {
       const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Unknown';
+
+      const norm = (v?: string) => {
+        const s = String(v || '').trim();
+        return s && s !== 'N/A' ? s : '';
+      };
+      const originUnitUic = targetUic;
+      const originCompany = norm(targetUser?.company);
+      const originPlatoon = norm((targetUser as any)?.platoon);
+
+      const hasPlatoonReviewer = users.some(u =>
+        String(u.role || '') === 'PLATOON_REVIEWER' &&
+        norm(u.roleCompany || u.company) === originCompany &&
+        norm(u.rolePlatoon || u.platoon) === originPlatoon &&
+        String(u.unitUic || '') === String(originUnitUic || '')
+      );
+      const hasCompanyReviewer = users.some(u =>
+        String(u.role || '') === 'COMPANY_REVIEWER' &&
+        norm(u.roleCompany || u.company) === originCompany &&
+        String(u.unitUic || '') === String(originUnitUic || '')
+      );
+
+      let initialStage: string = 'PLATOON_REVIEW';
+      let initialAction = 'Submitted request';
+      if (!hasPlatoonReviewer) {
+        if (hasCompanyReviewer) {
+          initialStage = 'COMPANY_REVIEW';
+          initialAction = 'Submitted request (no platoon reviewer, escalated to Company)';
+        } else {
+          initialStage = 'BATTALION_REVIEW';
+          initialAction = 'Submitted request (no platoon/company reviewer, escalated to Battalion)';
+        }
+      }
+
       const requestPayload = {
         id: requestId,
         subject: subject.trim(),
@@ -180,9 +213,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         submitForUserId: targetUserId,
         documentIds: docs.map(d => d.id),
         createdAt: new Date().toISOString(),
-        currentStage: 'PLATOON_REVIEW',
+        currentStage: initialStage,
         activity: [
-          { actor, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
+          { actor, timestamp: new Date().toISOString(), action: initialAction, comment: (notes || '').trim() }
         ]
       };
       try {

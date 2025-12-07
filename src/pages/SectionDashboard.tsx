@@ -402,6 +402,27 @@ export default function SectionDashboard() {
     }
   }
 
+  const approveRequest = async (r: Request) => {
+    const dest = selectedCmdSection[r.id] || 'COMMANDER'
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Battalion'
+    const actionText = dest === 'COMMANDER' ? 'Approved to COMMANDER' : `Approved and routed to ${dest}`
+    const entry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+    const updated: Request = {
+      ...r,
+      currentStage: 'COMMANDER_REVIEW',
+      routeSection: dest === 'COMMANDER' ? '' : dest,
+      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+    }
+    try {
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to approve request:', error);
+    }
+    setSelectedCmdSection(prev => ({ ...prev, [r.id]: '' }))
+  }
+
   const rejectRequest = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
     const entry = { actor, timestamp: new Date().toISOString(), action: 'Returned to previous stage', comment: (comments[r.id] || '').trim() }
@@ -735,11 +756,31 @@ export default function SectionDashboard() {
                     </div>
                     {!(r.activity || []).some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
                       <div className="mt-3 flex items-center justify-end gap-2">
+                        <div className="flex items-center gap-2 mr-auto">
+                          <label className="sr-only">Command Section</label>
+                          <select
+                            aria-label="Command Section"
+                            value={selectedCmdSection[r.id] || 'COMMANDER'}
+                            onChange={(e) => setSelectedCmdSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                            className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                          >
+                            <option value="COMMANDER">Commander</option>
+                            {(commandSections[currentUser?.unitUic || ''] || []).map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
                         <button
                           className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                          onClick={() => sendToCompany(r)}
+                          onClick={() => approveRequest(r)}
                         >
-                          Send to Company
+                          Approve
+                        </button>
+                        <button
+                          className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => rejectRequest(r)}
+                        >
+                          Return
                         </button>
                         <button
                           className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"

@@ -1,9 +1,9 @@
 import React from 'react';
-import { Request } from '../types';
+import { Request, DocumentItem } from '../types';
 
 interface CommanderRequestDetailsProps {
   r: Request;
-  docsFor: (requestId: string) => any[];
+  docsFor: (requestId: string) => DocumentItem[];
   expandedDocs: Record<string, boolean>;
   setExpandedDocs: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   setOpenDocsId: React.Dispatch<React.SetStateAction<string | null>>;
@@ -44,6 +44,12 @@ const CommanderRequestDetails: React.FC<CommanderRequestDetailsProps> = ({
 }) => {
   const isCommandSectionSelected = selectedCommandSection[r.id] && selectedCommandSection[r.id] !== 'NONE';
 
+  const handleToggleDocs = () => {
+    const isExpanded = !!expandedDocs[r.id];
+    setExpandedDocs(prev => ({ ...prev, [r.id]: !isExpanded }));
+    setOpenDocsId(isExpanded ? null : r.id);
+  };
+
   return (
     <div id={`details-cmd-${r.id}`}>
       <div className="mt-3">
@@ -51,8 +57,8 @@ const CommanderRequestDetails: React.FC<CommanderRequestDetailsProps> = ({
           className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
           aria-expanded={!!expandedDocs[r.id]}
           aria-controls={`docs-cmd-${r.id}`}
-          onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+          onClick={handleToggleDocs}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleDocs(); } }}
         >
           <span>Show Documents</span>
           <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
@@ -67,11 +73,11 @@ const CommanderRequestDetails: React.FC<CommanderRequestDetailsProps> = ({
           <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
             <div className="text-sm text-[var(--muted)]">
               <div className="font-medium text-[var(--text)]">{d.name}</div>
-              <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+              <div>{new Date(d.uploadedAt).toLocaleDateString()}</div>
             </div>
             <div className="flex items-center gap-2">
-              {(d as any).fileUrl ? (
-                <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+              {d.fileUrl ? (
+                <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
               ) : (
                 <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
               )}

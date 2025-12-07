@@ -4,33 +4,12 @@ import { loadUnitStructureFromBundle } from '@/lib/unitStructure';
 import { listUsers, upsertUser, listCompaniesForUnit, listPlatoonsForCompany } from '@/lib/db';
 import { ProfileForm } from './ProfileForm';
 import { HierarchicalDropdown } from './HierarchicalDropdown';
-
-interface UserProfile {
-  id: string;
-  name: string;
-  firstName: string;
-  lastName: string;
-  mi?: string;
-  email: string;
-  edipi: string;
-  service: string;
-  rank: string;
-  role: string;
-  battalion: string;
-  company: string;
-  unit: string;
-  unitUic?: string;
-  passwordHash: string;
-  commandOrder?: number;
-  isUnitAdmin?: boolean;
-  isCommandStaff?: boolean;
-  platoon?: string;
-}
+import { UserRecord } from '@/types';
 
 const ROLES = ['MEMBER','PLATOON_REVIEWER','COMPANY_REVIEWER','COMMANDER'];
 
 export const AdminPanel: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserRecord | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<Unit | undefined>(undefined);
   const [unitStructure, setUnitStructure] = useState<Record<string, any>>({});
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({});
@@ -41,12 +20,12 @@ export const AdminPanel: React.FC = () => {
   const [newPlatoon, setNewPlatoon] = useState('');
   const [newSection, setNewSection] = useState('');
   const [newCommandSection, setNewCommandSection] = useState('');
-  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [filter, setFilter] = useState('');
   const filterInputRef = useRef<HTMLInputElement>(null);
-  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
-  const [viewUser, setViewUser] = useState<UserProfile | null>(null);
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
+  const [viewUser, setViewUser] = useState<UserRecord | null>(null);
   const [editingRole, setEditingRole] = useState<string>('');
   const [editingCompany, setEditingCompany] = useState<string | undefined>(undefined);
   const [editingPlatoon, setEditingPlatoon] = useState<string | undefined>(undefined);
@@ -128,7 +107,7 @@ export const AdminPanel: React.FC = () => {
     try {
       const rawCurrent = localStorage.getItem('currentUser');
       if (rawCurrent) {
-        const cu: UserProfile = JSON.parse(rawCurrent);
+        const cu: UserRecord = JSON.parse(rawCurrent);
         setCurrentUser(cu);
         if (cu.unitUic) {
           const u = UNITS.find(x => x.uic === cu.unitUic);
@@ -517,21 +496,19 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const downloadUser = (u: UserProfile) => {
+  const downloadUser = (u: UserRecord) => {
     const blob = new Blob([JSON.stringify(u, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${u.id}.json`;
+    a.download = `${u.edipi}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const exportAllUsers = () => {
-    const headers = ['id','name','firstName','mi','lastName','email','edipi','service','rank','role','battalion','company','unit','unitUic'];
+    const headers = ['firstName','mi','lastName','email','edipi','service','rank','role','company','unit','unitUic'];
     const rows = users.map(u => [
-      u.id,
-      u.name,
       u.firstName,
       u.mi || '',
       u.lastName,
@@ -540,7 +517,6 @@ export const AdminPanel: React.FC = () => {
       u.service,
       u.rank,
       u.role,
-      u.battalion,
       u.company,
       u.unit,
       u.unitUic || ''
@@ -776,7 +752,7 @@ export const AdminPanel: React.FC = () => {
                   return textMatch && unitMatch;
                 })
                 .map(u => (
-                <tr key={u.id} className="border-b">
+                <tr key={u.edipi} className="border-b">
                   <td className="py-2 px-3">{u.lastName}, {u.firstName}{u.mi ? ` ${u.mi}` : ''}</td>
                   <td className="py-2 px-3">{u.email}</td>
                   <td className="py-2 px-3">{u.edipi}</td>
@@ -816,8 +792,8 @@ export const AdminPanel: React.FC = () => {
                         }}>Admin Edit</button>
                       )}
                       <button className="px-2 py-1 text-xs bg-red-600 text-white rounded" onClick={() => {
-                        setUsers(prev => prev.filter(x => x.id !== u.id));
-                        try { localStorage.removeItem(`fs/users/${u.id}.json`); } catch {}
+                        setUsers(prev => prev.filter(x => x.edipi !== u.edipi));
+                        try { localStorage.removeItem(`fs/users/${u.edipi}.json`); } catch {}
                       }}>Delete</button>
                     </div>
                   </td>
@@ -892,13 +868,13 @@ export const AdminPanel: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900">Edit Profile</h3>
               <button className="text-gray-500" onClick={() => setEditingUser(null)}>✕</button>
             </div>
-            {(editMode === 'profile' && currentUser && editingUser && currentUser.id === editingUser.id) && (
+            {(editMode === 'profile' && currentUser && editingUser && currentUser.edipi === editingUser.edipi) && (
               <ProfileForm
                 mode="edit"
                 initial={editingUser}
                 readOnly={false}
                 onSaved={(updated) => {
-                  setUsers(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+                  setUsers(prev => prev.map(x => (x.edipi === updated.edipi ? updated : x)));
                   setEditingUser(null);
                   setFeedback({ type: 'success', message: 'Profile updated.' });
                 }}
@@ -957,7 +933,7 @@ export const AdminPanel: React.FC = () => {
                       try {
                         if (editingUser) {
                           const res = await upsertUser({
-                            id: editingUser.id,
+                            id: String(editingUser.edipi),
                             email: editingUser.email,
                             rank: editingUser.rank,
                             firstName: editingUser.firstName,
@@ -1019,10 +995,10 @@ export const AdminPanel: React.FC = () => {
                         roleCompany: (editingRole.includes('REVIEW')) ? (editingRoleCompany || 'N/A') : undefined,
                         rolePlatoon: (editingRole.includes('REVIEW')) ? (editingRolePlatoon || 'N/A') : undefined,
                       };
-                      try { localStorage.setItem(`fs/users/${updated.id}.json`, JSON.stringify(updated)); } catch {}
+                      try { localStorage.setItem(`fs/users/${updated.edipi}.json`, JSON.stringify(updated)); } catch {}
                       try {
                         const res = await upsertUser({
-                          id: updated.id,
+                          id: String(updated.edipi),
                           email: updated.email,
                           rank: updated.rank,
                           firstName: updated.firstName,
@@ -1047,9 +1023,9 @@ export const AdminPanel: React.FC = () => {
                         setFeedback({ type: 'error', message: 'Failed to save administrative changes.' });
                         return;
                       }
-                      setUsers(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+                      setUsers(prev => prev.map(x => (x.edipi === updated.edipi ? updated : x)));
                       try {
-                        if (currentUser && currentUser.id === updated.id) {
+                        if (currentUser && currentUser.edipi === updated.edipi) {
                           localStorage.setItem('currentUser', JSON.stringify(updated));
                           setCurrentUser(updated);
                         }

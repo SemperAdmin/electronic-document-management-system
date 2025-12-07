@@ -55,8 +55,13 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                     </div>
                     <div className="text-xs text-white/80">
                       {currentUser.service} • {currentUser.role}
-                      {currentUser.role === 'PLATOON_REVIEWER' && currentUser.role_platoon && ` - ${currentUser.role_platoon}`}
-                      {currentUser.role === 'COMPANY_REVIEWER' && currentUser.role_company && ` - ${currentUser.role_company}`}
+                      {(() => {
+                        const scope = {
+                          'PLATOON_REVIEWER': currentUser.role_platoon,
+                          'COMPANY_REVIEWER': currentUser.role_company,
+                        }[currentUser.role];
+                        return scope ? ` - ${scope}` : null;
+                      })()}
                     </div>
                     {(() => {
                       const unitName = (UNITS.find(x => x.uic === (currentUser?.unitUic || ''))?.unitName) || (currentUser?.unit || '')

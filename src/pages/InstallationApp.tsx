@@ -63,6 +63,7 @@ export default function InstallationApp() {
     const updated: Request = {
       ...r,
       currentStage: 'ARCHIVED',
+      finalStatus: decision,
       installationId: '', // Clear installation ID after review
       activity: [
         ...(r.activity || []),
@@ -76,7 +77,7 @@ export default function InstallationApp() {
     };
 
     try {
-      await upsertRequest(updated as any);
+      await upsertRequest(updated);
       setRequests(prev => prev.filter(req => req.id !== r.id));
       setComments(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
@@ -105,19 +106,19 @@ export default function InstallationApp() {
                   rows={2}
                   value={comments[r.id] || ''}
                   onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   placeholder="Optional notes for your decision"
                 />
               </div>
               <div className="flex items-center justify-end gap-2">
                 <button
-                  className="px-4 py-2 rounded bg-red-600 text-white font-medium hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500"
+                  className="px-4 py-2 rounded bg-brand-red text-white font-medium hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-red"
                   onClick={() => handleInstallationDecision(r, 'Rejected')}
                 >
                   Reject
                 </button>
                 <button
-                  className="px-4 py-2 rounded bg-green-600 text-white font-medium hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-500"
+                  className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
                   onClick={() => handleInstallationDecision(r, 'Approved')}
                 >
                   Approve

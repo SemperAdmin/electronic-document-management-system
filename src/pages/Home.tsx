@@ -8,6 +8,7 @@ import { hasCommandDashboardAccess } from '../lib/visibility';
 import { Unit } from '../lib/units';
 import { ProfileForm } from '../components/ProfileForm';
 import { AdminPanel } from '../components/AdminPanel';
+import { UserRecord } from '@/types';
 import AppAdmin from './AppAdmin';
 import { Login } from '../components/Login';
 import { loadUnitStructureFromBundle } from '../lib/unitStructure';
@@ -16,11 +17,12 @@ import { Header } from '../components/Header';
 function HomeContent() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'review' | 'section' | 'command' | 'documents' | 'document-viewer' | 'upload'>('login');
-  const [currentUser, setCurrentUser] = useState<any>(() => {
+  const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
     try {
       const savedUser = localStorage.getItem('currentUser');
       return savedUser ? JSON.parse(savedUser) : null;
-    } catch {
+    } catch (error) {
+      console.error('Failed to parse user from localStorage:', error);
       return null;
     }
   });

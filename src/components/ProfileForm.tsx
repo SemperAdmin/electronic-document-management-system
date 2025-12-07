@@ -3,34 +3,12 @@ import { UnitSelector } from './UnitSelector';
 import { UNITS, Unit } from '../lib/units';
 import { sha256Hex } from '@/lib/crypto';
 import { listUsers, upsertUser, getUserById, listCompaniesForUnit, listPlatoonsForCompany } from '@/lib/db';
+import { UserRecord } from '@/types';
 import { signUp } from '@/lib/auth';
 
-interface UserProfile {
-  id: string;
-  name: string;
-  firstName: string;
-  lastName: string;
-  mi?: string;
-  email: string;
-  edipi: string;
-  edipiHash?: string;
-  service: string;
-  rank: string;
-  role: string;
-  battalion: string;
-  company: string;
-  unit: string;
-  platoon?: string;
-  unitUic?: string;
-  passwordHash: string;
-  isUnitAdmin?: boolean;
-  roleCompany?: string;
-  rolePlatoon?: string;
-}
-
 interface ProfileFormProps {
-  onSaved?: (user: UserProfile) => void;
-  initial?: Partial<UserProfile>;
+  onSaved?: (user: UserRecord) => void;
+  initial?: Partial<UserRecord>;
   mode?: 'create' | 'edit';
   readOnly?: boolean;
   canEditRole?: boolean;
@@ -67,7 +45,6 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const [rank, setRank] = useState(initial.rank || '');
   const [role, setRole] = useState(initial.role || 'MEMBER');
   const [isUnitAdmin, setIsUnitAdmin] = useState<boolean>(!!initial.isUnitAdmin);
-  const [battalion, setBattalion] = useState(initial.battalion || '');
   const [company, setCompany] = useState(initial.company || '');
   const [platoon, setPlatoon] = useState((initial as any).platoon || '');
   const [selectedUnit, setSelectedUnit] = useState<Unit | undefined>(undefined);
@@ -75,7 +52,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const [unitStructure, setUnitStructure] = useState<Record<string, Record<string, string[]>>>({});
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [existingUsers, setExistingUsers] = useState<UserProfile[]>([]);
+  const [existingUsers, setExistingUsers] = useState<UserRecord[]>([]);
   const [unitHasAdmin, setUnitHasAdmin] = useState<boolean>(false);
   const [roleCompany, setRoleCompany] = useState(initial.roleCompany || '');
   const [rolePlatoon, setRolePlatoon] = useState(initial.rolePlatoon || '');
@@ -86,14 +63,6 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   const [rolePlatoonOptionsDb, setRolePlatoonOptionsDb] = useState<string[]>([]);
 
   useEffect(() => {
-    if (initial.name) {
-      const parts = String(initial.name).trim().split(/\s+/);
-      if (parts.length >= 2) {
-        setFirstName(parts[0]);
-        setLastName(parts[parts.length - 1]);
-        if (parts.length === 3 && parts[1].length === 1) setMi(parts[1].toUpperCase());
-      }
-    }
     if (initial.firstName) setFirstName(String(initial.firstName));
     if (initial.lastName) setLastName(String(initial.lastName));
     if (initial.mi) setMi(String(initial.mi));
@@ -105,10 +74,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       const u = UNITS.find(x => x.uic === initial.unitUic);
       if (u) setSelectedUnit(u);
     }
-  }, [initial.name]);
+  }, [initial]);
 
   const rankOptions = useMemo(() => SERVICE_RANKS[service] || [], [service]);
-  const battalionOptions = useMemo(() => Object.keys(UNIT_STRUCTURE), []);
   const companyOptions = useMemo(() => {
     if (!selectedUnit) return [];
     const fromDb = companyOptionsDb
@@ -182,11 +150,6 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   useEffect(() => {
     if (!rankOptions.includes(rank)) setRank('');
   }, [rankOptions]);
-
-  useEffect(() => {
-    setCompany('');
-    setPlatoon('');
-  }, [battalion]);
 
   useEffect(() => {
     setPlatoon('');
@@ -265,10 +228,10 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     if (!lastName.trim()) return setFeedback({ type: 'error', message: 'Last name is required.' });
     if (mi && !/^[A-Za-z]$/.test(mi)) return setFeedback({ type: 'error', message: 'MI must be a single letter.' });
     if (!email.trim()) return setFeedback({ type: 'error', message: 'Email is required.' });
-    if (!validateEdipi(edipi)) return setFeedback({ type: 'error', message: 'EDIPI must be 10 digits.' });
+    if (!validateEdipi(String(edipi))) return setFeedback({ type: 'error', message: 'EDIPI must be 10 digits.' });
     if (!service) return setFeedback({ type: 'error', message: 'Service is required.' });
     if (!rank) return setFeedback({ type: 'error', message: 'Rank is required.' });
-    if (isEdipiTaken(edipi, initial.id ? String(initial.id) : undefined)) return setFeedback({ type: 'error', message: 'EDIPI already exists.' });
+    if (isEdipiTaken(String(edipi), initial.id ? String(initial.id) : undefined)) return setFeedback({ type: 'error', message: 'EDIPI already exists.' });
     if (role === 'COMPANY_REVIEWER' && !roleCompany) return setFeedback({ type: 'error', message: 'Role Company is required for Company Reviewer.' });
     if (role === 'PLATOON_REVIEWER' && (!roleCompany || !rolePlatoon)) return setFeedback({ type: 'error', message: 'Role Company and Role Platoon are required for Platoon Reviewer.' });
 
@@ -300,9 +263,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       if (password !== confirmPassword) return setFeedback({ type: 'error', message: 'Passwords do not match.' });
       passwordHash = await sha256Hex(password);
     }
-    const user: UserProfile = {
+  const user: UserRecord = {
       id,
-      name: fullName,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       mi: mi ? mi.trim().toUpperCase() : undefined,
@@ -311,7 +273,6 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
       service,
       rank,
       role,
-      battalion: battalion || 'N/A',
       company: company || 'N/A',
       unit: selectedUnit?.unitName || 'N/A',
       unitUic: selectedUnit?.uic,
@@ -336,7 +297,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
         unit: selectedUnit?.unitName || 'N/A',
         company: user.company,
         isUnitAdmin: !!user.isUnitAdmin,
-        edipi: user.edipi,
+      edipi: String(user.edipi),
         passwordHash: passwordHash,
         platoon: platoon || 'N/A',
         roleCompany: roleCompany || undefined,

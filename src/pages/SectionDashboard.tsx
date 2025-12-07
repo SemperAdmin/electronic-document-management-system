@@ -69,6 +69,12 @@ export default function SectionDashboard() {
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [submitToInstallation, setSubmitToInstallation] = useState<Record<string, boolean>>({});
 
+  const isUnitInAnyInstallation = (uic?: string) => {
+    const target = String(uic || '').trim();
+    if (!target) return false;
+    return installations.some(inst => Array.isArray(inst.unitUics) && inst.unitUics.includes(target));
+  }
+
   useEffect(() => {
     listInstallations().then(data => setInstallations(data as Installation[]));
   }, []);
@@ -369,7 +375,6 @@ export default function SectionDashboard() {
       routeSection: hasCompanyReviewer ? '' : battalionSectionFor(r),
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
-    console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })
     try {
       await upsertRequest(updated as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
@@ -481,7 +486,7 @@ export default function SectionDashboard() {
     let updated: Request;
 
     if (submitToInstallation[r.id]) {
-      const installation = installations.find(inst => inst.unitUics.includes(extUnitUic));
+      const installation = installations.find(inst => Array.isArray(inst.unitUics) && inst.unitUics.includes(extUnitUic));
       if (!installation) {
         alert('The selected unit is not part of any installation.');
         return;
@@ -754,16 +759,16 @@ export default function SectionDashboard() {
                             placeholder="Search by UIC, RUC, MCC, or Unit Name"
                           />
                           <div className="flex items-center gap-2">
-                            <input
+                          <input
                               type="checkbox"
                               id={`submit-to-installation-${r.id}`}
                               checked={submitToInstallation[r.id] || false}
                               onChange={() => setSubmitToInstallation(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                              disabled={!installations.some(inst => inst.unitUics.includes(externalUnitUic[r.id]))}
+                              disabled={!isUnitInAnyInstallation(externalUnitUic[r.id])}
                             />
                             <label htmlFor={`submit-to-installation-${r.id}`}>Submit to Installation</label>
                           </div>
-                          {!installations.some(inst => inst.unitUics.includes(externalUnitUic[r.id])) && (
+                          {!isUnitInAnyInstallation(externalUnitUic[r.id]) && (
                             <p className="text-xs text-gray-500">Not assigned to installation.</p>
                           )}
                           <select

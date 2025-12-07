@@ -10,11 +10,16 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ onUnitSelect, select
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
-  const filteredUnits = UNITS.filter(unit =>
-    unit.unitName.toLowerCase().startsWith(searchTerm.toLowerCase()) ||
-    unit.uic.toLowerCase().startsWith(searchTerm.toLowerCase()) ||
-    unit.ruc.toLowerCase().startsWith(searchTerm.toLowerCase())
-  );
+  const filteredUnits = (() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return [];
+    return UNITS.filter(unit =>
+      unit.unitName.toLowerCase().startsWith(q) ||
+      unit.uic.toLowerCase().startsWith(q) ||
+      unit.ruc.toLowerCase().startsWith(q) ||
+      unit.mcc.toLowerCase().startsWith(q)
+    );
+  })();
 
   const handleUnitSelect = (unit: Unit) => {
     onUnitSelect(unit);
@@ -56,7 +61,7 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ onUnitSelect, select
             <div className="p-2">
               <input
                 type="text"
-                placeholder="Search units..."
+                placeholder="Search by UIC, RUC, MCC, or Unit Name"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

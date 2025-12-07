@@ -350,15 +350,13 @@ export default function SectionDashboard() {
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
-  const approveRequest = async (r: Request) => {
-    const dest = selectedCmdSection[r.id] || 'COMMANDER'
-    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
-    const actionText = dest === 'COMMANDER' ? 'Approved to COMMANDER' : `Approved and routed to ${dest}`
-    const entry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+  const sendToCompany = async (r: Request) => {
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Battalion'
+    const entry = { actor, timestamp: new Date().toISOString(), action: 'Approved and sent to Company', comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
-      currentStage: 'COMMANDER_REVIEW',
-      routeSection: dest === 'COMMANDER' ? '' : dest,
+      currentStage: 'COMPANY_REVIEW',
+      routeSection: '',
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })
@@ -367,9 +365,26 @@ export default function SectionDashboard() {
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
       setComments(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
-      console.error('Failed to approve request:', error);
+      console.error('Failed to send to company:', error);
     }
-    setSelectedCmdSection(prev => ({ ...prev, [r.id]: '' }))
+  }
+
+  const archiveRequest = async (r: Request) => {
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Battalion'
+    const entry = { actor, timestamp: new Date().toISOString(), action: 'Archived', comment: (comments[r.id] || '').trim() }
+    const updated: Request = {
+      ...r,
+      currentStage: 'ARCHIVED',
+      routeSection: '',
+      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+    }
+    try {
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to archive request:', error);
+    }
   }
 
   const rejectRequest = async (r: Request) => {
@@ -703,31 +718,22 @@ export default function SectionDashboard() {
                         Save Files
                       </button>
                     </div>
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <select
-                        value={selectedCmdSection[r.id] || 'COMMANDER'}
-                        onChange={e => {
-                          console.log('SectionDashboard - Command section selected:', e.target.value, 'for request:', r.id)
-                          setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))
-                        }}
-                        className="px-3 py-2 border border-brand-navy/30 rounded-lg"
-                      >
-                        <option value="COMMANDER">Commander</option>
-                        {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <button
-                        className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => approveRequest(r)}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => rejectRequest(r)}
-                      >
-                        Return
-                      </button>
-                    </div>
+                    {!(r.activity || []).some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <button
+                          className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => sendToCompany(r)}
+                        >
+                          Send to Company
+                        </button>
+                        <button
+                          className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => archiveRequest(r)}
+                        >
+                          Archive
+                        </button>
+                      </div>
+                    )}
                     {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
                       <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
                         <label className="block text-sm font-medium text-[var(--text)] mb-2">Send to External Unit</label>

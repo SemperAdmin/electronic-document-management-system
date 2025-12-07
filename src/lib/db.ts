@@ -248,12 +248,16 @@ export async function listRequests(): Promise<RequestRecord[]> {
   } catch { return [] }
 }
 
-export async function upsertRequest(r: RequestRecord): Promise<void> {
+export async function upsertRequest(r: RequestRecord): Promise<{ ok: boolean; error?: any }> {
   try {
     const sb = getSupabase()
-    if (!sb?.from) return
-    await sb.from('edms_requests').upsert(toReqRow(r))
-  } catch {}
+    if (!sb?.from) return { ok: false, error: 'supabase_not_initialized' }
+    const { error } = await sb.from('edms_requests').upsert(toReqRow(r))
+    if (error) return { ok: false, error }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e }
+  }
 }
 
 export async function listUsers(): Promise<UserRecord[]> {

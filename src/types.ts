@@ -26,7 +26,7 @@ export interface Installation {
 export interface DocumentItem {
   id: string;
   name: string;
-  uploadedAt: string | Date;
+  uploadedAt: string;
   fileUrl?: string;
   requestId?: string;
 }
@@ -46,7 +46,7 @@ export type UserRecord = {
   isInstallationAdmin?: boolean
   isCommandStaff?: boolean
   isAppAdmin?: boolean
-  edipi?: string | number
+  edipi?: string
   passwordHash?: string
   platoon?: string
   roleCompany?: string

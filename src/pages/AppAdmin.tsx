@@ -1,32 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { UNITS, Unit } from '../lib/units'
 import { upsertUser, listUsers, listRequests, listInstallations } from '../lib/db'
-import { Installation } from '../types'
-
-interface UserProfile {
-  id: string
-  name: string
-  firstName: string
-  lastName: string
-  mi?: string
-  email: string
-  edipi: string
-  service: string
-  rank: string
-  role: string
-  battalion: string
-  company: string
-  unit: string
-  unitUic?: string
-  passwordHash: string
-  isUnitAdmin?: boolean
-  isInstallationAdmin?: boolean
-  isCommandStaff?: boolean
-  installationId?: string
-}
+import { Installation, UserRecord } from '../types'
 
 export default function AppAdmin() {
-  const [users, setUsers] = useState<UserProfile[]>([])
+  const [users, setUsers] = useState<UserRecord[]>([])
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [assignMap, setAssignMap] = useState<Record<string, string>>({})
   const [assignInstallationMap, setAssignInstallationMap] = useState<Record<string, string>>({})
@@ -51,7 +29,7 @@ export default function AppAdmin() {
   }, [adminView])
 
   const unitAdmins = useMemo(() => {
-    const byUic: Record<string, UserProfile | undefined> = {}
+    const byUic: Record<string, UserRecord | undefined> = {}
     for (const u of users) {
       if (u.isUnitAdmin && u.unitUic) {
         byUic[u.unitUic] = u
@@ -67,7 +45,7 @@ export default function AppAdmin() {
     if (!selectedId) return
     const user = users.find(x => x.id === selectedId)
     if (!user) return
-    const updated: UserProfile = { ...user, isUnitAdmin: true, unitUic: unit.uic, unit: unit.unitName, company: 'N/A' }
+    const updated: UserRecord = { ...user, isUnitAdmin: true, unitUic: unit.uic, unit: unit.unitName, company: 'N/A' }
     try {
       const res = await upsertUser({
         id: updated.id,
@@ -97,7 +75,7 @@ export default function AppAdmin() {
     if (!selectedId) return
     const user = users.find(x => x.id === selectedId)
     if (!user) return
-    const updated: UserProfile = { ...user, isInstallationAdmin: true, installationId: selectedInstallation }
+    const updated: UserRecord = { ...user, isInstallationAdmin: true, installationId: selectedInstallation }
     try {
       const res = await upsertUser({
         id: updated.id,

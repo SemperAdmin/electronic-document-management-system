@@ -40,7 +40,9 @@ export default function ReviewDashboard() {
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
     try {
       const raw = localStorage.getItem('currentUser');
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const user: UserRecord = JSON.parse(raw);
+      return user;
     } catch (error) {
       console.error('Failed to parse user from localStorage:', error);
       return null;
@@ -451,54 +453,45 @@ export default function ReviewDashboard() {
                       Save Files
                     </button>
                   </div>
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      {String(currentUser?.role || '').includes('COMPANY') ? (
-                        <>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => updateRequest(r, 'PLATOON_REVIEW', 'Approved and sent to Platoon')}
-                          >
-                            Send to Platoon
-                          </button>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => updateRequest(r, 'ARCHIVED', 'Archived')}
-                          >
-                            Archive
-                          </button>
-                        </>
-                      ) : String(currentUser?.role || '').includes('PLATOON') ? (
-                        <>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => updateRequest(r, ORIGINATOR_STAGE, 'Approved and sent to Originator')}
-                          >
-                            Send to Originator
-                          </button>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => updateRequest(r, 'ARCHIVED', 'Archived')}
-                          >
-                            Archive
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => updateRequest(r, nextStage(r.currentStage), 'Approved')}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
-                          >
-                            Return
-                          </button>
-                        </>
-                      )}
-                    </div>
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    {String(currentUser?.role || '').includes('COMPANY') && (
+                      <div className="flex items-center gap-2 mr-auto">
+                        <label className="sr-only">Battalion Section</label>
+                        <select
+                          aria-label="Battalion Section"
+                          value={selectedSection[r.id] || ''}
+                          onChange={(e) => setSelectedSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                          className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                        >
+                          <option value="">Select section</option>
+                          {(unitSections[currentUser?.unitUic || ''] || []).map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                      onClick={() => {
+                        const role = String(currentUser?.role || '')
+                        if (role.includes('COMPANY')) {
+                          if (!selectedSection[r.id]) return
+                          updateRequest(r, 'BATTALION_REVIEW', `Approved and routed to ${selectedSection[r.id]}`)
+                        } else {
+                          updateRequest(r, nextStage(r.currentStage), 'Approved')
+                        }
+                      }}
+                      disabled={String(currentUser?.role || '').includes('COMPANY') && !selectedSection[r.id]}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                      onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to Originator for revision' : 'Returned to previous stage'))}
+                    >
+                      Return
+                    </button>
+                  </div>
                 </div>
               )}
             </RequestTable>

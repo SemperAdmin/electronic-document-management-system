@@ -752,7 +752,7 @@ export const AdminPanel: React.FC = () => {
                   return textMatch && unitMatch;
                 })
                 .map(u => (
-                <tr key={u.edipi} className="border-b">
+                <tr key={u.id} className="border-b">
                   <td className="py-2 px-3">{u.lastName}, {u.firstName}{u.mi ? ` ${u.mi}` : ''}</td>
                   <td className="py-2 px-3">{u.email}</td>
                   <td className="py-2 px-3">{u.edipi}</td>
@@ -792,8 +792,8 @@ export const AdminPanel: React.FC = () => {
                         }}>Admin Edit</button>
                       )}
                       <button className="px-2 py-1 text-xs bg-red-600 text-white rounded" onClick={() => {
-                        setUsers(prev => prev.filter(x => x.edipi !== u.edipi));
-                        try { localStorage.removeItem(`fs/users/${u.edipi}.json`); } catch {}
+                        setUsers(prev => prev.filter(x => x.id !== u.id));
+                        try { localStorage.removeItem(`fs/users/${u.id}.json`); } catch (e) { console.error('Failed to remove user from localStorage', e); }
                       }}>Delete</button>
                     </div>
                   </td>
@@ -933,7 +933,7 @@ export const AdminPanel: React.FC = () => {
                       try {
                         if (editingUser) {
                           const res = await upsertUser({
-                            id: String(editingUser.edipi),
+                            id: editingUser.id,
                             email: editingUser.email,
                             rank: editingUser.rank,
                             firstName: editingUser.firstName,
@@ -998,7 +998,7 @@ export const AdminPanel: React.FC = () => {
                       try { localStorage.setItem(`fs/users/${updated.edipi}.json`, JSON.stringify(updated)); } catch {}
                       try {
                         const res = await upsertUser({
-                          id: String(updated.edipi),
+                          id: updated.id,
                           email: updated.email,
                           rank: updated.rank,
                           firstName: updated.firstName,

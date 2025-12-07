@@ -6,7 +6,8 @@ import { getSupabaseUrl } from '../lib/supabase';
 import { usePagination } from '@/hooks/usePagination';
 import { Pagination } from '@/components/Pagination';
 import RequestTable from './RequestTable';
-import { Request } from '../types';
+import { Request, UserRecord } from '../types';
+import { normalizeString, hasReviewer } from '../lib/reviewers';
 
 interface Document {
   id: string;
@@ -47,7 +48,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [editSubject, setEditSubject] = useState('');
@@ -170,38 +171,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
     try {
       const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Unknown';
-
-      const norm = (v?: string) => {
-        const s = String(v || '').trim();
-        return s && s !== 'N/A' ? s : '';
-      };
       const originUnitUic = targetUic;
-      const originCompany = norm(targetUser?.company);
-      const originPlatoon = norm((targetUser as any)?.platoon);
+      const originCompany = normalizeString(targetUser?.company);
+      const originPlatoon = normalizeString(targetUser?.platoon);
 
-      const hasPlatoonReviewer = users.some(u =>
-        String(u.role || '') === 'PLATOON_REVIEWER' &&
-        norm(u.roleCompany || u.company) === originCompany &&
-        norm(u.rolePlatoon || u.platoon) === originPlatoon &&
-        String(u.unitUic || '') === String(originUnitUic || '')
-      );
-      const hasCompanyReviewer = users.some(u =>
-        String(u.role || '') === 'COMPANY_REVIEWER' &&
-        norm(u.roleCompany || u.company) === originCompany &&
-        String(u.unitUic || '') === String(originUnitUic || '')
-      );
-
-      let initialStage: string = 'PLATOON_REVIEW';
-      let initialAction = 'Submitted request';
-      if (!hasPlatoonReviewer) {
-        if (hasCompanyReviewer) {
-          initialStage = 'COMPANY_REVIEW';
-          initialAction = 'Submitted request (no platoon reviewer, escalated to Company)';
-        } else {
-          initialStage = 'BATTALION_REVIEW';
-          initialAction = 'Submitted request (no platoon/company reviewer, escalated to Battalion)';
-        }
-      }
+      const hasPlatoonReviewer = hasReviewer(users, 'PLATOON_REVIEWER', { company: originCompany, platoon: originPlatoon, uic: originUnitUic });
+      const hasCompanyReviewer = hasReviewer(users, 'COMPANY_REVIEWER', { company: originCompany, uic: originUnitUic });
 
       const requestPayload = {
         id: requestId,
@@ -220,9 +195,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       };
       try {
         const resReq = await upsertRequest(requestPayload as unknown as RequestRecord);
-        if (!resReq.ok) throw new Error(String((resReq as any)?.error?.message || (resReq as any)?.error || 'request_upsert_failed'));
+        if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
         const resDocs = await upsertDocuments(docs as unknown as DocumentRecord[]);
-        if (!resDocs.ok) throw new Error(String((resDocs as any)?.error?.message || (resDocs as any)?.error || 'document_upsert_failed'));
+        if (!resDocs.ok) throw new Error(getApiErrorMessage(resDocs, 'document_upsert_failed'));
       } catch (e: any) {
         setIsUploading(false);
         setFeedback({ type: 'error', message: `Failed to persist submission: ${String(e?.message || e)}` });
@@ -262,6 +237,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
   };
 
+  const getApiErrorMessage = (res: { error?: any }, fallbackMessage: string): string => {
+    return String(res.error?.message || res.error || fallbackMessage);
+  }
+
   const saveDocEdits = async () => {
     if (!selectedDoc) return;
     const updated = documents.map(d => d.id === selectedDoc.id ? {
@@ -279,9 +258,11 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         const nextReq = { ...req, activity: Array.isArray(req.activity) ? [...req.activity, entry] : [entry] };
         try {
           const res = await upsertRequest(nextReq as unknown as RequestRecord);
-          if (!res.ok) throw new Error(String((res as any)?.error?.message || (res as any)?.error || 'request_upsert_failed'));
-        } catch (e) {
+          if (!res.ok) throw new Error(getApiErrorMessage(res, 'request_upsert_failed'));
+        } catch (e: any) {
           console.error('Failed to save document edits:', e);
+          setFeedback({ type: 'error', message: `Failed to save document edits: ${e.message}` });
+          return;
         }
         setRequestActivity((prev) => [...prev, entry]);
       }
@@ -496,9 +477,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     try {
       try {
         const resDocs = await upsertDocuments(newDocs as unknown as DocumentRecord[]);
-        if (!resDocs.ok) throw new Error(String((resDocs as any)?.error?.message || (resDocs as any)?.error || 'document_upsert_failed'));
+        if (!resDocs.ok) throw new Error(getApiErrorMessage(resDocs, 'document_upsert_failed'));
         const resReq = await upsertRequest(updatedRequest as unknown as RequestRecord);
-        if (!resReq.ok) throw new Error(String((resReq as any)?.error?.message || (resReq as any)?.error || 'request_upsert_failed'));
+        if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
       } catch (e: any) {
         setFeedback({ type: 'error', message: `Failed to persist documents: ${String(e?.message || e)}` });
         return;

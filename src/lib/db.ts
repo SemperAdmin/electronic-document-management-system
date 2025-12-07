@@ -35,6 +35,7 @@ export type RequestRecord = {
   externalPendingUnitName?: string
   externalPendingUnitUic?: string
   externalPendingStage?: string
+  installationId?: string;
 }
 
 export type UserRecord = {
@@ -50,6 +51,7 @@ export type UserRecord = {
   unit?: string
   company?: string
   isUnitAdmin?: boolean
+  isInstallationAdmin?: boolean
   isCommandStaff?: boolean
   isAppAdmin?: boolean
   edipi?: string | number
@@ -57,6 +59,7 @@ export type UserRecord = {
   platoon?: string
   roleCompany?: string
   rolePlatoon?: string
+  installationId?: string
 }
 
 function toDocRow(d: DocumentRecord) {
@@ -117,6 +120,7 @@ function toReqRow(r: RequestRecord) {
     external_pending_unit_name: r.externalPendingUnitName ?? null,
     external_pending_unit_uic: r.externalPendingUnitUic ?? null,
     external_pending_stage: r.externalPendingStage ?? null,
+    installation_id: r.installationId ?? null,
   }
 }
 
@@ -138,6 +142,7 @@ function fromReqRow(r: any): RequestRecord {
     externalPendingUnitName: r.external_pending_unit_name ? String(r.external_pending_unit_name) : undefined,
     externalPendingUnitUic: r.external_pending_unit_uic ? String(r.external_pending_unit_uic) : undefined,
     externalPendingStage: r.external_pending_stage ? String(r.external_pending_stage) : undefined,
+    installationId: r.installation_id ? String(r.installation_id) : undefined,
   }
 }
 
@@ -155,6 +160,7 @@ function toUserRow(u: UserRecord) {
     unit: u.unit !== undefined ? u.unit : undefined,
     user_company: u.company !== undefined ? u.company : undefined,
     is_unit_admin: u.isUnitAdmin === undefined ? undefined : !!u.isUnitAdmin,
+    is_installation_admin: u.isInstallationAdmin === undefined ? undefined : !!u.isInstallationAdmin,
     is_command_staff: u.isCommandStaff === undefined ? undefined : !!u.isCommandStaff,
     is_app_admin: u.isAppAdmin === undefined ? undefined : !!u.isAppAdmin,
     edipi: u.edipi !== undefined && u.edipi != null ? String(u.edipi) : undefined,
@@ -162,6 +168,7 @@ function toUserRow(u: UserRecord) {
     user_platoon: u.platoon !== undefined ? u.platoon : undefined,
     role_company: u.roleCompany !== undefined ? u.roleCompany : undefined,
     role_platoon: u.rolePlatoon !== undefined ? u.rolePlatoon : undefined,
+    installation_id: u.installationId !== undefined ? u.installationId : undefined,
   }
 }
 
@@ -196,6 +203,7 @@ function fromUserRow(r: any): UserRecord {
     unit: r.unit ? String(r.unit) : undefined,
     company: (r.company ? String(r.company) : (r.user_company ? String(r.user_company) : undefined)),
     isUnitAdmin: !!r.is_unit_admin,
+    isInstallationAdmin: !!r.is_installation_admin,
     isCommandStaff: hasCommandAccess,
     isAppAdmin: !!r.is_app_admin,
     edipi: r.edipi ? String(r.edipi) : undefined,
@@ -203,6 +211,7 @@ function fromUserRow(r: any): UserRecord {
     platoon: r.user_platoon ? String(r.user_platoon) : undefined,
     roleCompany: roleCompany,
     rolePlatoon: rolePlatoon,
+    installationId: r.installation_id ? String(r.installation_id) : undefined,
   }
 }
 
@@ -345,6 +354,30 @@ export async function listCompaniesForUnit(unitUic: string): Promise<string[]> {
     return uniq.sort((a: string, b: string) => a.localeCompare(b))
   } catch {
     return []
+  }
+}
+
+export async function listInstallations(): Promise<any[]> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb.from('edms_installations').select('*')
+    if (error) return []
+    return data ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function upsertInstallation(installation: any): Promise<{ ok: boolean; error?: any }> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return { ok: false, error: 'supabase_not_initialized' }
+    const { error } = await sb.from('edms_installations').upsert(installation)
+    if (error) return { ok: false, error }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e }
   }
 }
 

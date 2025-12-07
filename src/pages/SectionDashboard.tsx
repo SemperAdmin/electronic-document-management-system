@@ -366,8 +366,8 @@ export default function SectionDashboard() {
     const result: Record<string, typeof UNITS> = {}
     for (const rId of Object.keys(endorseUnitSearch)) {
       const searchTerm = (endorseUnitSearch[rId] || '').toLowerCase();
-      if (!searchTerm) {
-        result[rId] = UNITS;
+      if (!searchTerm || searchTerm.length < 2) {
+        result[rId] = [];
         continue;
       }
       result[rId] = UNITS.filter(u => {

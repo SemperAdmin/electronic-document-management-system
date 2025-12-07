@@ -403,7 +403,8 @@ export default function CommandDashboard() {
 
     const updated: Request = {
       ...r,
-      currentStage: 'BATTALION_REVIEW',
+      currentStage: type === 'Rejected' ? 'ARCHIVED' : 'BATTALION_REVIEW',
+      finalStatus: type === 'Rejected' ? 'Rejected' : r.finalStatus,
       routeSection: dest || r.routeSection || '',
       commanderApprovalDate: type === 'Approved' ? new Date().toISOString() : r.commanderApprovalDate,
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]

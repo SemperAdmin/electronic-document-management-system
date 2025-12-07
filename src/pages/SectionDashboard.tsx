@@ -4,22 +4,10 @@ import { UNITS, Unit } from '../lib/units'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments, listInstallations } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
 import { SearchableUnitSelector } from '../components/SearchableUnitSelector'
-import { Request, Installation } from '../types'
+import { Request, Installation, UserRecord } from '../types'
+import { normalizeString, hasReviewer } from '../lib/reviewers';
 
 const DEFAULT_EXTERNAL_STAGE = 'REVIEW';
-
-interface UserProfile {
-  id: string
-  firstName: string
-  lastName: string
-  mi?: string
-  rank: string
-  company: string
-  unit: string
-  unitUic?: string
-  platoon?: string
-  installationAdminFor?: string
-}
 
 interface RequestActivity {
   actor: string
@@ -39,10 +27,10 @@ interface DocumentItem {
 }
 
 export default function SectionDashboard() {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
+  const [currentUser, setCurrentUser] = useState<UserRecord | null>(null)
   const [requests, setRequests] = useState<Request[]>([])
   const [documents, setDocuments] = useState<DocumentItem[]>([])
-  const [usersById, setUsersById] = useState<Record<string, UserProfile>>({})
+  const [usersById, setUsersById] = useState<Record<string, UserRecord>>({})
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({})
@@ -122,7 +110,7 @@ export default function SectionDashboard() {
 
   useEffect(() => {
     listUsers().then((remote) => {
-      const byId: Record<string, UserProfile> = {}
+      const byId: Record<string, UserRecord> = {}
       for (const u of (remote as any)) byId[u.id] = u
       setUsersById(byId)
     }).catch(() => setUsersById({}))
@@ -331,7 +319,7 @@ export default function SectionDashboard() {
       subject: r.subject,
       requestId: r.id,
     })) as any
-    const actor = `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`
+    const actor = getActorDisplayName(currentUser) || 'Reviewer'
     const entry = { actor, timestamp: new Date().toISOString(), action: `Reviewer added ${newDocs.length} document(s)`, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
@@ -350,9 +338,21 @@ export default function SectionDashboard() {
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
+  const getActorDisplayName = (user: UserRecord | null): string | null => {
+    if (!user) return null;
+    const { rank, lastName, firstName, mi } = user;
+    return `${rank} ${lastName}, ${firstName}${mi ? ` ${mi}` : ''}`;
+  }
+
+  const isUnitInAnyInstallation = (uic?: string) => {
+    const target = uic?.trim();
+    if (!target) return false;
+    return installations.some(inst => Array.isArray((inst as any).unit_uics) && (inst as any).unit_uics.includes(target));
+  }
+
   const approveRequest = async (r: Request) => {
     const dest = selectedCmdSection[r.id] || 'COMMANDER'
-    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
+    const actor = getActorDisplayName(currentUser) || 'Battalion'
     const actionText = dest === 'COMMANDER' ? 'Approved to COMMANDER' : `Approved and routed to ${dest}`
     const entry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
@@ -363,17 +363,17 @@ export default function SectionDashboard() {
     }
     console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })
     try {
-      await upsertRequest(updated as any);
+      await upsertRequest({ ...updated, unitUic: r.unitUic || '' } as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
       setComments(prev => ({ ...prev, [r.id]: '' }));
+      setSelectedCmdSection(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
       console.error('Failed to approve request:', error);
     }
-    setSelectedCmdSection(prev => ({ ...prev, [r.id]: '' }))
   }
 
   const rejectRequest = async (r: Request) => {
-    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
+    const actor = getActorDisplayName(currentUser) || 'Battalion'
     const entry = { actor, timestamp: new Date().toISOString(), action: 'Returned to previous stage', comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
@@ -393,7 +393,7 @@ export default function SectionDashboard() {
     const uic = endorseUnitSel[r.id]
     if (!uic) return
     const unit = UNITS.find(u => u.uic === uic)
-    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
+    const actor = getActorDisplayName(currentUser) || 'Battalion'
     const entry = { actor, timestamp: new Date().toISOString(), action: `Endorsed to ${unit?.unitName || uic}`, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
@@ -451,12 +451,12 @@ export default function SectionDashboard() {
       return
     }
 
-    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
+    const actor = getActorDisplayName(currentUser) || 'Battalion'
 
     let updated: Request;
 
     if (submitToInstallation[r.id]) {
-      const installation = installations.find(inst => inst.unitUics.includes(extUnitUic));
+      const installation = installations.find(inst => Array.isArray((inst as any).unit_uics) && (inst as any).unit_uics.includes(extUnitUic));
       if (!installation) {
         alert('The selected unit is not part of any installation.');
         return;
@@ -514,7 +514,7 @@ export default function SectionDashboard() {
   const assignExternalToSection = async (r: Request) => {
     const dest = externalAssignSel[r.id]
     if (!dest) return
-    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${(currentUser as any).mi ? ` ${(currentUser as any).mi}` : ''}` : 'Battalion'
+    const actor = getActorDisplayName(currentUser) || 'Battalion'
     const updated: Request = {
       ...r,
       currentStage: 'BATTALION_REVIEW',
@@ -743,11 +743,11 @@ export default function SectionDashboard() {
                               id={`submit-to-installation-${r.id}`}
                               checked={submitToInstallation[r.id] || false}
                               onChange={() => setSubmitToInstallation(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                              disabled={!installations.some(inst => inst.unitUics.includes(externalUnitUic[r.id]))}
+                              disabled={!isUnitInAnyInstallation(externalUnitUic[r.id])}
                             />
                             <label htmlFor={`submit-to-installation-${r.id}`}>Submit to Installation</label>
                           </div>
-                          {!installations.some(inst => inst.unitUics.includes(externalUnitUic[r.id])) && (
+                          {!isUnitInAnyInstallation(externalUnitUic[r.id]) && (
                             <p className="text-xs text-gray-500">Not assigned to installation.</p>
                           )}
                           <select

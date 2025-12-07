@@ -40,7 +40,9 @@ export default function ReviewDashboard() {
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
     try {
       const raw = localStorage.getItem('currentUser');
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const user: UserRecord = JSON.parse(raw);
+      return user;
     } catch (error) {
       console.error('Failed to parse user from localStorage:', error);
       return null;
@@ -471,7 +473,7 @@ export default function ReviewDashboard() {
                     </button>
                     <button
                       className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                      onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
+                      onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to Originator for revision' : 'Returned to previous stage'))}
                     >
                       Return
                     </button>

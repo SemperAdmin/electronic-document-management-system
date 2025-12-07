@@ -507,6 +507,21 @@ export default function ReviewDashboard() {
                             Archive
                           </button>
                         </>
+                      ) : String(currentUser?.role || '').includes('PLATOON') ? (
+                        <>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => updateRequest(r, ORIGINATOR_STAGE, 'Approved and sent to Originator')}
+                          >
+                            Send to Originator
+                          </button>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => updateRequest(r, 'ARCHIVED', 'Archived')}
+                          >
+                            Archive
+                          </button>
+                        </>
                       ) : (
                         <>
                           <button

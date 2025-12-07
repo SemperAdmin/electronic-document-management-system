@@ -19,6 +19,9 @@ interface UserProfile {
   unitUic?: string
   platoon?: string
   installationAdminFor?: string
+  role?: string
+  roleCompany?: string
+  rolePlatoon?: string
 }
 
 interface RequestActivity {
@@ -352,11 +355,18 @@ export default function SectionDashboard() {
 
   const sendToCompany = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Battalion'
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'Approved and sent to Company', comment: (comments[r.id] || '').trim() }
+    const origin = usersById[r.uploadedById]
+    const norm = (v?: string) => { const s = String(v || '').trim(); return s && s !== 'N/A' ? s : '' }
+    const oc = norm(origin?.company)
+    const ouic = String(r.unitUic || origin?.unitUic || '')
+    const hasCompanyReviewer = Object.values(usersById).some(u => String(u.role || '') === 'COMPANY_REVIEWER' && norm(u.roleCompany || u.company) === oc && String(u.unitUic || '') === ouic)
+
+    const entry = { actor, timestamp: new Date().toISOString(), action: hasCompanyReviewer ? 'Approved and sent to Company' : 'Approved (no company reviewer, escalated to Battalion)', comment: (comments[r.id] || '').trim() }
+    const nextStage = hasCompanyReviewer ? 'COMPANY_REVIEW' : 'BATTALION_REVIEW'
     const updated: Request = {
       ...r,
-      currentStage: 'COMPANY_REVIEW',
-      routeSection: '',
+      currentStage: nextStage,
+      routeSection: hasCompanyReviewer ? '' : battalionSectionFor(r),
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })

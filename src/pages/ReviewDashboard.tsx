@@ -308,7 +308,21 @@ export default function ReviewDashboard() {
           <div>
             <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
             <div className="mt-2 flex items-center gap-2">
-              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{String(currentUser?.role || 'MEMBER')}</span>
+              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">
+                {(() => {
+                  const role = String(currentUser?.role || 'MEMBER')
+                  const isCompany = role === 'COMPANY_REVIEWER'
+                  const isPlatoon = role === 'PLATOON_REVIEWER'
+                  const norm = (v?: string) => {
+                    const s = String(v || '').trim()
+                    return s && s !== 'N/A' ? s : ''
+                  }
+                  const c = norm(currentUser?.roleCompany || currentUser?.company)
+                  const p = norm(currentUser?.rolePlatoon || currentUser?.platoon)
+                  const scope = isCompany ? c : (isPlatoon ? [c, p].filter(Boolean).join('-') : '')
+                  return scope ? `${role} • ${scope}` : role
+                })()}
+              </span>
               <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
             </div>
           </div>

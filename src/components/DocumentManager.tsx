@@ -188,9 +188,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         submitForUserId: targetUserId,
         documentIds: docs.map(d => d.id),
         createdAt: new Date().toISOString(),
-        currentStage: 'PLATOON_REVIEW',
+        currentStage: initialStage,
         activity: [
-          { actor, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
+          { actor, timestamp: new Date().toISOString(), action: initialAction, comment: (notes || '').trim() }
         ]
       };
       try {

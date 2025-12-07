@@ -18,15 +18,25 @@ export const SearchableUnitSelector: React.FC<SearchableUnitSelectorProps> = ({
 
   // Filter units based on search query - show all only when dropdown is first opened
   const filteredUnits = useMemo(() => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) return []
+    const raw = searchQuery.trim()
+    if (!raw || raw.length < 2) return []
 
-    const query = searchQuery.toLowerCase().trim()
-    return UNITS.filter(unit =>
-      unit.uic.toLowerCase().startsWith(query) ||
-      unit.ruc.toLowerCase().startsWith(query) ||
-      unit.mcc.toLowerCase().startsWith(query) ||
-      unit.unitName.toLowerCase().startsWith(query)
-    )
+    const q = raw.toLowerCase()
+    const isNumeric = /^\d+$/.test(q)
+
+    return UNITS.filter(unit => {
+      const uic = String(unit.uic || '').toLowerCase()
+      const ruc = String(unit.ruc || '').toLowerCase()
+      const mcc = String(unit.mcc || '').toLowerCase()
+      const name = String(unit.unitName || '').toLowerCase()
+
+      if (isNumeric) {
+        // Numeric queries should not match names; only numeric/id fields by prefix
+        return uic.startsWith(q) || ruc.startsWith(q) || mcc.startsWith(q)
+      }
+      // Alpha queries: match by name or id prefixes
+      return name.startsWith(q) || uic.startsWith(q) || ruc.startsWith(q) || mcc.startsWith(q)
+    })
   }, [searchQuery])
 
   // Close dropdown when clicking outside

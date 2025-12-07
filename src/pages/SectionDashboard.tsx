@@ -54,6 +54,12 @@ export default function SectionDashboard() {
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [submitToInstallation, setSubmitToInstallation] = useState<Record<string, boolean>>({});
 
+  const isUnitInAnyInstallation = (uic?: string) => {
+    const target = String(uic || '').trim();
+    if (!target) return false;
+    return installations.some(inst => Array.isArray(inst.unitUics) && inst.unitUics.includes(target));
+  }
+
   useEffect(() => {
     listInstallations().then(data => setInstallations(data as Installation[]));
   }, []);
@@ -361,7 +367,6 @@ export default function SectionDashboard() {
       routeSection: dest === 'COMMANDER' ? '' : dest,
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
-    console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })
     try {
       await upsertRequest({ ...updated, unitUic: r.unitUic || '' } as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
@@ -703,31 +708,42 @@ export default function SectionDashboard() {
                         Save Files
                       </button>
                     </div>
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <select
-                        value={selectedCmdSection[r.id] || 'COMMANDER'}
-                        onChange={e => {
-                          console.log('SectionDashboard - Command section selected:', e.target.value, 'for request:', r.id)
-                          setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))
-                        }}
-                        className="px-3 py-2 border border-brand-navy/30 rounded-lg"
-                      >
-                        <option value="COMMANDER">Commander</option>
-                        {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <button
-                        className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => approveRequest(r)}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => rejectRequest(r)}
-                      >
-                        Return
-                      </button>
-                    </div>
+                    {!(r.activity || []).some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <div className="flex items-center gap-2 mr-auto">
+                          <label className="sr-only">Command Section</label>
+                          <select
+                            aria-label="Command Section"
+                            value={selectedCmdSection[r.id] || 'COMMANDER'}
+                            onChange={(e) => setSelectedCmdSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                            className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                          >
+                            <option value="COMMANDER">Commander</option>
+                            {(commandSections[currentUser?.unitUic || ''] || []).map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => approveRequest(r)}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => rejectRequest(r)}
+                        >
+                          Return
+                        </button>
+                        <button
+                          className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => archiveRequest(r)}
+                        >
+                          Archive
+                        </button>
+                      </div>
+                    )}
                     {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
                       <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
                         <label className="block text-sm font-medium text-[var(--text)] mb-2">Send to External Unit</label>
@@ -738,7 +754,7 @@ export default function SectionDashboard() {
                             placeholder="Search by UIC, RUC, MCC, or Unit Name"
                           />
                           <div className="flex items-center gap-2">
-                            <input
+                          <input
                               type="checkbox"
                               id={`submit-to-installation-${r.id}`}
                               checked={submitToInstallation[r.id] || false}

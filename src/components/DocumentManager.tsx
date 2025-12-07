@@ -520,6 +520,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   // Pagination for user requests
   const requestsPagination = usePagination(myRequests, { pageSize: 10 });
 
+  const usersByIdMap = useMemo(() => users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {}), [users]);
+
   return (
     <div className="bg-[var(--surface)] rounded-lg shadow">
       <div className="p-6 border-b border-gray-200">
@@ -651,7 +653,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
             <RequestTable
               title="Your Requests"
               requests={requestsPagination.currentData}
-              users={useMemo(() => users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {}), [users])}
+              users={usersByIdMap}
               onRowClick={(r) => setSelectedRequest(r)}
               expandedRows={expandedRequests}
             >

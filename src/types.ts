@@ -15,4 +15,10 @@ export interface Request {
   externalPendingUnitUic?: string;
   externalPendingUnitName?: string;
   externalPendingStage?: string;
+  installationId?: string;
+}
+export interface Installation {
+  id: string;
+  name: string;
+  unitUics: string[];
 }

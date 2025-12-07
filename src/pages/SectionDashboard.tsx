@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { UNITS, Unit } from '../lib/units'
-import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
+import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments, listInstallations } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
 import { SearchableUnitSelector } from '../components/SearchableUnitSelector'
-import { Request } from '../types'
+import { Request, Installation } from '../types'
 
 const DEFAULT_EXTERNAL_STAGE = 'REVIEW';
 
@@ -18,6 +18,7 @@ interface UserProfile {
   unit: string
   unitUic?: string
   platoon?: string
+  installationAdminFor?: string
 }
 
 interface RequestActivity {
@@ -62,6 +63,12 @@ export default function SectionDashboard() {
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [activeTab, setActiveTab] = useState<'Pending' | 'Previously in Section'>('Pending');
+  const [installations, setInstallations] = useState<Installation[]>([]);
+  const [submitToInstallation, setSubmitToInstallation] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    listInstallations().then(data => setInstallations(data as Installation[]));
+  }, []);
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -418,17 +425,39 @@ export default function SectionDashboard() {
     }
 
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
-    const actionText = extSec ? `Sent to external unit: ${extUnit} - ${extSec}` : `Sent to external unit: ${extUnit}`
-    const newActivity = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
 
-    const updated: Request = {
-      ...r,
-      currentStage: 'EXTERNAL_REVIEW',
-      externalPendingUnitName: extUnit,
-      externalPendingUnitUic: extUnitUic,
-      externalPendingStage: extSec || DEFAULT_EXTERNAL_STAGE,
-      routeSection: extSec || '',
-      activity: [...(r.activity || []), newActivity]
+    let updated: Request;
+
+    if (submitToInstallation[r.id]) {
+      const installation = installations.find(inst => inst.unitUics.includes(extUnitUic));
+      if (!installation) {
+        alert('The selected unit is not part of any installation.');
+        return;
+      }
+      const actionText = `Sent to installation: ${installation.name}`;
+      const newActivity = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() };
+      updated = {
+        ...r,
+        currentStage: 'INSTALLATION_REVIEW',
+        installationId: installation.id,
+        externalPendingUnitName: undefined,
+        externalPendingUnitUic: undefined,
+        externalPendingStage: undefined,
+        routeSection: '',
+        activity: [...(r.activity || []), newActivity]
+      };
+    } else {
+      const actionText = extSec ? `Sent to external unit: ${extUnit} - ${extSec}` : `Sent to external unit: ${extUnit}`
+      const newActivity = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+      updated = {
+        ...r,
+        currentStage: 'EXTERNAL_REVIEW',
+        externalPendingUnitName: extUnit,
+        externalPendingUnitUic: extUnitUic,
+        externalPendingStage: extSec || DEFAULT_EXTERNAL_STAGE,
+        routeSection: extSec || '',
+        activity: [...(r.activity || []), newActivity]
+      };
     }
 
     try {
@@ -438,6 +467,7 @@ export default function SectionDashboard() {
       setExternalUnit(prev => ({ ...prev, [r.id]: '' }))
       setExternalUnitUic(prev => ({ ...prev, [r.id]: '' }))
       setExternalSection(prev => ({ ...prev, [r.id]: '' }))
+      setSubmitToInstallation(prev => ({ ...prev, [r.id]: false }))
     } catch (error) {
       console.error('Failed to send request to external unit:', error)
       alert('Failed to send request to external unit. Please try again.')
@@ -678,6 +708,19 @@ export default function SectionDashboard() {
                             selectedUnit={UNITS.find(u => u.uic === externalUnitUic[r.id])}
                             placeholder="Search by UIC, RUC, MCC, or Unit Name"
                           />
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`submit-to-installation-${r.id}`}
+                              checked={submitToInstallation[r.id] || false}
+                              onChange={() => setSubmitToInstallation(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                              disabled={!installations.some(inst => inst.unitUics.includes(externalUnitUic[r.id]))}
+                            />
+                            <label htmlFor={`submit-to-installation-${r.id}`}>Submit to Installation</label>
+                          </div>
+                          {!installations.some(inst => inst.unitUics.includes(externalUnitUic[r.id])) && (
+                            <p className="text-xs text-gray-500">Not assigned to installation.</p>
+                          )}
                           <select
                             value={externalSection[r.id] || ''}
                             onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))}

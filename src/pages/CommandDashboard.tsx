@@ -671,6 +671,7 @@ export default function CommandDashboard() {
 
           {Object.keys(byCommandSection).filter(name => (byCommandSection[name] || []).length > 0).map((name) => {
             const pending = (byCommandSection[name] || []).filter(r => r.currentStage !== 'ARCHIVED');
+            const archived = (byCommandSection[name] || []).filter(r => r.currentStage === 'ARCHIVED');
 
             return (
               <div key={name}>
@@ -678,79 +679,116 @@ export default function CommandDashboard() {
                   <h3 className="text-lg font-semibold text-[var(--text)]">{name}</h3>
                   <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(name)}>Export {name}</button>
                 </div>
-                <div className="mt-4">
-                  <RequestTable
-                    title="Pending"
-                    requests={pending}
-                    users={users}
-                    onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                    expandedRows={expandedCard}
-                    platoonSectionMap={platoonSectionMap}
-                  >
+                {pending.length > 0 && (
+                  <div className="mt-4">
+                    <RequestTable
+                      title="Pending"
+                      requests={pending}
+                      users={users}
+                      onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      expandedRows={expandedCard}
+                      platoonSectionMap={platoonSectionMap}
+                    >
                       {(r: Request) => (
-                        <div id={`details-csec-${r.id}`}>
+                        <div id={`details-csec-${r.id}`} className="p-4 bg-gray-50 space-y-3">
                           <div className="mt-3">
+                            <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
+                            <textarea
+                              rows={2}
+                              value={comments[r.id] || ''}
+                              onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
+                              className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                              placeholder="Optional notes"
+                            />
+                          </div>
+                          <div className="mt-3 flex items-center justify-end gap-2">
+                            <button
+                              className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2"
+                              onClick={() => approveToCommander(r)}
+                            >
+                              Approve to Commander
+                            </button>
+                            <button
+                              className="px-4 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                              onClick={() => commandSectionReturn(r)}
+                            >
+                              Return to Battalion
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </RequestTable>
+                  </div>
+                )}
+                {archived.length > 0 && (
+                  <div className="mt-4">
+                    <RequestTable
+                      title="Archived"
+                      requests={archived}
+                      users={users}
+                      onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      expandedRows={expandedCard}
+                      platoonSectionMap={platoonSectionMap}
+                    >
+                      {(r: Request) => (
+                        <div id={`details-csec-archived-${r.id}`} className="p-4 bg-gray-50 space-y-3">
+                          <div>
+                            <h4 className="font-medium text-gray-800">Final Status: {r.finalStatus || 'Archived'}</h4>
+                            <p className="text-sm text-gray-600">This request is archived and cannot be modified.</p>
+                          </div>
+
+                          <div>
                             <button
                               className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                              aria-expanded={!!expandedDocs[r.id]}
-                              aria-controls={`docs-csec-${r.id}`}
                               onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
                             >
-                              <span>Show Documents</span>
-                              <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                              Show Documents
                             </button>
-                          </div>
-                          <div
-                            id={`docs-csec-${r.id}`}
-                            ref={expandedDocs[r.id] ? docsRef : undefined}
-                            className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
-                          >
-                            {docsFor(r.id).map(d => (
-                              <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                                <div className="text-sm text-[var(--muted)]">
-                                  <div className="font-medium text-[var(--text)]">{d.name}</div>
-                                  <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {(d as any).fileUrl ? (
-                                    <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                                  ) : (
-                                    <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                            <div
+                              className={`${expandedDocs[r.id] ? 'mt-2 space-y-2' : 'hidden'}`}
+                            >
+                              {docsFor(r.id).map(d => (
+                                <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-white">
+                                  <div className="text-sm">
+                                    <div className="font-medium">{d.name}</div>
+                                    <div className="text-gray-500">{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                                  </div>
+                                  {(d as any).fileUrl && (
+                                    <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2">Open</a>
                                   )}
                                 </div>
-                              </div>
-                            ))}
-                            {docsFor(r.id).length === 0 && (
-                              <div className="text-sm text-[var(--muted)]">No documents</div>
-                            )}
+                              ))}
+                              {docsFor(r.id).length === 0 && (
+                                <div className="text-sm text-gray-500">No documents</div>
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-3">
+
+                          <div>
                             <button
-                              className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                              className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
                               onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                              aria-expanded={!!expandedLogs[r.id]}
-                              aria-controls={`logs-csec-${r.id}`}
                             >
-                              {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                              {expandedLogs[r.id] ? 'Hide' : 'Show'} Full Activity Log
                             </button>
-                            <div id={`logs-csec-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                            <div className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
                               {r.activity && r.activity.length ? (
                                 r.activity.map((a, idx) => (
                                   <div key={idx} className="text-xs text-gray-700">
                                     <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                                    {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                                    {a.comment && <div className="text-gray-600 pl-4 border-l-2 border-gray-300 ml-2">{a.comment}</div>}
                                   </div>
                                 ))
                               ) : (
-                                <div className="text-xs text-gray-500">No activity</div>
+                                <div className="text-xs text-gray-500">No activity to display.</div>
                               )}
                             </div>
                           </div>
                         </div>
                       )}
                     </RequestTable>
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}

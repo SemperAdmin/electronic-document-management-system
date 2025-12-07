@@ -16,6 +16,7 @@ export interface Request {
   externalPendingUnitName?: string;
   externalPendingStage?: string;
   installationId?: string;
+  finalStatus?: string;
 }
 export interface Installation {
   id: string;

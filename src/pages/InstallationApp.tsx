@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { listRequests, listUsers } from '../lib/db';
+import { listRequests, listUsers, upsertRequest } from '../lib/db';
 import RequestTable from '../components/RequestTable';
 import { Request } from '../types';
 
@@ -14,6 +14,7 @@ interface UserProfile {
   unitUic?: string;
   platoon?: string;
   installationId?: string;
+  is_installation_admin?: boolean;
 }
 
 export default function InstallationApp() {
@@ -21,6 +22,7 @@ export default function InstallationApp() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [usersById, setUsersById] = useState<Record<string, UserProfile>>({});
   const [expandedCard, setExpandedCard] = useState<Record<string, boolean>>({});
+  const [comments, setComments] = useState<Record<string, string>>({});
 
   useEffect(() => {
     try {
@@ -32,7 +34,7 @@ export default function InstallationApp() {
   }, []);
 
   useEffect(() => {
-    if (currentUser?.installationId) {
+    if (currentUser?.is_installation_admin && currentUser?.installationId) {
       listRequests().then((remote) => {
         const installationRequests = (remote as Request[]).filter(
           (r) => r.installationId === currentUser.installationId && r.currentStage === 'INSTALLATION_REVIEW'
@@ -50,6 +52,39 @@ export default function InstallationApp() {
     }).catch(() => setUsersById({}));
   }, []);
 
+  const handleInstallationDecision = async (r: Request, decision: 'Approved' | 'Rejected') => {
+    if (!currentUser) return;
+
+    const actor = `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}`;
+    const actionText = decision === 'Approved'
+      ? `Approved by Installation Admin at ${currentUser.installationId}`
+      : `Rejected by Installation Admin at ${currentUser.installationId}`;
+
+    const updated: Request = {
+      ...r,
+      currentStage: 'ARCHIVED',
+      installationId: '', // Clear installation ID after review
+      activity: [
+        ...(r.activity || []),
+        {
+          actor,
+          timestamp: new Date().toISOString(),
+          action: actionText,
+          comment: comments[r.id] || '',
+        },
+      ],
+    };
+
+    try {
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.filter(req => req.id !== r.id));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error(`Failed to ${decision.toLowerCase()} request:`, error);
+      // Optionally, show an error to the user
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow p-6">
@@ -63,8 +98,31 @@ export default function InstallationApp() {
           platoonSectionMap={{}}
         >
           {(r: Request) => (
-            <div id={`details-sec-${r.id}`} className="p-4 bg-gray-50">
-              {/* Actions for installation admins can be added here */}
+            <div id={`details-iapp-${r.id}`} className="p-4 bg-gray-50 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reviewer Comment</label>
+                <textarea
+                  rows={2}
+                  value={comments[r.id] || ''}
+                  onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Optional notes for your decision"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  className="px-4 py-2 rounded bg-red-600 text-white font-medium hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500"
+                  onClick={() => handleInstallationDecision(r, 'Rejected')}
+                >
+                  Reject
+                </button>
+                <button
+                  className="px-4 py-2 rounded bg-green-600 text-white font-medium hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-500"
+                  onClick={() => handleInstallationDecision(r, 'Approved')}
+                >
+                  Approve
+                </button>
+              </div>
             </div>
           )}
         </RequestTable>

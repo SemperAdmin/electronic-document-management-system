@@ -359,6 +359,7 @@ export default function SectionDashboard() {
       routeSection: '',
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
+    console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })
     try {
       await upsertRequest(updated as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));

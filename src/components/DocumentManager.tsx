@@ -186,7 +186,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         ]
       };
       try {
-        await upsertRequest(requestPayload as unknown as RequestRecord);
+        const resReq = await upsertRequest(requestPayload as unknown as RequestRecord);
+        if (!resReq.ok) throw new Error(String((resReq as any)?.error?.message || (resReq as any)?.error || 'request_upsert_failed'));
         const resDocs = await upsertDocuments(docs as unknown as DocumentRecord[]);
         if (!resDocs.ok) throw new Error(String((resDocs as any)?.error?.message || (resDocs as any)?.error || 'document_upsert_failed'));
       } catch (e: any) {
@@ -244,8 +245,11 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       if (req) {
         const nextReq = { ...req, activity: Array.isArray(req.activity) ? [...req.activity, entry] : [entry] };
         try {
-          await upsertRequest(nextReq as unknown as RequestRecord);
-        } catch {}
+          const res = await upsertRequest(nextReq as unknown as RequestRecord);
+          if (!res.ok) throw new Error(String((res as any)?.error?.message || (res as any)?.error || 'request_upsert_failed'));
+        } catch (e) {
+          console.error('Failed to save document edits:', e);
+        }
         setRequestActivity((prev) => [...prev, entry]);
       }
     } catch {}
@@ -460,7 +464,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       try {
         const resDocs = await upsertDocuments(newDocs as unknown as DocumentRecord[]);
         if (!resDocs.ok) throw new Error(String((resDocs as any)?.error?.message || (resDocs as any)?.error || 'document_upsert_failed'));
-        await upsertRequest(updatedRequest as unknown as RequestRecord);
+        const resReq = await upsertRequest(updatedRequest as unknown as RequestRecord);
+        if (!resReq.ok) throw new Error(String((resReq as any)?.error?.message || (resReq as any)?.error || 'request_upsert_failed'));
       } catch (e: any) {
         setFeedback({ type: 'error', message: `Failed to persist documents: ${String(e?.message || e)}` });
         return;

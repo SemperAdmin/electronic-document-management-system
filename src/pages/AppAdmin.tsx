@@ -83,7 +83,7 @@ export default function AppAdmin() {
         company: updated.company,
         isUnitAdmin: !!updated.isUnitAdmin,
         isInstallationAdmin: !!updated.isInstallationAdmin,
-        isCommandStaff: !!updated.isUnitAdmin,
+        isCommandStaff: !!updated.isCommandStaff,
         edipi: updated.edipi,
       })
       if (!res.ok) { setFeedback({ type: 'error', message: 'Failed to assign admin (DB error).' }); return }

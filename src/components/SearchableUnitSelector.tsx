@@ -18,7 +18,7 @@ export const SearchableUnitSelector: React.FC<SearchableUnitSelectorProps> = ({
 
   // Filter units based on search query - show all only when dropdown is first opened
   const filteredUnits = useMemo(() => {
-    if (!searchQuery.trim()) return []
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) return []
 
     const query = searchQuery.toLowerCase().trim()
     return UNITS.filter(unit =>

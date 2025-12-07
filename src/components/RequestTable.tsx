@@ -196,7 +196,10 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                       {getCurrentUnit(r)}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
-                      {originator ? `${originator.rank} ${originator.lastName}, ${originator.firstName}` : 'N/A'}
+                      {(() => {
+                        const originator = originatorFor(r);
+                        return originator ? `${originator.rank} ${originator.lastName}, ${originator.firstName}` : 'N/A';
+                      })()}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
                       {displayUnitPart(originator?.company)}

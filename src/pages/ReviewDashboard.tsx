@@ -36,7 +36,14 @@ const isReturned = (r: Request) => {
 }
 
 export default function ReviewDashboard() {
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const raw = localStorage.getItem('currentUser');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [requests, setRequests] = useState<Request[]>([])
   const [documents, setDocuments] = useState<DocumentItem[]>([])
   const [comments, setComments] = useState<Record<string, string>>({})
@@ -75,13 +82,6 @@ export default function ReviewDashboard() {
       document.removeEventListener('keydown', handleKey)
     }
   }, [openDocsId])
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('currentUser')
-      if (raw) setCurrentUser(JSON.parse(raw))
-    } catch {}
-  }, [])
 
   useEffect(() => {
     listRequests().then((remote) => {

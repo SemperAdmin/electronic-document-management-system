@@ -404,6 +404,7 @@ export default function SectionDashboard() {
     }
     try {
       await upsertRequest(updated as any)
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
     } catch (error) {
       console.error('Failed to endorse request:', error);
     }

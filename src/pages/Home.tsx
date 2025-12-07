@@ -16,24 +16,19 @@ import { Header } from '../components/Header';
 function HomeContent() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'review' | 'section' | 'command' | 'documents' | 'document-viewer' | 'upload'>('login');
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const savedUser = localStorage.getItem('currentUser');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [profileMode, setProfileMode] = useState<'create' | 'edit'>('create');
   const [dashOpen, setDashOpen] = useState(false);
   const [hasSectionDashboard, setHasSectionDashboard] = useState(false);
   const [hasCommandDashboard, setHasCommandDashboard] = useState(false);
   const navigate = useNavigate();
-
-  // Load user from localStorage on mount
-  useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem('currentUser');
-      if (savedUser) {
-        setCurrentUser(JSON.parse(savedUser));
-      }
-    } catch (error) {
-      console.error('Failed to load user from localStorage:', error);
-    }
-  }, []);
 
   // Load view from URL params or localStorage
   useEffect(() => {

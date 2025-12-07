@@ -2,21 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { PermissionManager } from '../components/PermissionManager'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
-
-interface Request {
-  id: string
-  subject: string
-  dueDate?: string
-  notes?: string
-  unitUic: string
-  uploadedById: string
-  submitForUserId?: string
-  documentIds: string[]
-  createdAt: string
-  currentStage?: string
-  activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>
-  routeSection?: string
-}
+import { usePagination } from '@/hooks/usePagination'
+import { Pagination } from '@/components/Pagination'
+import RequestTable from '../components/RequestTable'
+import { Request } from '../types'
 
 interface DocumentItem {
   id: string
@@ -47,7 +36,14 @@ const isReturned = (r: Request) => {
 }
 
 export default function ReviewDashboard() {
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const raw = localStorage.getItem('currentUser');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [requests, setRequests] = useState<Request[]>([])
   const [documents, setDocuments] = useState<DocumentItem[]>([])
   const [comments, setComments] = useState<Record<string, string>>({})
@@ -59,9 +55,12 @@ export default function ReviewDashboard() {
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
   const [permOpen, setPermOpen] = useState(false)
   const [expandedCard, setExpandedCard] = useState<Record<string, boolean>>({})
+  const [expandedUserDetails, setExpandedUserDetails] = useState<Record<string, boolean>>({})
+  const [showInScope, setShowInScope] = useState(false)
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
+  const [activeTab, setActiveTab] = useState<'Pending' | 'In Scope'>('Pending');
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -83,13 +82,6 @@ export default function ReviewDashboard() {
       document.removeEventListener('keydown', handleKey)
     }
   }, [openDocsId])
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('currentUser')
-      if (raw) setCurrentUser(JSON.parse(raw))
-    } catch {}
-  }, [])
 
   useEffect(() => {
     listRequests().then((remote) => {
@@ -149,6 +141,17 @@ export default function ReviewDashboard() {
     return 'PLATOON_REVIEW'
   }, [currentUser])
 
+  const formatStage = (r: Request) => {
+    const stage = r.currentStage || 'PLATOON_REVIEW'
+    if (stage === 'PLATOON_REVIEW') return 'Platoon'
+    if (stage === 'COMPANY_REVIEW') return 'Company'
+    if (stage === 'BATTALION_REVIEW') return r.routeSection || 'Battalion'
+    if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander'
+    if (stage === 'EXTERNAL_REVIEW') return (r as any).externalPendingUnitName || 'External'
+    if (stage === 'ARCHIVED') return 'Archived'
+    return stage
+  }
+
   const originatorFor = (r: Request) => users[r.uploadedById] || null
 
   const pending = useMemo(() => {
@@ -159,16 +162,16 @@ export default function ReviewDashboard() {
       if (!o) return false
       if (role.includes('PLATOON')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
+        const ou = (o.platoon && o.platoon !== 'N/A') ? o.platoon : ''
         const ouic = o.unitUic || ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
+        const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
+        const cu = (currentUser?.rolePlatoon && currentUser.rolePlatoon !== 'N/A') ? currentUser.rolePlatoon : ''
         const cuic = currentUser?.unitUic || ''
         return oc === cc && ou === cu && (!cuic || ouic === cuic)
       }
       if (role.includes('COMPANY')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+        const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
         const ouic = o.unitUic || ''
         const cuic = currentUser?.unitUic || ''
         return oc === cc && (!cuic || ouic === cuic)
@@ -200,16 +203,16 @@ export default function ReviewDashboard() {
       if (!o) return false
       if (role.includes('PLATOON')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const ou = (o.unit && o.unit !== 'N/A') ? o.unit : ''
+        const ou = (o.platoon && o.platoon !== 'N/A') ? o.platoon : ''
         const ouic = o.unitUic || ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-        const cu = (currentUser?.unit && currentUser.unit !== 'N/A') ? currentUser.unit : ''
+        const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
+        const cu = (currentUser?.rolePlatoon && currentUser.rolePlatoon !== 'N/A') ? currentUser.rolePlatoon : ''
         const cuic = currentUser?.unitUic || ''
         return oc === cc && ou === cu && (!cuic || ouic === cuic)
       }
       if (role.includes('COMPANY')) {
         const oc = (o.company && o.company !== 'N/A') ? o.company : ''
-        const cc = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+        const cc = (currentUser?.roleCompany && currentUser.roleCompany !== 'N/A') ? currentUser.roleCompany : ''
         const ouic = o.unitUic || ''
         const cuic = currentUser?.unitUic || ''
         return oc === cc && (!cuic || ouic === cuic)
@@ -234,6 +237,12 @@ export default function ReviewDashboard() {
   }, [requests, currentUser, users, platoonSectionMap])
 
   const inScopeOther = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [inScope, myStage])
+
+  // Pagination for pending requests
+  const pendingPagination = usePagination(pending, { pageSize: 25 })
+
+  // Pagination for in-scope requests
+  const inScopePagination = usePagination(inScopeOther, { pageSize: 25 })
 
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
 
@@ -337,12 +346,26 @@ export default function ReviewDashboard() {
           <div>
             <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
             <div className="mt-2 flex items-center gap-2">
-              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{String(currentUser?.role || 'MEMBER')}</span>
-              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>
+              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">
+                {(() => {
+                  const role = String(currentUser?.role || 'MEMBER')
+                  const isCompany = role === 'COMPANY_REVIEWER'
+                  const isPlatoon = role === 'PLATOON_REVIEWER'
+                  const norm = (v?: string) => {
+                    const s = String(v || '').trim()
+                    return s && s !== 'N/A' ? s : ''
+                  }
+                  const c = norm(currentUser?.roleCompany || currentUser?.company)
+                  const p = norm(currentUser?.rolePlatoon || currentUser?.platoon)
+                  const scope = isCompany ? c : (isPlatoon ? [c, p].filter(Boolean).join('-') : '')
+                  return scope ? `${role} • ${scope}` : role
+                })()}
+              </span>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
             </div>
           </div>
           {currentUser && String(currentUser.role || '') !== 'MEMBER' && (
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 hidden md:block">
               <button
                 className="px-4 py-2 rounded bg-brand-red text-brand-cream border-2 border-brand-red-2 shadow hover:bg-brand-red-2"
                 onClick={() => setPermOpen(true)}
@@ -352,268 +375,232 @@ export default function ReviewDashboard() {
             </div>
           )}
         </div>
-          <div className="mb-2 flex justify-end"><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportPending}>Export Pending</button></div>
-          <div className="flex flex-col gap-4">
-          {pending.map((r) => (
-            <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="font-medium text-[var(--text)]">{r.subject}</div>
-                  <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
-                  {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
-                  {originatorFor(r) && (
-                    <div className="text-xs text-[var(--muted)] mt-1">
-                      {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                      {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                        <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
-                  {isReturned(r) && (
-                    <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
-                  )}
-                  <button
-                    className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                    onClick={() => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                    aria-expanded={!!expandedCard[r.id]}
-                    aria-controls={`details-rev-${r.id}`}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] })) } }}
-                  >
-                    {expandedCard[r.id] ? 'Hide Details' : 'Edit / Details'}
-                  </button>
-                </div>
-              </div>
-              {String(currentUser?.role || '').includes('COMPANY') && r.routeSection && (
-                <div className="mt-2 text-sm text-[var(--muted)]">Previously routed to: {r.routeSection}</div>
-              )}
-              <div id={`details-rev-${r.id}`} className={expandedCard[r.id] ? '' : 'hidden'}>
-              <div className="mt-3">
-                <button
-                  className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                  aria-expanded={!!expandedDocs[r.id]}
-                  aria-controls={`docs-rev-${r.id}`}
-                  onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
-                >
-                  <span>Show Documents</span>
-                  <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                </button>
-              </div>
-              <div
-                id={`docs-rev-${r.id}`}
-                ref={expandedDocs[r.id] ? docsRef : undefined}
-                className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
-              >
-                {docsFor(r.id).map(d => (
-                  <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                    <div className="text-sm text-[var(--muted)]">
-                      <div className="font-medium text-[var(--text)]">{d.name}</div>
-                      <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        { (d as any).fileUrl ? (
-                        <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                      ) : (
-                          <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {docsFor(r.id).length === 0 && (
-                  <div className="text-sm text-[var(--muted)]">No documents</div>
-                )}
-              </div>
-              <div className="mt-3">
-                <button
-                  className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                  onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                  aria-expanded={!!expandedLogs[r.id]}
-                  aria-controls={`logs-${r.id}`}
-                >
-                  {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                </button>
-                <div id={`logs-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                  {r.activity && r.activity.length ? (
-                    r.activity.map((a, idx) => (
-                      <div key={idx} className="text-xs text-gray-700">
-                        <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                        {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-xs text-gray-500">No activity</div>
-                  )}
-                </div>
-              </div>
-              <div className="mt-3">
-                <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
-                <textarea
-                  rows={2}
-                  value={comments[r.id] || ''}
-                  onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
-                  className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
-                  placeholder="Optional notes"
-                />
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
-                  <input
-                    type="file"
-                    multiple
-                    onChange={(e) => setAttach(prev => ({ ...prev, [r.id]: e.target.files ? Array.from(e.target.files) : [] }))}
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                  />
-                  Add Files
-                </label>
-                <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
-                <button
-                  className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
-                  onClick={() => addFilesToRequest(r)}
-                  disabled={!attach[r.id] || !(attach[r.id] || []).length}
-                >
-                  Save Files
-                </button>
-              </div>
-              <div className="mt-3 flex items-center justify-end gap-2">
-                {String(currentUser?.role || '').includes('COMPANY') && (
-                  <div className="flex items-center gap-2 mr-auto">
-                    <label className="sr-only">Battalion Section</label>
-                    <select
-                      aria-label="Battalion Section"
-                      value={selectedSection[r.id] || ''}
-                      onChange={(e) => setSelectedSection(prev => ({ ...prev, [r.id]: e.target.value }))}
-                      className="px-3 py-2 border border-brand-navy/30 rounded-lg"
-                    >
-                      <option value="">Select section</option>
-                      {(unitSections[currentUser?.unitUic || ''] || []).map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <button
-                  className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                  onClick={() => {
-                    const role = String(currentUser?.role || '')
-                    if (role.includes('COMPANY')) {
-                      if (!selectedSection[r.id]) return
-                      updateRequest(r, 'BATTALION_REVIEW', `Approved and routed to ${selectedSection[r.id]}`)
-                    } else {
-                      updateRequest(r, nextStage(r.currentStage), 'Approved')
-                    }
-                  }}
-                  disabled={String(currentUser?.role || '').includes('COMPANY') && !selectedSection[r.id]}
-                >
-                  Approve
-                </button>
-                <button
-                  className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                  onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
-                >
-                  Return
-                </button>
-              </div>
-              </div>
-            </div>
-          ))}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('Pending')}
+              className={`${activeTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setActiveTab('In Scope')}
+              className={`${activeTab === 'In Scope' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              In Scope
+            </button>
+          </nav>
         </div>
-        {pending.length === 0 && (
-          <div className="text-sm text-[var(--muted)]">No requests in your stage.</div>
-        )}
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">In Your Scope</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportInScope}>Export In Scope</button></div>
-          <div className="flex flex-col gap-4">
-            {inScopeOther.map((r) => (
-              <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="font-medium text-[var(--text)]">{r.subject}</div>
-                    <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
-                    {r.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>}
-                    {originatorFor(r) && (
-                      <div className="text-xs text-[var(--muted)] mt-1">
-                        {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                        {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                          <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                        )}
-                      </div>
-                    )}
+        <div className="mt-4">
+          {activeTab === 'Pending' && (
+            <RequestTable
+              title="Pending"
+              requests={pendingPagination.currentData}
+              users={users}
+              onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+              expandedRows={expandedCard}
+              platoonSectionMap={platoonSectionMap}
+            >
+              {(r: Request) => (
+                <div id={`details-rev-${r.id}`}>
+                  <div className="mt-3">
+                    <button
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                      aria-expanded={!!expandedDocs[r.id]}
+                      aria-controls={`docs-rev-${r.id}`}
+                      onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                    >
+                      <span>Show Documents</span>
+                      <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                    </button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
-                    {isReturned(r) && (
-                      <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <button
-                    className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                    aria-expanded={!!expandedDocs[r.id]}
-                    aria-controls={`docs-scope-${r.id}`}
-                    onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                  <div
+                    id={`docs-rev-${r.id}`}
+                    ref={expandedDocs[r.id] ? docsRef : undefined}
+                    className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                   >
-                    <span>Show Documents</span>
-                    <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                  </button>
-                </div>
-                <div
-                  id={`docs-scope-${r.id}`}
-                  ref={expandedDocs[r.id] ? docsRef : undefined}
-                  className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
-                >
-                  {docsFor(r.id).map(d => (
-                    <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                      <div className="text-sm text-[var(--muted)]">
-                        <div className="font-medium text-[var(--text)]">{d.name}</div>
-                        <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        { (d as any).fileUrl ? (
-                          <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                        ) : (
-                          <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {docsFor(r.id).length === 0 && (
-                    <div className="text-sm text-[var(--muted)]">No documents</div>
-                  )}
-                </div>
-                <div className="mt-3">
-                  <button
-                    className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                    onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                    aria-expanded={!!expandedLogs[r.id]}
-                    aria-controls={`logs-scope-${r.id}`}
-                  >
-                    {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                  </button>
-                  <div id={`logs-scope-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                    {r.activity && r.activity.length ? (
-                      r.activity.map((a, idx) => (
-                        <div key={idx} className="text-xs text-gray-700">
-                          <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                          {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                    {docsFor(r.id).map(d => (
+                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                        <div className="text-sm text-[var(--muted)]">
+                          <div className="font-medium text-[var(--text)]">{d.name}</div>
+                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-xs text-gray-500">No activity</div>
+                        <div className="flex items-center gap-2">
+                            { (d as any).fileUrl ? (
+                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+                          ) : (
+                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {docsFor(r.id).length === 0 && (
+                      <div className="text-sm text-[var(--muted)]">No documents</div>
                     )}
                   </div>
+                  <div className="mt-3">
+                    <button
+                      className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      aria-expanded={!!expandedLogs[r.id]}
+                      aria-controls={`logs-${r.id}`}
+                    >
+                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                    </button>
+                    <div id={`logs-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                      {r.activity && r.activity.length ? (
+                        r.activity.map((a, idx) => (
+                          <div key={idx} className="text-xs text-gray-700">
+                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                            {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-gray-500">No activity</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
+                    <textarea
+                      rows={2}
+                      value={comments[r.id] || ''}
+                      onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                      placeholder="Optional notes"
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(e) => setAttach(prev => ({ ...prev, [r.id]: e.target.files ? Array.from(e.target.files) : [] }))}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                      />
+                      Add Files
+                    </label>
+                    <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
+                    <button
+                      className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
+                      onClick={() => addFilesToRequest(r)}
+                      disabled={!attach[r.id] || !(attach[r.id] || []).length}
+                    >
+                      Save Files
+                    </button>
+                  </div>
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      {String(currentUser?.role || '').includes('COMPANY') ? (
+                        <>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => updateRequest(r, 'PLATOON_REVIEW', 'Approved and sent to Platoon')}
+                          >
+                            Send to Platoon
+                          </button>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => updateRequest(r, 'ARCHIVED', 'Archived')}
+                          >
+                            Archive
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => updateRequest(r, nextStage(r.currentStage), 'Approved')}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
+                          >
+                            Return
+                          </button>
+                        </>
+                      )}
+                    </div>
                 </div>
-              </div>
-            ))}
-            {inScopeOther.length === 0 && (
-              <div className="text-sm text-[var(--muted)]">No requests in your scope.</div>
-            )}
-          </div>
+              )}
+            </RequestTable>
+          )}
+          {activeTab === 'In Scope' && (
+            <RequestTable
+              title="In Scope"
+              requests={inScopePagination.currentData}
+              users={users}
+              onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+              expandedRows={expandedCard}
+              platoonSectionMap={platoonSectionMap}
+            >
+              {(r: Request) => (
+                <div id={`details-rev-${r.id}`}>
+                  <div className="mt-3">
+                    <button
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                      aria-expanded={!!expandedDocs[r.id]}
+                      aria-controls={`docs-rev-${r.id}`}
+                      onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
+                    >
+                      <span>Show Documents</span>
+                      <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                    </button>
+                  </div>
+                  <div
+                    id={`docs-rev-${r.id}`}
+                    ref={expandedDocs[r.id] ? docsRef : undefined}
+                    className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
+                  >
+                    {docsFor(r.id).map(d => (
+                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                        <div className="text-sm text-[var(--muted)]">
+                          <div className="font-medium text-[var(--text)]">{d.name}</div>
+                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            { (d as any).fileUrl ? (
+                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
+                          ) : (
+                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {docsFor(r.id).length === 0 && (
+                      <div className="text-sm text-[var(--muted)]">No documents</div>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <button
+                      className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      aria-expanded={!!expandedLogs[r.id]}
+                      aria-controls={`logs-${r.id}`}
+                    >
+                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                    </button>
+                    <div id={`logs-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                      {r.activity && r.activity.length ? (
+                        r.activity.map((a, idx) => (
+                          <div key={idx} className="text-xs text-gray-700">
+                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                            {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-gray-500">No activity</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </RequestTable>
+          )}
         </div>
       </div>
       {permOpen && currentUser && (

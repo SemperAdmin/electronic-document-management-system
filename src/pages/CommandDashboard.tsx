@@ -1,21 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
-
-interface Request {
-  id: string
-  subject: string
-  notes?: string
-  unitUic?: string
-  uploadedById: string
-  submitForUserId?: string
-  documentIds: string[]
-  createdAt: string
-  currentStage?: string
-  activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>
-  routeSection?: string
-  commanderApprovalDate?: string
-}
+import RequestTable from '../components/RequestTable'
+import { Request } from '../types'
+import { UNITS } from '../lib/units'
+import CommanderRequestDetails from '../components/CommanderRequestDetails'
+import CommandSectionRequestDetails from '../components/CommandSectionRequestDetails'
 
 interface DocumentItem {
   id: string
@@ -37,9 +27,12 @@ export default function CommandDashboard() {
   const [comments, setComments] = useState<Record<string, string>>({})
   const [attach, setAttach] = useState<Record<string, File[]>>({})
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
+  const [expandedUserDetails, setExpandedUserDetails] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
+  const [selectedCommandSection, setSelectedCommandSection] = useState<Record<string, string>>({})
+  // Removed activeTab state - only showing pending items now
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -77,8 +70,14 @@ export default function CommandDashboard() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem('currentUser')
-      if (raw) setCurrentUser(JSON.parse(raw))
-    } catch {}
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        console.log('CommandDashboard - loaded currentUser from localStorage:', parsed)
+        setCurrentUser(parsed)
+      }
+    } catch (err) {
+      console.error('CommandDashboard - failed to load currentUser:', err)
+    }
   }, [])
 
   useEffect(() => {
@@ -101,41 +100,105 @@ export default function CommandDashboard() {
     }).catch(() => setUsers({}))
   }, [])
 
+  // Get current user's UIC with fallback
+  const getCurrentUserUic = (): string => {
+    if (currentUser?.unitUic) return currentUser.unitUic
+    if (currentUser?.unit) {
+      const foundUnit = UNITS.find(u => u.unitName === currentUser.unit)
+      if (foundUnit) return foundUnit.uic
+    }
+    return ''
+  }
+
   useEffect(() => {
     try {
       const rawUs = localStorage.getItem('unit_structure')
-      const sec: string[] = []
+      console.log('CommandDashboard - localStorage has unit_structure:', !!rawUs)
+      console.log('CommandDashboard - currentUser:', currentUser)
+
+      // Get current user's UIC
+      const cuic = getCurrentUserUic()
+      console.log('CommandDashboard - currentUser UIC (with fallback):', cuic)
+
+      if (!cuic) {
+        console.log('CommandDashboard - skipping section load: no UIC available')
+        return
+      }
+
+      const allSections: string[] = []
       const pMap: Record<string, Record<string, Record<string, string>>> = {}
+
       if (rawUs) {
         const parsed = JSON.parse(rawUs)
-        const uic = currentUser?.unitUic || ''
-        const v = parsed?.[uic]
-        if (v && Array.isArray(v._commandSections)) sec.push(...v._commandSections)
+        console.log('CommandDashboard - parsed unit_structure keys:', Object.keys(parsed))
+
+        // Load command sections only for current user's unit
+        const v = parsed?.[cuic]
+        console.log(`CommandDashboard - unit data for UIC ${cuic}:`, v)
+        console.log(`CommandDashboard - _commandSections for ${cuic}:`, v?._commandSections)
+        if (v && Array.isArray(v._commandSections)) {
+          allSections.push(...v._commandSections)
+        }
+
+        // Load platoon section maps for all units
         for (const key of Object.keys(parsed || {})) {
           const node = parsed[key]
-          if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
+          if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') {
+            pMap[key] = node._platoonSectionMap
+          }
         }
+
+        console.log('CommandDashboard - loaded sections:', allSections)
+        setCommandSections(allSections)
+        setPlatoonSectionMap(pMap)
       } else {
+        console.log('CommandDashboard - loading from bundle (async)')
         ;(async () => {
           try {
             const merged = await loadUnitStructureFromBundle()
-            const uic = currentUser?.unitUic || ''
-            const v = (merged as any)?.[uic]
-            if (v && Array.isArray(v._commandSections)) sec.push(...v._commandSections)
+            const bundleSec: string[] = []
+            const bundlePMap: Record<string, Record<string, Record<string, string>>> = {}
+
+            // Load command sections only for current user's unit
+            const v = (merged as any)?.[cuic]
+            if (v && Array.isArray(v._commandSections)) {
+              bundleSec.push(...v._commandSections)
+            }
+
+            // Load platoon section maps
             for (const key of Object.keys(merged || {})) {
               const node = (merged as any)[key]
-              if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') pMap[key] = node._platoonSectionMap
+              if (node && node._platoonSectionMap && typeof node._platoonSectionMap === 'object') {
+                bundlePMap[key] = node._platoonSectionMap
+              }
             }
-          } catch {}
+
+            console.log('CommandDashboard - loaded from bundle:', bundleSec)
+            setCommandSections(bundleSec)
+            setPlatoonSectionMap(bundlePMap)
+          } catch (err) {
+            console.error('CommandDashboard - failed to load from bundle:', err)
+          }
         })()
       }
-      setCommandSections(sec)
-      setPlatoonSectionMap(pMap)
-    } catch {}
+    } catch (err) {
+      console.error('CommandDashboard - error in useEffect:', err)
+    }
   }, [currentUser])
 
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
   const originatorFor = (r: Request) => users[r.uploadedById] || null
+
+  const formatStage = (r: Request) => {
+    const stage = r.currentStage || 'PLATOON_REVIEW'
+    if (stage === 'PLATOON_REVIEW') return 'Platoon'
+    if (stage === 'COMPANY_REVIEW') return 'Company'
+    if (stage === 'BATTALION_REVIEW') return r.routeSection || 'Battalion'
+    if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander'
+    if (stage === 'EXTERNAL_REVIEW') return (r as any).externalPendingUnitName || 'External'
+    if (stage === 'ARCHIVED') return 'Archived'
+    return stage
+  }
 
   const battalionSectionFor = (r: Request) => {
     if (r.routeSection) return r.routeSection
@@ -147,29 +210,86 @@ export default function CommandDashboard() {
   }
 
   const inCommander = useMemo(() => {
-    const cuic = currentUser?.unitUic || ''
+    const cuic = getCurrentUserUic()
     return requests.filter(r => {
       const stage = r.currentStage || ''
       const ouic = r.unitUic || ''
       return stage === 'COMMANDER_REVIEW' && (!r.routeSection || r.routeSection === '') && (cuic ? ouic === cuic : true)
     })
-  }, [requests, currentUser])
+  }, [requests, currentUser, getCurrentUserUic])
 
   const byCommandSection = useMemo(() => {
-    const cuic = currentUser?.unitUic || ''
+    const cuic = getCurrentUserUic()
     const result: Record<string, Request[]> = {}
+    const normalize = (s: string) => String(s || '').trim().toUpperCase()
+    const normSections = commandSections.map(s => normalize(s))
+
+    console.log('CommandDashboard - byCommandSection START')
+    console.log('CommandDashboard - commandSections:', commandSections)
+    console.log('CommandDashboard - normalized sections:', normSections)
+    console.log('CommandDashboard - filtering by UIC:', cuic)
+
+    // Initialize with known command sections
     for (const name of commandSections) result[name] = []
+
+    // Process all requests - check ALL COMMANDER_REVIEW requests
+    const commanderReviewRequests = requests.filter(r => r.currentStage === 'COMMANDER_REVIEW')
+    console.log('CommandDashboard - Total COMMANDER_REVIEW requests:', commanderReviewRequests.length)
+
+    for (const r of commanderReviewRequests) {
+      console.log('CommandDashboard - Processing request:', {
+        id: r.id,
+        subject: r.subject?.substring(0, 30),
+        routeSection: r.routeSection,
+        hasRouteSection: !!r.routeSection,
+        unitUic: r.unitUic
+      })
+    }
+
+    // Process all requests
     for (const r of requests) {
       const stage = r.currentStage || ''
       const ouic = r.unitUic || ''
-      const name = r.routeSection || ''
-      if (stage === 'COMMANDER_REVIEW' && name && (cuic ? ouic === cuic : true) && commandSections.includes(name)) {
-        result[name] = result[name] || []
-        result[name].push(r)
+      const routeSec = r.routeSection || ''
+      const normRouteSec = normalize(routeSec)
+
+      // Only include requests from the current user's unit
+      if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec && (cuic ? ouic === cuic : true)) {
+        const idx = normSections.indexOf(normRouteSec)
+        const sectionKey = idx >= 0 ? commandSections[idx] : routeSec
+
+        console.log('CommandDashboard - MATCHED request to command section:', {
+          id: r.id,
+          subject: r.subject?.substring(0, 30),
+          stage,
+          routeSec,
+          normRouteSec,
+          sectionKey,
+          idx,
+          foundInSections: idx >= 0,
+          ouic,
+          cuic
+        })
+
+        if (!result[sectionKey]) {
+          console.log('CommandDashboard - Creating new section key:', sectionKey)
+          result[sectionKey] = []
+        }
+        result[sectionKey].push(r)
+      } else if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec) {
+        console.log('CommandDashboard - Request NOT matched (wrong UIC?):', {
+          id: r.id,
+          subject: r.subject?.substring(0, 30),
+          routeSec,
+          ouic,
+          cuic,
+          uicMatch: cuic ? ouic === cuic : true
+        })
       }
     }
+    console.log('CommandDashboard - byCommandSection FINAL result:', result)
     return result
-  }, [requests, currentUser, commandSections])
+  }, [requests, commandSections, currentUser, getCurrentUserUic])
 
   const isReturned = (r: Request) => {
     const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null
@@ -226,9 +346,11 @@ export default function CommandDashboard() {
     }
     try {
       await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to update request:', error)
+    }
   }
 
   const approveToCommander = async (r: Request) => {
@@ -242,9 +364,44 @@ export default function CommandDashboard() {
     }
     try {
       await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to approve request to commander:', error)
+    }
+  }
+
+  const sendToCommandSection = async (r: Request) => {
+    const cmdSection = selectedCommandSection[r.id] || ''
+    if (!cmdSection || cmdSection === 'NONE') return
+
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
+    const actionText = `Sent to ${cmdSection} for review by Commander`
+
+    const updated: Request = {
+      ...r,
+      currentStage: 'COMMANDER_REVIEW',
+      routeSection: cmdSection,
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+    }
+
+    console.log('CommandDashboard - sendToCommandSection BEFORE SAVE:', {
+      requestId: r.id,
+      cmdSection,
+      updatedRouteSec: updated.routeSection,
+      updatedStage: updated.currentStage,
+      actionText
+    })
+
+    try {
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+      setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to send to command section:', error);
+      // TODO: Add user-facing error notification
+    }
   }
 
   const commanderDecision = async (r: Request, type: 'Approved' | 'Endorsed' | 'Rejected') => {
@@ -253,6 +410,7 @@ export default function CommandDashboard() {
     const actionText = type === 'Approved' ? 'Approved by Commander'
       : type === 'Endorsed' ? 'Endorsed by Commander'
       : 'Rejected by Commander — requires action'
+
     const updated: Request = {
       ...r,
       currentStage: 'BATTALION_REVIEW',
@@ -260,11 +418,40 @@ export default function CommandDashboard() {
       commanderApprovalDate: type === 'Approved' ? new Date().toISOString() : r.commanderApprovalDate,
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
     }
+
+    console.log('CommandDashboard - commander decision:', { type, stage: updated.currentStage, routeSec: updated.routeSection, actionText })
+
     try {
-      await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+      setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to make commander decision:', error);
+    }
+  }
+
+  const commandSectionReturn = async (r: Request) => {
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Command Section'
+    const dest = battalionSectionFor(r)
+    const actionText = `Returned to ${dest || 'Battalion'} by ${r.routeSection || 'Command Section'}`
+
+    const updated: Request = {
+      ...r,
+      currentStage: 'BATTALION_REVIEW',
+      routeSection: dest || r.routeSection || '',
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+    }
+
+    console.log('CommandDashboard - command section return:', { stage: updated.currentStage, routeSec: updated.routeSection, actionText })
+
+    try {
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to return from command section:', error);
+    }
   }
 
   const addFilesToRequest = async (r: Request) => {
@@ -294,11 +481,13 @@ export default function CommandDashboard() {
     try {
       await upsertDocuments(newDocs as any)
       await upsertRequest(updated as any)
-    } catch {}
-    setDocuments(prev => [...prev, ...newDocs])
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setAttach(prev => ({ ...prev, [r.id]: [] }))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      setDocuments(prev => [...prev, ...newDocs])
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setAttach(prev => ({ ...prev, [r.id]: [] }))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to add files to request:', error);
+    }
   }
 
   return (
@@ -308,331 +497,155 @@ export default function CommandDashboard() {
           <h2 className="text-xl font-semibold text-[var(--text)]">Command Sections Dashboard</h2>
           <div className="flex items-center gap-2">
             <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{currentUser?.unitUic || ''}</span>
-            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>
+            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
           </div>
         </div>
 
         <div className="space-y-8">
           <div>
-            <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">Commander</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportCommander}>Export Commander</button></div>
-            <div className="flex flex-col gap-4">
-              {inCommander.map((r) => (
-                <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="font-medium text-[var(--text)]">{r.subject}</div>
-                      <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
-                      {originatorFor(r) && (
-                        <div className="text-xs text-[var(--muted)] mt-1">
-                          {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                          {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                            <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
-                      {isReturned(r) && (
-                        <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
-                      )}
-                      <button
-                        className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                        onClick={() => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                        aria-expanded={!!expandedCard[r.id]}
-                        aria-controls={`details-cmd-${r.id}`}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] })) } }}
-                      >
-                        {expandedCard[r.id] ? 'Hide Details' : 'Edit / Details'}
-                      </button>
-                    </div>
-                  </div>
-                  <div id={`details-cmd-${r.id}`} className={expandedCard[r.id] ? '' : 'hidden'}>
-                  <div className="mt-3">
-                    <button
-                      className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                      aria-expanded={!!expandedDocs[r.id]}
-                      aria-controls={`docs-cmd-${r.id}`}
-                      onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
-                    >
-                      <span>Show Documents</span>
-                      <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                    </button>
-                  </div>
-                  <div
-                    id={`docs-cmd-${r.id}`}
-                    ref={expandedDocs[r.id] ? docsRef : undefined}
-                    className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
-                  >
-                    {docsFor(r.id).map(d => (
-                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                        <div className="text-sm text-[var(--muted)]">
-                          <div className="font-medium text-[var(--text)]">{d.name}</div>
-                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(d as any).fileUrl ? (
-                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                          ) : (
-                            <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {docsFor(r.id).length === 0 && (
-                      <div className="text-sm text-[var(--muted)]">No documents</div>
-                    )}
-                  </div>
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
-                    <textarea
-                      rows={2}
-                      value={comments[r.id] || ''}
-                      onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
-                      className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
-                      placeholder="Optional notes"
-                    />
-                  </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
-                      <input
-                        type="file"
-                        multiple
-                        onChange={(e) => setAttach(prev => ({ ...prev, [r.id]: e.target.files ? Array.from(e.target.files) : [] }))}
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                      />
-                      Add Files
-                    </label>
-                    <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
-                    <button
-                      className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
-                      onClick={() => addFilesToRequest(r)}
-                      disabled={!attach[r.id] || !(attach[r.id] || []).length}
-                    >
-                      Save Files
-                    </button>
-                  </div>
-                  <div className="mt-3 flex items-center justify-end gap-2">
-                    <button
-                      className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                      onClick={() => commanderDecision(r, 'Approved')}
-                    >
-                      Approved
-                    </button>
-                    <button
-                      className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                      onClick={() => commanderDecision(r, 'Endorsed')}
-                    >
-                      Endorsed
-                    </button>
-                    <button
-                      className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                      onClick={() => commanderDecision(r, 'Rejected')}
-                    >
-                      Rejected
-                    </button>
-                  </div>
-                  <div className="mt-3">
-                    <button
-                      className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                      aria-expanded={!!expandedLogs[r.id]}
-                      aria-controls={`logs-cmd-${r.id}`}
-                    >
-                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                    </button>
-                    <div id={`logs-cmd-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                      {r.activity && r.activity.length ? (
-                        r.activity.map((a, idx) => (
-                          <div key={idx} className="text-xs text-gray-700">
-                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                            {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-xs text-gray-500">No activity</div>
-                      )}
-                    </div>
-                  </div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-[var(--text)]">Commander</h3>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportCommander}>Export Commander</button>
             </div>
-            {inCommander.length === 0 && (
-              <div className="text-sm text-[var(--muted)]">No requests for Commander.</div>
-            )}
+            <div className="mt-4">
+              <RequestTable
+                  title="Pending"
+                  requests={inCommander.filter(r => r.currentStage !== 'ARCHIVED')}
+                  users={users}
+                  onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                  expandedRows={expandedCard}
+                  platoonSectionMap={platoonSectionMap}
+                >
+                  {(r: Request) => (
+                    <CommanderRequestDetails
+                      r={r}
+                      docsFor={docsFor}
+                      expandedDocs={expandedDocs}
+                      setExpandedDocs={setExpandedDocs}
+                      setOpenDocsId={setOpenDocsId}
+                      docsRef={docsRef}
+                      comments={comments}
+                      setComments={setComments}
+                      attach={attach}
+                      setAttach={setAttach}
+                      addFilesToRequest={addFilesToRequest}
+                      selectedCommandSection={selectedCommandSection}
+                      setSelectedCommandSection={setSelectedCommandSection}
+                      commandSections={commandSections}
+                      sendToCommandSection={sendToCommandSection}
+                      commanderDecision={commanderDecision}
+                      expandedLogs={expandedLogs}
+                      setExpandedLogs={setExpandedLogs}
+                    />
+                  )}
+                </RequestTable>
+            </div>
           </div>
 
-          {commandSections.map((name) => (
-            <div key={name}>
-              <div className="flex items-center justify-between mb-3"><h3 className="text-lg font-semibold text-[var(--text)]">{name}</h3><button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => exportSection(name)}>Export {name}</button></div>
-              <div className="flex flex-col gap-4">
-                {(byCommandSection[name] || []).map((r) => (
-                  <div key={r.id} className={`${isReturned(r) ? 'p-4 border border-brand-red-2 rounded-lg bg-brand-cream' : 'p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)]'} transition-all duration-300`}>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="font-medium text-[var(--text)]">{r.subject}</div>
-                        <div className="text-sm text-[var(--muted)]">Submitted {new Date(r.createdAt).toLocaleString()}</div>
-                        {originatorFor(r) && (
-                          <div className="text-xs text-[var(--muted)] mt-1">
-                            {originatorFor(r).rank} {originatorFor(r).lastName}{originatorFor(r).lastName ? ',' : ''} {originatorFor(r).firstName}{originatorFor(r).mi ? ` ${originatorFor(r).mi}` : ''}
-                            {((originatorFor(r).unit && originatorFor(r).unit !== 'N/A') || (originatorFor(r).company && originatorFor(r).company !== 'N/A') || (originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A')) && (
-                              <> • {[originatorFor(r).unit && originatorFor(r).unit !== 'N/A' ? originatorFor(r).unit : null, originatorFor(r).company && originatorFor(r).company !== 'N/A' ? originatorFor(r).company : null, originatorFor(r).platoon && originatorFor(r).platoon !== 'N/A' ? originatorFor(r).platoon : null].filter(Boolean).join(' • ')}</>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
-                        {isReturned(r) && (
-                          <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
-                        )}
-                        <button
-                          className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                          onClick={() => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                          aria-expanded={!!expandedCard[r.id]}
-                          aria-controls={`details-csec-${r.id}`}
-                        >
-                          {expandedCard[r.id] ? 'Hide Details' : 'Edit / Details'}
-                        </button>
-                      </div>
-                    </div>
-                    <div id={`details-csec-${r.id}`} className={expandedCard[r.id] ? '' : 'hidden'}>
-                    <div className="mt-3">
-                      <button
-                        className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                        aria-expanded={!!expandedDocs[r.id]}
-                        aria-controls={`docs-csec-${r.id}`}
-                        onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) } }}
-                      >
-                        <span>Show Documents</span>
-                        <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                      </button>
-                    </div>
-                    <div
-                      id={`docs-csec-${r.id}`}
-                      ref={expandedDocs[r.id] ? docsRef : undefined}
-                      className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
+          {Object.keys(byCommandSection).filter(name => (byCommandSection[name] || []).length > 0).map((name) => {
+            const pending = (byCommandSection[name] || []).filter(r => r.currentStage !== 'ARCHIVED');
+            const archived = (byCommandSection[name] || []).filter(r => r.currentStage === 'ARCHIVED');
+
+            return (
+              <div key={name}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-[var(--text)]">{name}</h3>
+                  <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(name)}>Export {name}</button>
+                </div>
+                {pending.length > 0 && (
+                  <div className="mt-4">
+                    <RequestTable
+                      title="Pending"
+                      requests={pending}
+                      users={users}
+                      onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      expandedRows={expandedCard}
+                      platoonSectionMap={platoonSectionMap}
                     >
-                      {docsFor(r.id).map(d => (
-                        <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                          <div className="text-sm text-[var(--muted)]">
-                            <div className="font-medium text-[var(--text)]">{d.name}</div>
-                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                      {(r: Request) => (
+                        <CommandSectionRequestDetails
+                          r={r}
+                          comments={comments}
+                          setComments={setComments}
+                          approveToCommander={approveToCommander}
+                          commandSectionReturn={commandSectionReturn}
+                        />
+                      )}
+                    </RequestTable>
+                  </div>
+                )}
+                {archived.length > 0 && (
+                  <div className="mt-4">
+                    <RequestTable
+                      title="Archived"
+                      requests={archived}
+                      users={users}
+                      onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      expandedRows={expandedCard}
+                      platoonSectionMap={platoonSectionMap}
+                    >
+                      {(r: Request) => (
+                        <div id={`details-csec-archived-${r.id}`} className="p-4 bg-gray-50 space-y-3">
+                          <div>
+                            <h4 className="font-medium text-gray-800">Final Status: {r.finalStatus || 'Archived'}</h4>
+                            <p className="text-sm text-gray-600">This request is archived and cannot be modified.</p>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {(d as any).fileUrl ? (
-                              <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                            ) : (
-                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                            )}
+
+                          <div>
+                            <button
+                              className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                              onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}
+                            >
+                              Show Documents
+                            </button>
+                            <div
+                              className={`${expandedDocs[r.id] ? 'mt-2 space-y-2' : 'hidden'}`}
+                            >
+                              {docsFor(r.id).map(d => (
+                                <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-white">
+                                  <div className="text-sm">
+                                    <div className="font-medium">{d.name}</div>
+                                    <div className="text-gray-500">{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                                  </div>
+                                  {(d as any).fileUrl && (
+                                    <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2">Open</a>
+                                  )}
+                                </div>
+                              ))}
+                              {docsFor(r.id).length === 0 && (
+                                <div className="text-sm text-gray-500">No documents</div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <button
+                              className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                              onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                            >
+                              {expandedLogs[r.id] ? 'Hide' : 'Show'} Full Activity Log
+                            </button>
+                            <div className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                              {r.activity && r.activity.length ? (
+                                r.activity.map((a, idx) => (
+                                  <div key={idx} className="text-xs text-gray-700">
+                                    <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                                    {a.comment && <div className="text-gray-600 pl-4 border-l-2 border-gray-300 ml-2">{a.comment}</div>}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-xs text-gray-500">No activity to display.</div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      ))}
-                      {docsFor(r.id).length === 0 && (
-                        <div className="text-sm text-[var(--muted)]">No documents</div>
                       )}
-                    </div>
-                    <div className="mt-3">
-                      <button
-                        className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                        aria-expanded={!!expandedLogs[r.id]}
-                        aria-controls={`logs-csec-${r.id}`}
-                      >
-                        {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                      </button>
-                      <div id={`logs-csec-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                        {r.activity && r.activity.length ? (
-                          r.activity.map((a, idx) => (
-                            <div key={idx} className="text-xs text-gray-700">
-                              <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                              {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-xs text-gray-500">No activity</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
-                      <textarea
-                        rows={2}
-                        value={comments[r.id] || ''}
-                        onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
-                        className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
-                        placeholder="Optional notes"
-                      />
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
-                        <input
-                          type="file"
-                          multiple
-                          onChange={(e) => setAttach(prev => ({ ...prev, [r.id]: e.target.files ? Array.from(e.target.files) : [] }))}
-                          className="hidden"
-                          accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                        />
-                        Add Files
-                      </label>
-                      <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
-                      <button
-                        className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
-                        onClick={() => addFilesToRequest(r)}
-                        disabled={!attach[r.id] || !(attach[r.id] || []).length}
-                      >
-                        Save Files
-                      </button>
-                    </div>
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <button
-                        className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => approveToCommander(r)}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), (r.currentStage === 'PLATOON_REVIEW' ? 'Returned to originator for revision' : 'Returned to previous stage'))}
-                      >
-                        Return
-                      </button>
-                    </div>
-                    </div>
-                    <div className="mt-3">
-                      <button
-                        className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                        aria-expanded={!!expandedLogs[r.id]}
-                        aria-controls={`logs-csec-${r.id}`}
-                      >
-                        {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                      </button>
-                      <div id={`logs-csec-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                        {r.activity && r.activity.length ? (
-                          r.activity.map((a, idx) => (
-                            <div key={idx} className="text-xs text-gray-700">
-                              <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                              {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-xs text-gray-500">No activity</div>
-                        )}
-                      </div>
-                    </div>
+                    </RequestTable>
                   </div>
-                ))}
+                )}
               </div>
-              {(byCommandSection[name] || []).length === 0 && (
-                <div className="text-sm text-[var(--muted)]">No requests for {name}.</div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

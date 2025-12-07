@@ -216,12 +216,27 @@ export const AdminPanel: React.FC = () => {
   const rolePlatoons = useMemo(() => {
     const key = editingUser?.unitUic || '';
     const companyKey = editingRoleCompany || '';
-    if (!key || !companyKey) return [];
-    const fromDb = rolePlatoonsDb
-    if (fromDb && fromDb.length) return fromDb
-    const val = unitStructure[key]?.[companyKey];
-    return Array.isArray(val) ? val : [];
-  }, [editingUser, editingRoleCompany, unitStructure, rolePlatoonsDb]);
+    if (!companyKey) return [];
+
+    // Try from database first
+    const fromDb = rolePlatoonsDb;
+    if (fromDb && fromDb.length > 0) return fromDb;
+
+    // Fallback to unitStructure with editingUser's unitUic
+    if (key) {
+      const val = unitStructure[key]?.[companyKey];
+      if (Array.isArray(val) && val.length > 0) return val;
+    }
+
+    // Final fallback: use selectedUnit's unitUic if available
+    const selectedKey = selectedUnit?.uic || '';
+    if (selectedKey && selectedKey !== key) {
+      const val = unitStructure[selectedKey]?.[companyKey];
+      if (Array.isArray(val)) return val;
+    }
+
+    return [];
+  }, [editingUser, editingRoleCompany, unitStructure, rolePlatoonsDb, selectedUnit]);
 
   const editCompaniesWithCurrent = useMemo(() => {
     const base = editCompanies.slice();
@@ -786,17 +801,6 @@ export const AdminPanel: React.FC = () => {
                   <td className="py-2 px-3">
                     <div className="flex gap-2">
                       <button className="px-2 py-1 text-xs bg-gray-100 rounded" onClick={() => setViewUser(u)}>View</button>
-                      {currentUser && currentUser.id === u.id && (
-                        <button
-                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
-                          onClick={() => {
-                            setEditMode('profile');
-                            setEditingUser(u);
-                          }}
-                        >
-                          Edit
-                        </button>
-                      )}
                       {(currentUser?.isUnitAdmin || currentUser?.role === 'COMMANDER') && (
                         <button className="px-2 py-1 text-xs bg-purple-700 text-white rounded" onClick={() => {
                           setEditMode('admin');
@@ -931,7 +935,7 @@ export const AdminPanel: React.FC = () => {
                       id="admin-platoon"
                       value={editingRolePlatoon || ''}
                       onChange={(e) => setEditingRolePlatoon(e.target.value || undefined)}
-                      disabled={!editingRole.includes('REVIEW') || !editingRoleCompany || rolePlatoonsWithCurrent.length === 0}
+                      disabled={!editingRole.includes('REVIEW') || !editingRoleCompany}
                       className="w-full px-3 py-2 border rounded disabled:bg-gray-50"
                     >
                       <option value="">{rolePlatoonsWithCurrent.length ? 'Select platoon' : 'No platoons configured'}</option>

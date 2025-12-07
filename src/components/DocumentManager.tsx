@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { Unit } from '../lib/units';
 import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers, DocumentRecord, RequestRecord } from '../lib/db';
 import { getSupabaseUrl } from '../lib/supabase';
+import { usePagination } from '@/hooks/usePagination';
+import { Pagination } from '@/components/Pagination';
+import RequestTable from './RequestTable';
+import { Request } from '../types';
 
 interface Document {
   id: string;
@@ -20,20 +24,6 @@ interface Document {
   currentStage?: string;
   requestId?: string;
   fileUrl?: string;
-}
-
-interface Request {
-  id: string;
-  subject: string;
-  dueDate?: string;
-  notes?: string;
-  unitUic: string;
-  uploadedById: string;
-  submitForUserId?: string;
-  documentIds: string[];
-  createdAt: string;
-  currentStage?: string;
-  activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>;
 }
 
 interface ActionEntry {
@@ -73,6 +63,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [docsExpanded, setDocsExpanded] = useState<boolean>(false);
   const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
   const [submitForUserId, setSubmitForUserId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Archived'>('Pending');
 
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -195,7 +186,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         ]
       };
       try {
-        await upsertRequest(requestPayload as unknown as RequestRecord);
+        const resReq = await upsertRequest(requestPayload as unknown as RequestRecord);
+        if (!resReq.ok) throw new Error(String((resReq as any)?.error?.message || (resReq as any)?.error || 'request_upsert_failed'));
         const resDocs = await upsertDocuments(docs as unknown as DocumentRecord[]);
         if (!resDocs.ok) throw new Error(String((resDocs as any)?.error?.message || (resDocs as any)?.error || 'document_upsert_failed'));
       } catch (e: any) {
@@ -253,8 +245,11 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       if (req) {
         const nextReq = { ...req, activity: Array.isArray(req.activity) ? [...req.activity, entry] : [entry] };
         try {
-          await upsertRequest(nextReq as unknown as RequestRecord);
-        } catch {}
+          const res = await upsertRequest(nextReq as unknown as RequestRecord);
+          if (!res.ok) throw new Error(String((res as any)?.error?.message || (res as any)?.error || 'request_upsert_failed'));
+        } catch (e) {
+          console.error('Failed to save document edits:', e);
+        }
         setRequestActivity((prev) => [...prev, entry]);
       }
     } catch {}
@@ -326,7 +321,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       </div>
       <div className="flex items-center space-x-2">
         {doc.currentStage && (
-          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{doc.currentStage}</span>
+          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(doc as any)}</span>
         )}
         {doc.fileUrl && (
           <a
@@ -349,6 +344,17 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       </div>
     </div>
   );
+
+  const formatStage = (r: Request) => {
+    const stage = r.currentStage || 'PLATOON_REVIEW'
+    if (stage === 'PLATOON_REVIEW') return 'Platoon'
+    if (stage === 'COMPANY_REVIEW') return 'Company'
+    if (stage === 'BATTALION_REVIEW') return r.routeSection || 'Battalion'
+    if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander'
+    if (stage === 'EXTERNAL_REVIEW') return (r as any).externalPendingUnitName || 'External'
+    if (stage === 'ARCHIVED') return 'Archived'
+    return stage
+  }
 
   const normalizeDocUrl = (url?: string): string | undefined => {
     if (!url) return undefined
@@ -458,7 +464,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       try {
         const resDocs = await upsertDocuments(newDocs as unknown as DocumentRecord[]);
         if (!resDocs.ok) throw new Error(String((resDocs as any)?.error?.message || (resDocs as any)?.error || 'document_upsert_failed'));
-        await upsertRequest(updatedRequest as unknown as RequestRecord);
+        const resReq = await upsertRequest(updatedRequest as unknown as RequestRecord);
+        if (!resReq.ok) throw new Error(String((resReq as any)?.error?.message || (resReq as any)?.error || 'request_upsert_failed'));
       } catch (e: any) {
         setFeedback({ type: 'error', message: `Failed to persist documents: ${String(e?.message || e)}` });
         return;
@@ -505,7 +512,20 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }).catch(() => setUsers([]));
   }, []);
 
-  
+  // Filter user's requests
+  const myRequests = useMemo(() => {
+    if (!currentUser?.id) return [];
+    const filtered = userRequests.filter(r => r.uploadedById === currentUser.id);
+    if (activeTab === 'Pending') {
+      return filtered.filter(r => r.currentStage !== 'ARCHIVED');
+    }
+    return filtered.filter(r => r.currentStage === 'ARCHIVED');
+  }, [userRequests, currentUser, activeTab]);
+
+  // Pagination for user requests
+  const requestsPagination = usePagination(myRequests, { pageSize: 10 });
+
+  const usersByIdMap = useMemo(() => users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {}), [users]);
 
   return (
     <div className="bg-[var(--surface)] rounded-lg shadow">
@@ -619,57 +639,59 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       <div className="p-6">
         {currentUser && (
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-[var(--text)] mb-3">Your Requests</h3>
-            <div className="space-y-3">
-              {userRequests.filter(r => r.uploadedById === currentUser.id).map((r) => (
-                <div key={r.id}>
-                  <div className={isReturnedReq(r) ? "flex items-center justify-between p-4 border border-brand-red-2 rounded-lg bg-brand-cream" : "flex items-center justify-between p-4 border border-brand-navy/20 rounded-lg hover:bg-brand-cream/50"}>
-                    <div>
-                      <div className="font-medium text-[var(--text)]">{r.subject}</div>
-                      <div className="text-sm text-[var(--muted)]">
-                        {new Date(r.createdAt).toLocaleDateString()} • {documents.filter(d => d.requestId === r.id && d.type !== 'request').length} document(s)
-                      </div>
-                      {r.dueDate && (
-                        <div className="text-xs text-[var(--muted)]">Due {new Date(r.dueDate).toLocaleDateString()}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {r.currentStage && (
-                        <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{r.currentStage}</span>
-                      )}
-                      {isReturnedReq(r) && (
-                        <span className="px-2 py-1 text-xs bg-brand-red-2 text-brand-cream rounded-full">Returned</span>
-                      )}
-                      <button
-                        className="px-3 py-1 text-xs bg-brand-navy text-brand-cream rounded hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
-                        onClick={() => setExpandedRequests(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                        aria-expanded={!!expandedRequests[r.id]}
-                        aria-controls={`req-docs-${r.id}`}
-                      >
-                        {expandedRequests[r.id] ? 'Hide' : 'Show'} Documents
-                      </button>
-                      <button
-                        className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
-                        onClick={() => setSelectedRequest(r)}
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                  <div id={`req-docs-${r.id}`} className={expandedRequests[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                    {documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
-                      <DocCard key={d.id} doc={d} />
-                    ))}
-                    {documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
-                      <div className="text-sm text-[var(--muted)]">No documents</div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {userRequests.filter(r => r.uploadedById === currentUser.id).length === 0 && (
-                <div className="text-sm text-[var(--muted)]">No requests submitted</div>
-              )}
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                <button
+                  onClick={() => setActiveTab('Pending')}
+                  className={`${activeTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Pending
+                </button>
+                <button
+                  onClick={() => setActiveTab('Archived')}
+                  className={`${activeTab === 'Archived' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Archived
+                </button>
+              </nav>
             </div>
+            <RequestTable
+              title="Your Requests"
+              requests={requestsPagination.currentData}
+              users={usersByIdMap}
+              onRowClick={(r) => setSelectedRequest(r)}
+              expandedRows={expandedRequests}
+            >
+              {(r: Request) => (
+                <div id={`req-docs-${r.id}`}>
+                  {documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
+                    <DocCard key={d.id} doc={d} />
+                  ))}
+                  {documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
+                    <div className="text-sm text-[var(--muted)]">No documents</div>
+                  )}
+                </div>
+              )}
+            </RequestTable>
+            {requestsPagination.totalItems > 0 && (
+              <Pagination
+                currentPage={requestsPagination.currentPage}
+                totalPages={requestsPagination.totalPages}
+                totalItems={requestsPagination.totalItems}
+                pageSize={requestsPagination.pageSize}
+                startIndex={requestsPagination.startIndex}
+                endIndex={requestsPagination.endIndex}
+                onPageChange={requestsPagination.goToPage}
+                onPageSizeChange={requestsPagination.setPageSize}
+                onNext={requestsPagination.nextPage}
+                onPrevious={requestsPagination.previousPage}
+                onFirst={requestsPagination.goToFirstPage}
+                onLast={requestsPagination.goToLastPage}
+                canGoNext={requestsPagination.canGoNext}
+                canGoPrevious={requestsPagination.canGoPrevious}
+                pageSizeOptions={[5, 10, 25, 50]}
+              />
+            )}
           </div>
         )}
         {isUploading && (

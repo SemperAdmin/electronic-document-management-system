@@ -30,6 +30,12 @@ export type RequestRecord = {
   createdAt: string
   currentStage?: string
   activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>
+  routeSection?: string
+  commanderApprovalDate?: string
+  externalPendingUnitName?: string
+  externalPendingUnitUic?: string
+  externalPendingStage?: string
+  installationId?: string;
 }
 
 export type UserRecord = {
@@ -45,6 +51,7 @@ export type UserRecord = {
   unit?: string
   company?: string
   isUnitAdmin?: boolean
+  isInstallationAdmin?: boolean
   isCommandStaff?: boolean
   isAppAdmin?: boolean
   edipi?: string | number
@@ -52,6 +59,7 @@ export type UserRecord = {
   platoon?: string
   roleCompany?: string
   rolePlatoon?: string
+  installationId?: string
 }
 
 function toDocRow(d: DocumentRecord) {
@@ -107,6 +115,12 @@ function toReqRow(r: RequestRecord) {
     created_at: r.createdAt ?? new Date().toISOString(),
     current_stage: r.currentStage ?? null,
     activity: r.activity ?? [],
+    route_section: r.routeSection ?? null,
+    commander_approval_date: r.commanderApprovalDate ?? null,
+    external_pending_unit_name: r.externalPendingUnitName ?? null,
+    external_pending_unit_uic: r.externalPendingUnitUic ?? null,
+    external_pending_stage: r.externalPendingStage ?? null,
+    installation_id: r.installationId ?? null,
   }
 }
 
@@ -123,6 +137,12 @@ function fromReqRow(r: any): RequestRecord {
     createdAt: String(r.created_at || new Date().toISOString()),
     currentStage: r.current_stage ? String(r.current_stage) : undefined,
     activity: Array.isArray(r.activity) ? r.activity : [],
+    routeSection: r.route_section ? String(r.route_section) : undefined,
+    commanderApprovalDate: r.commander_approval_date ? String(r.commander_approval_date) : undefined,
+    externalPendingUnitName: r.external_pending_unit_name ? String(r.external_pending_unit_name) : undefined,
+    externalPendingUnitUic: r.external_pending_unit_uic ? String(r.external_pending_unit_uic) : undefined,
+    externalPendingStage: r.external_pending_stage ? String(r.external_pending_stage) : undefined,
+    installationId: r.installation_id ? String(r.installation_id) : undefined,
   }
 }
 
@@ -140,6 +160,7 @@ function toUserRow(u: UserRecord) {
     unit: u.unit !== undefined ? u.unit : undefined,
     user_company: u.company !== undefined ? u.company : undefined,
     is_unit_admin: u.isUnitAdmin === undefined ? undefined : !!u.isUnitAdmin,
+    is_installation_admin: u.isInstallationAdmin === undefined ? undefined : !!u.isInstallationAdmin,
     is_command_staff: u.isCommandStaff === undefined ? undefined : !!u.isCommandStaff,
     is_app_admin: u.isAppAdmin === undefined ? undefined : !!u.isAppAdmin,
     edipi: u.edipi !== undefined && u.edipi != null ? String(u.edipi) : undefined,
@@ -147,10 +168,28 @@ function toUserRow(u: UserRecord) {
     user_platoon: u.platoon !== undefined ? u.platoon : undefined,
     role_company: u.roleCompany !== undefined ? u.roleCompany : undefined,
     role_platoon: u.rolePlatoon !== undefined ? u.rolePlatoon : undefined,
+    installation_id: u.installationId !== undefined ? u.installationId : undefined,
   }
 }
 
 function fromUserRow(r: any): UserRecord {
+  const dbRole = r.role ? String(r.role) : 'MEMBER';
+  let displayRole = dbRole;
+
+  const roleCompany = r.role_company ? String(r.role_company) : undefined;
+  const rolePlatoon = r.role_platoon ? String(r.role_platoon) : undefined;
+
+  // Determine the display role based on review scope.
+  if (rolePlatoon && rolePlatoon !== 'N/A') {
+    displayRole = 'PLATOON_REVIEWER';
+  } else if (roleCompany && roleCompany !== 'N/A') {
+    displayRole = 'COMPANY_REVIEWER';
+  }
+
+  // A user with a DB role of COMMANDER should always have command staff access,
+  // even if their display role is overridden to a reviewer role.
+  const hasCommandAccess = dbRole === 'COMMANDER' || !!r.is_command_staff;
+
   return {
     id: String(r.id),
     email: r.email ? String(r.email) : undefined,
@@ -159,18 +198,20 @@ function fromUserRow(r: any): UserRecord {
     lastName: r.last_name ? String(r.last_name) : undefined,
     mi: r.mi ? String(r.mi) : undefined,
     service: r.service ? String(r.service) : undefined,
-    role: r.role ? String(r.role) : undefined,
+    role: displayRole,
     unitUic: r.unit_uic ? String(r.unit_uic) : undefined,
     unit: r.unit ? String(r.unit) : undefined,
     company: (r.company ? String(r.company) : (r.user_company ? String(r.user_company) : undefined)),
     isUnitAdmin: !!r.is_unit_admin,
-    isCommandStaff: !!r.is_command_staff,
+    isInstallationAdmin: !!r.is_installation_admin,
+    isCommandStaff: hasCommandAccess,
     isAppAdmin: !!r.is_app_admin,
     edipi: r.edipi ? String(r.edipi) : undefined,
     passwordHash: r.password_hash ? String(r.password_hash) : undefined,
     platoon: r.user_platoon ? String(r.user_platoon) : undefined,
-    roleCompany: r.role_company ? String(r.role_company) : undefined,
-    rolePlatoon: r.role_platoon ? String(r.role_platoon) : undefined,
+    roleCompany: roleCompany,
+    rolePlatoon: rolePlatoon,
+    installationId: r.installation_id ? String(r.installation_id) : undefined,
   }
 }
 
@@ -207,12 +248,16 @@ export async function listRequests(): Promise<RequestRecord[]> {
   } catch { return [] }
 }
 
-export async function upsertRequest(r: RequestRecord): Promise<void> {
+export async function upsertRequest(r: RequestRecord): Promise<{ ok: boolean; error?: any }> {
   try {
     const sb = getSupabase()
-    if (!sb?.from) return
-    await sb.from('edms_requests').upsert(toReqRow(r))
-  } catch {}
+    if (!sb?.from) return { ok: false, error: 'supabase_not_initialized' }
+    const { error } = await sb.from('edms_requests').upsert(toReqRow(r))
+    if (error) return { ok: false, error }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e }
+  }
 }
 
 export async function listUsers(): Promise<UserRecord[]> {
@@ -250,29 +295,46 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
   }
 }
 
-export async function getUserByEmail(email: string): Promise<UserRecord | null> {
+export async function getUserByEmail(email: string): Promise<{ user: UserRecord | null; error: string | null }> {
   try {
     const sb = getSupabase()
-    if (!sb?.from) return null
-    const { data, error } = await sb.from('edms_users').select('*').eq('email', email).limit(1)
-    if (error) return null
-    const row = (data ?? [])[0]
-    return row ? fromUserRow(row) : null
-  } catch {
-    return null
+    if (!sb?.from) {
+      const error = 'Supabase client not initialized';
+      console.error('[DB] getUserByEmail failed:', { email, error });
+      return { user: null, error };
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data, error } = await sb.from('edms_users').select('*').eq('email', normalizedEmail).limit(1);
+    if (error) {
+      console.error('[DB] getUserByEmail query failed:', { email, error: error.message });
+      return { user: null, error: error.message };
+    }
+    const row = (data ?? [])[0];
+    return { user: row ? fromUserRow(row) : null, error: null };
+  } catch (e: any) {
+    console.error('[DB] getUserByEmail exception:', { email, error: e });
+    return { user: null, error: e.message };
   }
 }
 
-export async function getUserByEdipi(edipi: string): Promise<UserRecord | null> {
+export async function getUserByEdipi(edipi: string): Promise<{ user: UserRecord | null; error: string | null }> {
   try {
     const sb = getSupabase()
-    if (!sb?.from) return null
-    const { data, error } = await sb.from('edms_users').select('*').eq('edipi', edipi).limit(1)
-    if (error) return null
-    const row = (data ?? [])[0]
-    return row ? fromUserRow(row) : null
-  } catch {
-    return null
+    if (!sb?.from) {
+      const error = 'Supabase client not initialized';
+      console.error('[DB] getUserByEdipi failed:', { edipi, error });
+      return { user: null, error };
+    }
+    const { data, error } = await sb.from('edms_users').select('*').eq('edipi', edipi).limit(1);
+    if (error) {
+      console.error('[DB] getUserByEdipi query failed:', { edipi, error: error.message });
+      return { user: null, error: error.message };
+    }
+    const row = (data ?? [])[0];
+    return { user: row ? fromUserRow(row) : null, error: null };
+  } catch (e: any) {
+    console.error('[DB] getUserByEdipi exception:', { edipi, error: e });
+    return { user: null, error: e.message };
   }
 }
 
@@ -299,6 +361,30 @@ export async function listCompaniesForUnit(unitUic: string): Promise<string[]> {
   }
 }
 
+export async function listInstallations(): Promise<any[]> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb.from('edms_installations').select('*')
+    if (error) return []
+    return data ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function upsertInstallation(installation: any): Promise<{ ok: boolean; error?: any }> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return { ok: false, error: 'supabase_not_initialized' }
+    const { error } = await sb.from('edms_installations').upsert(installation)
+    if (error) return { ok: false, error }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e }
+  }
+}
+
 export async function listPlatoonsForCompany(unitUic: string, company: string): Promise<string[]> {
   try {
     const uic = String(unitUic || '')
@@ -308,16 +394,20 @@ export async function listPlatoonsForCompany(unitUic: string, company: string): 
     if (!sb?.from) return []
     const { data, error } = await sb
       .from('edms_users')
-      .select('user_platoon, unit_uic, company, user_company')
+      .select('user_platoon, role_platoon, unit_uic, company, user_company, role_company')
       .eq('unit_uic', uic)
-      .or(`company.eq.${comp},user_company.eq.${comp}`)
-      .neq('user_platoon', 'N/A')
+      .or(`company.eq.${comp},user_company.eq.${comp},role_company.eq.${comp}`)
     if (error) return []
     const rows: any[] = Array.isArray(data) ? (data as any[]) : []
-    const vals: string[] = rows
-      .map((r: any) => String(r.user_platoon || '').trim())
-      .filter((v: string) => !!v)
-    const uniq: string[] = Array.from(new Set<string>(vals))
+    const vals: string[] = []
+    // Collect both user_platoon and role_platoon values
+    rows.forEach((r: any) => {
+      const userPlatoon = String(r.user_platoon || '').trim()
+      const rolePlatoon = String(r.role_platoon || '').trim()
+      if (userPlatoon && userPlatoon !== 'N/A') vals.push(userPlatoon)
+      if (rolePlatoon && rolePlatoon !== 'N/A') vals.push(rolePlatoon)
+    })
+    const uniq: string[] = Array.from(new Set<string>(vals.filter(v => !!v)))
     return uniq.sort((a: string, b: string) => a.localeCompare(b))
   } catch {
     return []

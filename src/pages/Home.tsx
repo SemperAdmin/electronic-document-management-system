@@ -10,54 +10,93 @@ import { ProfileForm } from '../components/ProfileForm';
 import { AdminPanel } from '../components/AdminPanel';
 import AppAdmin from './AppAdmin';
 import { Login } from '../components/Login';
-import { MobileLogin } from '../components/MobileLogin';
-import { MobileLayoutProvider, useMobileLayout } from '../components/MobileLayout';
-import { MobileDashboard } from '../components/MobileDashboard';
-import { MobileDocumentList } from '../components/MobileDocumentList';
-import { MobileDocumentViewer } from '../components/MobileDocumentViewer';
-import { MobileUpload } from '../components/MobileUpload';
-import { MobileBottomNav, MobileFloatingActionButton } from '../components/MobileBottomNav';
-import { AccessibilityProvider, MobileAccessibilityButton } from '../components/MobileAccessibility';
-import { OfflineProvider } from '../components/MobileOffline';
- 
-import logoImg from '../assets/images/logo.png';
+import { loadUnitStructureFromBundle } from '../lib/unitStructure';
 import { Header } from '../components/Header';
 
 function HomeContent() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'review' | 'section' | 'command' | 'documents' | 'document-viewer' | 'upload'>('login');
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const savedUser = localStorage.getItem('currentUser');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [profileMode, setProfileMode] = useState<'create' | 'edit'>('create');
   const [dashOpen, setDashOpen] = useState(false);
   const [hasSectionDashboard, setHasSectionDashboard] = useState(false);
   const [hasCommandDashboard, setHasCommandDashboard] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<any>(null);
-  const [mobileActiveTab, setMobileActiveTab] = useState('dashboard');
   const navigate = useNavigate();
-  const { isMobile } = useMobileLayout();
 
-  
-
+  // Load view from URL params or localStorage
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const v = params.get('view');
-      if (v === 'admin' || v === 'profile' || v === 'dashboard' || v === 'login' || v === 'appadmin' || v === 'review' || v === 'section' || v === 'command' || v === 'documents' || v === 'document-viewer' || v === 'upload') {
-        setView(v as any);
+      const urlView = params.get('view');
+      if (urlView === 'admin' || urlView === 'profile' || urlView === 'dashboard' || urlView === 'login' || urlView === 'appadmin' || urlView === 'review' || urlView === 'section' || urlView === 'command' || urlView === 'documents' || urlView === 'document-viewer' || urlView === 'upload') {
+        setView(urlView as any);
       } else {
-        setView('login');
+        const savedView = localStorage.getItem('currentView');
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedView && savedUser) {
+          setView(savedView as any);
+        } else {
+          setView('login');
+        }
       }
     } catch {
       setView('login');
     }
   }, []);
 
-  useEffect(() => {}, [])
+  // Save user to localStorage when it changes
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('currentView');
+    }
+  }, [currentUser]);
+
+  // Save view to localStorage when it changes (except login)
+  useEffect(() => {
+    if (view !== 'login' && currentUser) {
+      localStorage.setItem('currentView', view);
+    }
+  }, [view, currentUser]);
 
   useEffect(() => {
-    setHasSectionDashboard(false);
-    const isCmd = String(currentUser?.role || '') === 'COMMANDER' || !!currentUser?.isCommandStaff;
-    setHasCommandDashboard(isCmd);
+    (async () => {
+      try {
+        const raw = localStorage.getItem('unit_structure');
+        if (raw) return;
+        const us = await loadUnitStructureFromBundle();
+        localStorage.setItem('unit_structure', JSON.stringify(us));
+      } catch (error) {
+        console.error("Failed to load unit structure:", error);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const rawUS = localStorage.getItem('unit_structure')
+      if (!currentUser || !rawUS) { setHasSectionDashboard(false); return }
+      const us = JSON.parse(rawUS)
+      const uic = currentUser?.unitUic || ''
+      const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+      const p = (currentUser?.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
+      const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || ''
+      setHasSectionDashboard(!!linked)
+    } catch (e) {
+      console.error('Failed to parse unit structure for section dashboard check', e)
+      setHasSectionDashboard(false)
+    }
+    const isCmd = currentUser?.isCommandStaff;
+    setHasCommandDashboard(!!isCmd);
   }, [currentUser]);
 
   return (
@@ -66,140 +105,46 @@ function HomeContent() {
         currentUser={currentUser}
         hasSectionDashboard={hasSectionDashboard}
         hasCommandDashboard={hasCommandDashboard}
-        onManageProfile={() => { setProfileMode('edit'); setView('profile') }}
+        onManageProfile={() => { setProfileMode('edit'); setView('profile'); navigate('/?view=profile') }}
         onLogout={() => { setCurrentUser(null); setView('login'); navigate('/?view=login') }}
-        onNavigate={(v) => setView(v as any)}
+        onNavigate={(v) => { setView(v as any); navigate(`/?view=${v}`) }}
         isLogin={view === 'login'}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
         {view === 'profile' ? (
-          <ProfileForm 
+          <ProfileForm
             mode={profileMode}
             initial={profileMode === 'edit' ? (currentUser || {}) : {}}
-            onSaved={(user) => { setCurrentUser(user); setView('dashboard'); }} 
+            onSaved={(user) => { setCurrentUser(user); setView('dashboard'); navigate('/?view=dashboard'); }}
           />
         ) : view === 'admin' ? (
           <AdminPanel />
         ) : view === 'appadmin' ? (
           <AppAdmin />
         ) : view === 'login' ? (
-          isMobile ? (
-            <MobileLogin 
-              onLoggedIn={(user) => { setCurrentUser(user); setView('dashboard'); }} 
-              onCreateAccount={() => { setProfileMode('create'); setView('profile'); }} 
-            />
-          ) : (
-            <Login 
-              onLoggedIn={(user) => { setCurrentUser(user); setView('dashboard'); }} 
-              onCreateAccount={() => { setProfileMode('create'); setView('profile'); }} 
-            />
-          )
+          <Login
+            onLoggedIn={(user) => { setCurrentUser(user); setView('dashboard'); navigate('/?view=dashboard'); }}
+            onCreateAccount={() => { setProfileMode('create'); setView('profile'); navigate('/?view=profile'); }}
+          />
         ) : view === 'review' ? (
           <ReviewDashboard />
         ) : view === 'section' ? (
           <SectionDashboard />
         ) : view === 'command' ? (
           <CommandDashboard />
-        ) : isMobile ? (
-          view === 'documents' ? (
-            <MobileDocumentList
-              documents={[]}
-              onDocumentSelect={(doc) => {
-                setSelectedDocument(doc);
-                setView('document-viewer');
-              }}
-              onDocumentAction={(action, doc) => {
-                if (action === 'download') {
-                  /* no-op in demo */
-                }
-              }}
-            />
-          ) : view === 'document-viewer' ? (
-            <MobileDocumentViewer
-              document={selectedDocument}
-              onClose={() => setView('documents')}
-            />
-          ) : view === 'upload' ? (
-            <MobileUpload
-              onUploadComplete={() => setView('documents')}
-              onCancel={() => setView('documents')}
-            />
-          ) : (
-            <MobileDashboard 
-              currentUser={currentUser}
-              onLogout={() => {
-                setCurrentUser(null)
-                setDashOpen(false)
-                setView('login')
-                navigate('/?view=login')
-              }}
-              onNavigate={(view) => setView(view as any)}
-            />
-          )
         ) : (
           <DocumentManager selectedUnit={selectedUnit} currentUser={currentUser} />
         )}
       </main>
-      
-      {/* Mobile Components */}
-      {isMobile && currentUser && (
-        <>
-          <MobileBottomNav
-            activeTab={mobileActiveTab}
-            onTabChange={(tab) => {
-              setMobileActiveTab(tab);
-              switch (tab) {
-                case 'dashboard':
-                  setView('dashboard');
-                  break;
-                case 'documents':
-                  setView('documents');
-                  break;
-                case 'upload':
-                  setView('upload');
-                  break;
-                case 'search':
-                  // TODO: Implement search view
-                  break;
-                case 'settings':
-                  setView('profile');
-                  break;
-              }
-            }}
-            contextualActions={{
-              showPlus: view === 'documents',
-              showFilter: view === 'documents',
-              showSort: view === 'documents',
-              onPlusClick: () => setView('upload'),
-              onFilterClick: () => {
-                // TODO: Implement filter functionality
-                console.log('Filter clicked');
-              },
-              onSortClick: () => {
-                // TODO: Implement sort functionality
-                console.log('Sort clicked');
-              }
-            }}
-            documentCount={0}
-          />
-          <MobileAccessibilityButton />
-        </>
-      )}
     </div>
   );
 }
 
 export default function Home() {
   return (
-    <MobileLayoutProvider>
-      <AccessibilityProvider>
-        <OfflineProvider>
-          <HomeContent />
-        </OfflineProvider>
-      </AccessibilityProvider>
-    </MobileLayoutProvider>
+    <HomeContent />
   );
 }
   

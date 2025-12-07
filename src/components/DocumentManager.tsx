@@ -651,7 +651,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
             <RequestTable
               title="Your Requests"
               requests={requestsPagination.currentData}
-              users={users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {})}
+              users={useMemo(() => users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {}), [users])}
               onRowClick={(r) => setSelectedRequest(r)}
               expandedRows={expandedRequests}
             >

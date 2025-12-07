@@ -341,9 +341,11 @@ export default function SectionDashboard() {
     try {
       await upsertDocuments(newDocs as any)
       await upsertRequest(updated as any)
-    } catch {}
-    setDocuments(prev => [...prev, ...newDocs])
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setDocuments(prev => [...prev, ...newDocs])
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+    } catch (error) {
+      console.error('Failed to add files to request:', error)
+    }
     setAttach(prev => ({ ...prev, [r.id]: [] }))
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
@@ -361,10 +363,12 @@ export default function SectionDashboard() {
     }
     console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })
     try {
-      await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to approve request:', error);
+    }
     setSelectedCmdSection(prev => ({ ...prev, [r.id]: '' }))
   }
 
@@ -377,10 +381,32 @@ export default function SectionDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
     try {
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to reject request:', error);
+    }
+  }
+
+  const endorseRequest = async (r: Request) => {
+    const uic = endorseUnitSel[r.id]
+    if (!uic) return
+    const unit = UNITS.find(u => u.uic === uic)
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
+    const entry = { actor, timestamp: new Date().toISOString(), action: `Endorsed to ${unit?.unitName || uic}`, comment: (comments[r.id] || '').trim() }
+    const updated: Request = {
+      ...r,
+      currentStage: 'EXTERNAL_REVIEW',
+      externalPendingUnitUic: uic,
+      externalPendingUnitName: unit?.unitName || uic,
+      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+    }
+    try {
       await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to endorse request:', error);
+    }
   }
 
   const handleExternalUnitChange = (requestId: string, selectedUnit: Unit | undefined) => {
@@ -499,9 +525,11 @@ export default function SectionDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: `Battalion assigned external request to section ${dest}` }] : [{ actor, timestamp: new Date().toISOString(), action: `Battalion assigned external request to section ${dest}` }]
     }
     try {
-      await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+    } catch (error) {
+      console.error('Failed to assign external request to section:', error);
+    }
   }
 
   return (

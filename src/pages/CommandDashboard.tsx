@@ -344,9 +344,11 @@ export default function CommandDashboard() {
     }
     try {
       await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to update request:', error)
+    }
   }
 
   const approveToCommander = async (r: Request) => {
@@ -360,9 +362,11 @@ export default function CommandDashboard() {
     }
     try {
       await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to approve request to commander:', error)
+    }
   }
 
   const sendToCommandSection = async (r: Request) => {
@@ -388,22 +392,14 @@ export default function CommandDashboard() {
     })
 
     try {
-      await upsertRequest(updated as any)
-      console.log('CommandDashboard - sendToCommandSection AFTER SAVE SUCCESS')
-
-      // Verify the request was saved correctly
-      const savedRequest = await listRequests().then(reqs => reqs.find((req: any) => req.id === r.id))
-      console.log('CommandDashboard - VERIFICATION after save:', {
-        requestId: r.id,
-        savedRouteSec: (savedRequest as any)?.routeSection,
-        savedStage: (savedRequest as any)?.currentStage
-      })
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+      setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
-      console.error('CommandDashboard - sendToCommandSection SAVE FAILED:', error)
+      console.error('Failed to send to command section:', error);
+      // TODO: Add user-facing error notification
     }
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
-    setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
   }
 
   const commanderDecision = async (r: Request, type: 'Approved' | 'Endorsed' | 'Rejected') => {
@@ -424,11 +420,13 @@ export default function CommandDashboard() {
     console.log('CommandDashboard - commander decision:', { type, stage: updated.currentStage, routeSec: updated.routeSection, actionText })
 
     try {
-      await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
-    setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+      setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to make commander decision:', error);
+    }
   }
 
   const commandSectionReturn = async (r: Request) => {
@@ -446,10 +444,12 @@ export default function CommandDashboard() {
     console.log('CommandDashboard - command section return:', { stage: updated.currentStage, routeSec: updated.routeSection, actionText })
 
     try {
-      await upsertRequest(updated as any)
-    } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [r.id]: '' }));
+    } catch (error) {
+      console.error('Failed to return from command section:', error);
+    }
   }
 
   const addFilesToRequest = async (r: Request) => {
@@ -479,11 +479,13 @@ export default function CommandDashboard() {
     try {
       await upsertDocuments(newDocs as any)
       await upsertRequest(updated as any)
-    } catch {}
-    setDocuments(prev => [...prev, ...newDocs])
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setAttach(prev => ({ ...prev, [r.id]: [] }))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+      setDocuments(prev => [...prev, ...newDocs])
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setAttach(prev => ({ ...prev, [r.id]: [] }))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to add files to request:', error);
+    }
   }
 
   return (
@@ -590,26 +592,32 @@ export default function CommandDashboard() {
                           <option value="NONE">None - Make final decision below</option>
                           {commandSections.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
-                        {selectedCommandSection[r.id] && selectedCommandSection[r.id] !== 'NONE' ? (
-                          <p className="text-xs text-[var(--muted)] mt-1">
-                            Click "Send to {selectedCommandSection[r.id]}" to route for their review
-                          </p>
-                        ) : (
-                          <p className="text-xs text-[var(--muted)] mt-1">
-                            Select a command section to get their input first, or make your final decision below
-                          </p>
-                        )}
+                        {(() => {
+                          const isCommandSectionSelected = selectedCommandSection[r.id] && selectedCommandSection[r.id] !== 'NONE';
+                          return isCommandSectionSelected ? (
+                            <p className="text-xs text-[var(--muted)] mt-1">
+                              Click "Send to {selectedCommandSection[r.id]}" to route for their review
+                            </p>
+                          ) : (
+                            <p className="text-xs text-[var(--muted)] mt-1">
+                              Select a command section to get their input first, or make your final decision below
+                            </p>
+                          );
+                        })()}
                       </div>
-                      {selectedCommandSection[r.id] && selectedCommandSection[r.id] !== 'NONE' && (
-                        <div className="mt-3 flex items-center justify-end">
-                          <button
-                            className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => sendToCommandSection(r)}
-                          >
-                            Send to {selectedCommandSection[r.id]}
-                          </button>
-                        </div>
-                      )}
+                      {(() => {
+                        const isCommandSectionSelected = selectedCommandSection[r.id] && selectedCommandSection[r.id] !== 'NONE';
+                        return isCommandSectionSelected && (
+                          <div className="mt-3 flex items-center justify-end">
+                            <button
+                              className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                              onClick={() => sendToCommandSection(r)}
+                            >
+                              Send to {selectedCommandSection[r.id]}
+                            </button>
+                          </div>
+                        );
+                      })()}
                       <div className="mt-3">
                         <label className="block text-sm font-medium text-[var(--text)] mb-2">Final Decision</label>
                         <div className="flex items-center justify-end gap-2">
@@ -738,50 +746,6 @@ export default function CommandDashboard() {
                                 <div className="text-xs text-gray-500">No activity</div>
                               )}
                             </div>
-                          </div>
-                          <div className="mt-3">
-                            <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
-                            <textarea
-                              rows={2}
-                              value={comments[r.id] || ''}
-                              onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))}
-                              className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
-                              placeholder="Optional notes"
-                            />
-                          </div>
-                          <div className="mt-3 flex items-center gap-2">
-                            <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
-                              <input
-                                type="file"
-                                multiple
-                                onChange={(e) => setAttach(prev => ({ ...prev, [r.id]: e.target.files ? Array.from(e.target.files) : [] }))}
-                                className="hidden"
-                                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                              />
-                              Add Files
-                            </label>
-                            <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
-                            <button
-                              className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
-                              onClick={() => addFilesToRequest(r)}
-                              disabled={!attach[r.id] || !(attach[r.id] || []).length}
-                            >
-                              Save Files
-                            </button>
-                          </div>
-                          <div className="mt-3 flex items-center justify-end gap-2">
-                            <button
-                              className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                              onClick={() => approveToCommander(r)}
-                            >
-                              Approve
-                            </button>
-                            <button
-                              className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                              onClick={() => commandSectionReturn(r)}
-                            >
-                              Return
-                            </button>
                           </div>
                         </div>
                       )}

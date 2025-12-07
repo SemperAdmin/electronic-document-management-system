@@ -330,7 +330,9 @@ export default function SectionDashboard() {
     }
     try {
       await upsertRequest(updated as any)
-    } catch {}
+    } catch (error) {
+      console.error('Failed to endorse request:', error);
+    }
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
     setEndorseUnitSel(prev => ({ ...prev, [r.id]: '' }))

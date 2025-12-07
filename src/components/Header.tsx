@@ -53,7 +53,11 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                     <div className="font-medium text-brand-cream">
                       {currentUser.rank} {currentUser.lastName}{currentUser.lastName ? ',' : ''} {currentUser.firstName}{currentUser.mi ? ` ${currentUser.mi}` : ''}
                     </div>
-                    <div className="text-xs text-white/80">{currentUser.service} • {currentUser.role}</div>
+                    <div className="text-xs text-white/80">
+                      {currentUser.service} • {currentUser.role}
+                      {currentUser.role === 'PLATOON_REVIEWER' && currentUser.role_platoon && ` - ${currentUser.role_platoon}`}
+                      {currentUser.role === 'COMPANY_REVIEWER' && currentUser.role_company && ` - ${currentUser.role_company}`}
+                    </div>
                     {(() => {
                       const unitName = (UNITS.find(x => x.uic === (currentUser?.unitUic || ''))?.unitName) || (currentUser?.unit || '')
                       const company = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ((currentUser as any)?.user_company && (currentUser as any).user_company !== 'N/A' ? (currentUser as any).user_company : null)

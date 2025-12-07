@@ -172,7 +172,7 @@ export default function SectionDashboard() {
       const section = battalionSectionFor(r)
       return (!!section) && (cuic ? effectiveUic === cuic : true)
     })
-  }, [requests, currentUser])
+  }, [requests, currentUser, battalionSectionFor])
 
   const visibleRequests = useMemo(() => {
     const norm = (n: string) => String(n || '').trim().replace(/^S(\d)\b/, 'S-$1')
@@ -181,7 +181,7 @@ export default function SectionDashboard() {
       const sel = norm(selectedBattalionSection)
       return selectedBattalionSection ? sec === sel : true
     })
-  }, [sectionRouted, selectedBattalionSection])
+  }, [sectionRouted, selectedBattalionSection, battalionSectionFor])
 
   const pendingInSection = useMemo(() => {
     return visibleRequests.filter(r => (r.currentStage || '') === 'BATTALION_REVIEW')

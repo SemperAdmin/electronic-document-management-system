@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { UNITS, Unit } from '../lib/units'
-import { upsertUser, listUsers, listRequests, listInstallations } from '../lib/db'
+import { upsertUser, listUsers, listRequests, listInstallations, listHQMCDivisions } from '../lib/db'
 import { Installation, UserRecord } from '../types'
 import { Pagination } from '@/components/Pagination'
 
@@ -10,9 +10,11 @@ export default function AppAdmin() {
   const [assignMap, setAssignMap] = useState<Record<string, string>>({})
   const [assignInstallationMap, setAssignInstallationMap] = useState<Record<string, string>>({})
   const [requests, setRequests] = useState<Array<{ id: string; subject: string; unitUic?: string; currentStage?: string; uploadedById: string; createdAt: string }>>([])
-  const [adminView, setAdminView] = useState<'assigned' | 'missing' | 'installation'>('assigned')
+  const [adminView, setAdminView] = useState<'assigned' | 'missing' | 'installation' | 'hqmc'>('assigned')
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [selectedInstallation, setSelectedInstallation] = useState<string>('');
+  const [hqmcDivisions, setHqmcDivisions] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [selectedHqmcDivision, setSelectedHqmcDivision] = useState<string>('')
 
   const refreshUsers = () => {
     listUsers().then((us) => setUsers(us as any)).catch(() => setUsers([]))
@@ -27,6 +29,7 @@ export default function AppAdmin() {
   useEffect(() => {
     refreshAll()
     listInstallations().then(data => setInstallations(data as Installation[]));
+    listHQMCDivisions().then(data => setHqmcDivisions(data));
   }, [adminView])
 
   const unitAdmins = useMemo(() => {
@@ -103,6 +106,7 @@ export default function AppAdmin() {
   }
 
   const unitsWithAdmin = useMemo(() => UNITS.filter(u => !!unitAdmins[u.uic]), [unitAdmins])
+  const hqmcAdmins = useMemo(() => users.filter(u => !!u.isHqmcAdmin), [users])
   const unitsWithoutAdmin = useMemo(() => UNITS.filter(u => !unitAdmins[u.uic]), [unitAdmins])
 
   const pendingApprovals = useMemo(() => {
@@ -151,6 +155,10 @@ export default function AppAdmin() {
           className={`px-4 py-2 rounded ${adminView === 'installation' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           onClick={() => setAdminView('installation')}
         >Installation Admin</button>
+        <button
+          className={`px-4 py-2 rounded ${adminView === 'hqmc' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          onClick={() => setAdminView('hqmc')}
+        >HQMC Admin</button>
       </div>
 
       {adminView === 'installation' && (
@@ -330,6 +338,130 @@ export default function AppAdmin() {
       )}
 
       
+
+      {adminView === 'hqmc' && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Assign HQMC Admin</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="py-2 px-3">Assign</th>
+                    <th className="py-2 px-3">Division</th>
+                    <th className="py-2 px-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="py-2 px-3">
+                      <select
+                        value={assignInstallationMap['hqmc'] || ''}
+                        onChange={(e) => setAssignInstallationMap({ ...assignInstallationMap, hqmc: e.target.value })}
+                        className="px-2 py-1 border rounded"
+                      >
+                        <option value="">Select user</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{`${u.rank} ${u.lastName}, ${u.firstName}${u.mi ? ` ${u.mi}` : ''}`}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-2 px-3">
+                      <select
+                        value={selectedHqmcDivision}
+                        onChange={(e) => setSelectedHqmcDivision(e.target.value)}
+                        className="px-2 py-1 border rounded"
+                      >
+                        <option value="">Select division</option>
+                        {hqmcDivisions.map(d => (
+                          <option key={d.code} value={d.code}>{d.code} — {d.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-2 px-3">
+                      <button
+                        className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                        disabled={!assignInstallationMap['hqmc'] || !selectedHqmcDivision}
+                        onClick={async () => {
+                          const selectedId = assignInstallationMap['hqmc']
+                          const user = users.find(x => x.id === selectedId)
+                          if (!user) return
+                          const updated: UserRecord = { ...user, isHqmcAdmin: true, hqmcDivision: selectedHqmcDivision }
+                          try {
+                            const res = await upsertUser({
+                              id: updated.id,
+                              email: updated.email,
+                              rank: updated.rank,
+                              firstName: updated.firstName,
+                              lastName: updated.lastName,
+                              mi: updated.mi,
+                              service: updated.service,
+                              role: updated.role,
+                              unitUic: updated.unitUic,
+                              unit: updated.unit,
+                              company: updated.company,
+                              isUnitAdmin: !!updated.isUnitAdmin,
+                              isInstallationAdmin: !!updated.isInstallationAdmin,
+                              isCommandStaff: !!updated.isCommandStaff,
+                              isHqmcAdmin: !!updated.isHqmcAdmin,
+                              hqmcDivision: updated.hqmcDivision,
+                              edipi: updated.edipi,
+                            })
+                            if (!res.ok) { setFeedback({ type: 'error', message: 'Failed to assign HQMC admin (DB error).' }); return }
+                          } catch {}
+                          setUsers(prev => prev.map(u => (u.id === updated.id ? updated : u)))
+                          setFeedback({ type: 'success', message: `Assigned ${updated.rank} ${updated.lastName} as HQMC admin.` })
+                        }}
+                      >Assign</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h4 className="text-md font-semibold text-gray-900 mb-2">Current HQMC Admins</h4>
+              <ul className="space-y-2">
+                {hqmcAdmins.map(a => (
+                  <li key={a.id} className="flex items-center justify-between p-2 border rounded">
+                    <span>{`${a.rank} ${a.lastName}, ${a.firstName}${a.mi ? ` ${a.mi}` : ''}`}{a.hqmcDivision ? ` • ${a.hqmcDivision}` : ''}</span>
+                    <button
+                      className="px-2 py-1 text-xs bg-red-600 text-white rounded"
+                      onClick={async () => {
+                        const updated = { ...a, isHqmcAdmin: false }
+                        try {
+                          const res = await upsertUser({
+                            id: updated.id,
+                            email: updated.email,
+                            rank: updated.rank,
+                            firstName: updated.firstName,
+                            lastName: updated.lastName,
+                            mi: updated.mi,
+                            service: updated.service,
+                            role: updated.role,
+                            unitUic: updated.unitUic,
+                            unit: updated.unit,
+                            company: updated.company,
+                            isUnitAdmin: !!updated.isUnitAdmin,
+                            isInstallationAdmin: !!updated.isInstallationAdmin,
+                            isCommandStaff: !!updated.isCommandStaff,
+                            isHqmcAdmin: !!updated.isHqmcAdmin,
+                            hqmcDivision: updated.hqmcDivision,
+                            edipi: updated.edipi,
+                          })
+                          if (!res.ok) { setFeedback({ type: 'error', message: 'Failed to remove HQMC admin (DB error).' }); return }
+                        } catch {}
+                        setUsers(prev => prev.map(u => (u.id === updated.id ? updated as UserRecord : u)))
+                        setFeedback({ type: 'success', message: `Removed HQMC admin: ${updated.rank} ${updated.lastName}.` })
+                      }}
+                    >Remove</button>
+                  </li>
+                ))}
+                {hqmcAdmins.length === 0 && (<li className="text-sm text-gray-500">No HQMC admins assigned.</li>)}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {feedback && (
         <div className={`mt-4 p-3 rounded-lg border ${feedback.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>{feedback.message}</div>

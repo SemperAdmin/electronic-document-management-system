@@ -50,6 +50,51 @@ export default function InstallationSectionDashboard() {
 
   const docsFor = (requestId: string) => documents.filter(d => String(d.requestId || '') === String(requestId))
 
+  const originatorFor = (r: Request) => usersById[r.uploadedById]
+  const originatorName = (r: Request) => {
+    const u = originatorFor(r)
+    if (!u) return ''
+    return `${u.rank || ''} ${u.lastName || ''}, ${u.firstName || ''}${u.mi ? ` ${u.mi}` : ''}`.trim()
+  }
+  const formatCsvCell = (v: any) => {
+    const s = String(v ?? '')
+    const escaped = s.replace(/"/g, '""')
+    return `"${escaped}"`
+  }
+  const buildRows = (list: Request[]) => {
+    const headers = ['Request ID','Subject','Stage','Installation Section','Route Section','Originator','Unit UIC','Created At','Documents']
+    const rows = [headers]
+    for (const r of list) {
+      const docs = docsFor(r.id).map(d => d.name).join(' | ')
+      rows.push([
+        r.id,
+        r.subject,
+        r.currentStage || '',
+        r.routeSection || '',
+        r.routeSection || '',
+        originatorName(r),
+        r.unitUic || '',
+        new Date(r.createdAt).toLocaleString(),
+        docs
+      ])
+    }
+    return rows.map(row => row.map(formatCsvCell).join(',')).join('\r\n')
+  }
+  const downloadCsv = (filename: string, csv: string) => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+  const exportPending = () => downloadCsv('installation_section_pending.csv', buildRows(inMySections))
+  const exportPrevious = () => downloadCsv('installation_section_previous.csv', buildRows(previouslyInSection))
+  const exportAll = () => downloadCsv('installation_section_all.csv', buildRows([...inMySections, ...previouslyInSection]))
+
   const addFilesToRequest = async (r: Request) => {
     const files = attach[r.id] || []
     if (!files.length) return
@@ -173,6 +218,11 @@ export default function InstallationSectionDashboard() {
         {activeTab === 'Pending' && (
         <RequestTable
           title="Assigned to My Sections"
+          titleActions={(
+            <>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPending}>Export Pending</button>
+            </>
+          )}
           requests={inMySections}
           users={usersById}
           variant="installation"
@@ -270,15 +320,15 @@ export default function InstallationSectionDashboard() {
                 </button>
               </div>
               <div className="mt-3">
-                <label className="block text-sm font-medium text-gray-900 mb-2">Route to Installation Section</label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Route to Command Section</label>
                 <div className="flex items-center gap-2">
                   <select
                     className="px-3 py-2 border border-brand-navy/30 rounded-lg"
                     value={selectedCmd[r.id] || ''}
                     onChange={(e) => setSelectedCmd(prev => ({ ...prev, [r.id]: e.target.value }))}
                   >
-                    <option value="">Select installation section</option>
-                    {(install?.sections || []).map((s: string) => (
+                    <option value="">Select command section</option>
+                    {(install?.commandSections || []).map((s: string) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
@@ -289,7 +339,7 @@ export default function InstallationSectionDashboard() {
                       const sec = selectedCmd[r.id] || ''
                       if (!sec.trim()) return
                       const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Section'
-                      const entry = { actor, timestamp: new Date().toISOString(), action: `Routed to installation section: ${sec}` }
+                      const entry = { actor, timestamp: new Date().toISOString(), action: `Routed to installation command section: ${sec}` }
                       const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
                       ;(async () => {
                         try {
@@ -319,6 +369,11 @@ export default function InstallationSectionDashboard() {
         {activeTab === 'Previously in Section' && (
         <RequestTable
           title="Previously in Section"
+          titleActions={(
+            <>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPrevious}>Export Previous</button>
+            </>
+          )}
           requests={previouslyInSection}
           users={usersById}
           variant="installation"

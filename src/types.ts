@@ -49,6 +49,8 @@ export type UserRecord = {
   company?: string
   isUnitAdmin?: boolean
   isInstallationAdmin?: boolean
+  isHqmcAdmin?: boolean
+  hqmcDivision?: string
   isCommandStaff?: boolean
   isAppAdmin?: boolean
   edipi?: string

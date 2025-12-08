@@ -140,6 +140,7 @@ function toUserRow(u: UserRecord) {
     unit: u.unit !== undefined ? u.unit : undefined,
     user_company: u.company !== undefined ? u.company : undefined,
     is_unit_admin: u.isUnitAdmin === undefined ? undefined : !!u.isUnitAdmin,
+    is_hqmc_admin: u.isHqmcAdmin === undefined ? undefined : !!u.isHqmcAdmin,
     is_installation_admin: u.isInstallationAdmin === undefined ? undefined : !!u.isInstallationAdmin,
     is_command_staff: u.isCommandStaff === undefined ? undefined : !!u.isCommandStaff,
     is_app_admin: u.isAppAdmin === undefined ? undefined : !!u.isAppAdmin,
@@ -149,6 +150,7 @@ function toUserRow(u: UserRecord) {
     role_company: u.roleCompany !== undefined ? u.roleCompany : undefined,
     role_platoon: u.rolePlatoon !== undefined ? u.rolePlatoon : undefined,
     installation_id: u.installationId !== undefined ? u.installationId : undefined,
+    hqmc_division: u.hqmcDivision !== undefined ? u.hqmcDivision : undefined,
   }
 }
 
@@ -183,6 +185,7 @@ function fromUserRow(r: any): UserRecord {
     unit: r.unit ? String(r.unit) : undefined,
     company: (r.company ? String(r.company) : (r.user_company ? String(r.user_company) : undefined)),
     isUnitAdmin: !!r.is_unit_admin,
+    isHqmcAdmin: !!r.is_hqmc_admin,
     isInstallationAdmin: !!r.is_installation_admin,
     isCommandStaff: hasCommandAccess,
     isAppAdmin: !!r.is_app_admin,
@@ -192,6 +195,7 @@ function fromUserRow(r: any): UserRecord {
     roleCompany: roleCompany,
     rolePlatoon: rolePlatoon,
     installationId: r.installation_id ? String(r.installation_id) : undefined,
+    hqmcDivision: r.hqmc_division ? String(r.hqmc_division) : undefined,
   }
 }
 
@@ -363,6 +367,40 @@ export async function listInstallations(): Promise<any[]> {
   } catch {
     return []
   }
+}
+
+export async function listHQMCStructure(): Promise<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb.from('hqmc_structure').select('*').order('division_code').order('branch')
+    if (error) return []
+    const rows: any[] = Array.isArray(data) ? (data as any[]) : []
+    return rows.map((r: any) => ({
+      division_name: String(r.division_name || ''),
+      division_code: r.division_code ? String(r.division_code) : undefined,
+      branch: String(r.branch || ''),
+      description: r.description ? String(r.description) : undefined,
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function listHQMCDivisions(): Promise<Array<{ id: string; name: string; code: string; description?: string }>> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb.from('hqmc_divisions').select('*').order('code')
+    if (error) return []
+    const rows: any[] = Array.isArray(data) ? (data as any[]) : []
+    return rows.map((r: any) => ({
+      id: String(r.id),
+      name: String(r.name || ''),
+      code: String(r.code || ''),
+      description: r.description ? String(r.description) : undefined,
+    }))
+  } catch { return [] }
 }
 
 export async function upsertInstallation(installation: any): Promise<{ ok: boolean; error?: any }> {

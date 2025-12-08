@@ -2,6 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { UNITS, Unit } from '../lib/units'
 import { upsertUser, listUsers, listRequests, listInstallations } from '../lib/db'
 import { Installation, UserRecord } from '../types'
+<<<<<<< HEAD
+=======
+import { Pagination } from '@/components/Pagination'
+>>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
 
 export default function AppAdmin() {
   const [users, setUsers] = useState<UserRecord[]>([])
@@ -109,12 +113,31 @@ export default function AppAdmin() {
     return requests.filter(r => STAGES.includes(String(r.currentStage || '')))
   }, [requests])
 
+  const [assignedPage, setAssignedPage] = useState(1)
+  const [assignedPageSize, setAssignedPageSize] = useState(10)
+  const assignedTotal = unitsWithAdmin.length
+  const assignedTotalPages = Math.max(1, Math.ceil(assignedTotal / (assignedPageSize || 1)))
+  const assignedCurrentPage = Math.min(assignedPage, assignedTotalPages)
+  const assignedStartIndex = assignedTotal === 0 ? 0 : (assignedCurrentPage - 1) * assignedPageSize + 1
+  const assignedEndIndex = assignedTotal === 0 ? 0 : Math.min(assignedStartIndex + assignedPageSize - 1, assignedTotal)
+  const assignedSlice = unitsWithAdmin.slice((assignedCurrentPage - 1) * assignedPageSize, (assignedCurrentPage - 1) * assignedPageSize + assignedPageSize)
+
+  const [missingPage, setMissingPage] = useState(1)
+  const [missingPageSize, setMissingPageSize] = useState(10)
+  const missingTotal = unitsWithoutAdmin.length
+  const missingTotalPages = Math.max(1, Math.ceil(missingTotal / (missingPageSize || 1)))
+  const missingCurrentPage = Math.min(missingPage, missingTotalPages)
+  const missingStartIndex = missingTotal === 0 ? 0 : (missingCurrentPage - 1) * missingPageSize + 1
+  const missingEndIndex = missingTotal === 0 ? 0 : Math.min(missingStartIndex + missingPageSize - 1, missingTotal)
+  const missingSlice = unitsWithoutAdmin.slice((missingCurrentPage - 1) * missingPageSize, (missingCurrentPage - 1) * missingPageSize + missingPageSize)
+
   const migrateToSupabase = async () => {
     setFeedback({ type: 'error', message: 'Migration via UI disabled. Use terminal command if needed.' })
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">App Administration</h2>
       
 
@@ -134,7 +157,7 @@ export default function AppAdmin() {
       </div>
 
       {adminView === 'installation' && (
-        <div>
+        <div className="mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Assign Installation Admin</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -186,7 +209,7 @@ export default function AppAdmin() {
       )}
 
       {adminView === 'assigned' && (
-        <div>
+        <div className="mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Unit Admin Assigned</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -199,7 +222,7 @@ export default function AppAdmin() {
                 </tr>
               </thead>
               <tbody>
-                {unitsWithAdmin.map(unit => {
+                {assignedSlice.map(unit => {
                   const admin = unitAdmins[unit.uic]!
                   const installation = installations.find(i => Array.isArray((i as any).unit_uics) && (i as any).unit_uics.includes(unit.uic));
                   return (
@@ -217,11 +240,30 @@ export default function AppAdmin() {
               </tbody>
             </table>
           </div>
+          <div className="mt-4">
+            <Pagination
+              currentPage={assignedCurrentPage}
+              totalPages={assignedTotalPages}
+              totalItems={assignedTotal}
+              pageSize={assignedPageSize}
+              startIndex={assignedStartIndex}
+              endIndex={assignedEndIndex}
+              onPageChange={(p) => setAssignedPage(p)}
+              onPageSizeChange={(s) => { setAssignedPageSize(s); setAssignedPage(1) }}
+              onNext={() => setAssignedPage(Math.min(assignedCurrentPage + 1, assignedTotalPages))}
+              onPrevious={() => setAssignedPage(Math.max(assignedCurrentPage - 1, 1))}
+              onFirst={() => setAssignedPage(1)}
+              onLast={() => setAssignedPage(assignedTotalPages)}
+              canGoNext={assignedCurrentPage < assignedTotalPages}
+              canGoPrevious={assignedCurrentPage > 1}
+              pageSizeOptions={[5,10,25,50]}
+            />
+          </div>
         </div>
       )}
 
       {adminView === 'missing' && (
-        <div>
+        <div className="mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Unit Admin Missing</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -234,7 +276,7 @@ export default function AppAdmin() {
                 </tr>
               </thead>
               <tbody>
-                {unitsWithoutAdmin.map(unit => {
+                {missingSlice.map(unit => {
                   const eligible = eligibleForUnit(unit)
                   return (
                     <tr key={unit.uic} className="border-b">
@@ -268,6 +310,25 @@ export default function AppAdmin() {
               </tbody>
             </table>
           </div>
+          <div className="mt-4">
+            <Pagination
+              currentPage={missingCurrentPage}
+              totalPages={missingTotalPages}
+              totalItems={missingTotal}
+              pageSize={missingPageSize}
+              startIndex={missingStartIndex}
+              endIndex={missingEndIndex}
+              onPageChange={(p) => setMissingPage(p)}
+              onPageSizeChange={(s) => { setMissingPageSize(s); setMissingPage(1) }}
+              onNext={() => setMissingPage(Math.min(missingCurrentPage + 1, missingTotalPages))}
+              onPrevious={() => setMissingPage(Math.max(missingCurrentPage - 1, 1))}
+              onFirst={() => setMissingPage(1)}
+              onLast={() => setMissingPage(missingTotalPages)}
+              canGoNext={missingCurrentPage < missingTotalPages}
+              canGoPrevious={missingCurrentPage > 1}
+              pageSizeOptions={[5,10,25,50]}
+            />
+          </div>
         </div>
       )}
 
@@ -276,6 +337,7 @@ export default function AppAdmin() {
       {feedback && (
         <div className={`mt-4 p-3 rounded-lg border ${feedback.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>{feedback.message}</div>
       )}
+      </div>
     </div>
   )
 }

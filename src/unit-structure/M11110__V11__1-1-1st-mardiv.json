@@ -1,11 +1,19 @@
 {
   "_platoonSectionMap": {
     "H": {
-      "HHS1": "S-1"
+      "HHS1": "S-1",
+      "HSS3": "S-3",
+      "HHCP": "Career Planner"
+    },
+    "S": {
+      "CHAP": "Chaplain"
     }
   },
   "_sections": [
-    "S-1"
+    "S-1",
+    "S-3",
+    "Career Planner",
+    "Chaplain"
   ],
   "_commandSections": [
     "XO"
@@ -13,6 +21,16 @@
   "_mcc": "V11",
   "_unitName": "1/1 1ST MARDIV",
   "H": [
-    "HHS1"
+    "HHS1",
+    "HSS3",
+    "HSS4",
+    "HSS6",
+    "HHCP",
+    "HHHQ"
+  ],
+  "S": [
+    "SDRC",
+    "CHAP",
+    "SVHQ"
   ]
 }

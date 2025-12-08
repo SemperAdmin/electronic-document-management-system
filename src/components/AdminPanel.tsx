@@ -246,26 +246,44 @@ export const AdminPanel: React.FC = () => {
         next[key]._unitName = selectedUnit.unitName || (next[key]._unitName || '')
         setUnitStructure(next)
         localStorage.setItem('unit_structure', JSON.stringify(next))
-      } else {
-        localStorage.setItem('unit_structure', JSON.stringify(unitStructure))
-      }
-      (async () => {
-        try {
-          if (navigator.sendBeacon) {
-            const blob = new Blob([JSON.stringify(unitStructure)], { type: 'application/json' });
-            navigator.sendBeacon('/api/unit-structure/save', blob);
+        ;(async () => {
+          try {
+            if (navigator.sendBeacon) {
+              const blob = new Blob([JSON.stringify(next)], { type: 'application/json' });
+              navigator.sendBeacon('/api/unit-structure/save', blob);
+              setFeedback({ type: 'success', message: 'Unit structure saved.' });
+              try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
+              return;
+            }
+            const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next), keepalive: true });
+            if (!res.ok) throw new Error('persist_failed');
             setFeedback({ type: 'success', message: 'Unit structure saved.' });
             try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
-            return;
+          } catch {
+            setFeedback({ type: 'error', message: 'Failed to persist unit structure.' });
           }
-          const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(unitStructure), keepalive: true });
-          if (!res.ok) throw new Error('persist_failed');
-          setFeedback({ type: 'success', message: 'Unit structure saved.' });
-          try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
-        } catch {
-          setFeedback({ type: 'error', message: 'Failed to persist unit structure.' });
-        }
-      })();
+        })();
+      } else {
+        const serialized = JSON.stringify(unitStructure)
+        localStorage.setItem('unit_structure', serialized)
+        ;(async () => {
+          try {
+            if (navigator.sendBeacon) {
+              const blob = new Blob([serialized], { type: 'application/json' });
+              navigator.sendBeacon('/api/unit-structure/save', blob);
+              setFeedback({ type: 'success', message: 'Unit structure saved.' });
+              try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
+              return;
+            }
+            const res = await fetch('/api/unit-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: serialized, keepalive: true });
+            if (!res.ok) throw new Error('persist_failed');
+            setFeedback({ type: 'success', message: 'Unit structure saved.' });
+            try { window.dispatchEvent(new CustomEvent('unit_structure_updated')) } catch {}
+          } catch {
+            setFeedback({ type: 'error', message: 'Failed to persist unit structure.' });
+          }
+        })();
+      }
     } catch {
       setFeedback({ type: 'error', message: 'Failed to save unit structure.' });
     }

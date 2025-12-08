@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase'
+import { UserRecord } from '@/types';
 
 export type DocumentRecord = {
   id: string
@@ -23,7 +24,7 @@ export type RequestRecord = {
   subject: string
   dueDate?: string
   notes?: string
-  unitUic: string
+  unitUic?: string
   uploadedById: string
   submitForUserId?: string
   documentIds: string[]
@@ -36,30 +37,7 @@ export type RequestRecord = {
   externalPendingUnitUic?: string
   externalPendingStage?: string
   installationId?: string;
-}
-
-export type UserRecord = {
-  id: string
-  email?: string
-  rank?: string
-  firstName?: string
-  lastName?: string
-  mi?: string
-  service?: string
-  role?: string
-  unitUic?: string
-  unit?: string
-  company?: string
-  isUnitAdmin?: boolean
-  isInstallationAdmin?: boolean
-  isCommandStaff?: boolean
-  isAppAdmin?: boolean
-  edipi?: string | number
-  passwordHash?: string
-  platoon?: string
-  roleCompany?: string
-  rolePlatoon?: string
-  installationId?: string
+  finalStatus?: string;
 }
 
 function toDocRow(d: DocumentRecord) {
@@ -121,6 +99,7 @@ function toReqRow(r: RequestRecord) {
     external_pending_unit_uic: r.externalPendingUnitUic ?? null,
     external_pending_stage: r.externalPendingStage ?? null,
     installation_id: r.installationId ?? null,
+    final_status: r.finalStatus ?? null,
   }
 }
 
@@ -143,6 +122,7 @@ function fromReqRow(r: any): RequestRecord {
     externalPendingUnitUic: r.external_pending_unit_uic ? String(r.external_pending_unit_uic) : undefined,
     externalPendingStage: r.external_pending_stage ? String(r.external_pending_stage) : undefined,
     installationId: r.installation_id ? String(r.installation_id) : undefined,
+    finalStatus: r.final_status ? String(r.final_status) : undefined,
   }
 }
 

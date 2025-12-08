@@ -1,23 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Request } from '../types';
-
-interface User {
-  id: string;
-  rank: string;
-  lastName: string;
-  firstName: string;
-  mi?: string;
-  company?: string;
-  platoon?: string;
-  unit?: string;
-  unitUic?: string;
-  email?: string;
-  role?: string;
-}
+import { Request, UserRecord } from '../types';
 
 interface RequestTableProps {
   requests: Request[];
-  users: Record<string, User>;
+  users: Record<string, UserRecord>;
   onRowClick: (request: Request) => void;
   title: string;
   expandedRows: Record<string, boolean>;
@@ -26,7 +12,7 @@ interface RequestTableProps {
 }
 
 const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, expandedRows, children, platoonSectionMap }) => {
-  const [modalPeople, setModalPeople] = useState<User[] | null>(null);
+  const [modalPeople, setModalPeople] = useState<UserRecord[] | null>(null);
 
   const allUsers = useMemo(() => Object.values(users), [users]);
 
@@ -100,7 +86,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
     return originator?.unit || r.unitUic || 'N/A';
   };
 
-  const getPeopleAtActionLevel = (r: Request): User[] => {
+  const getPeopleAtActionLevel = (r: Request): UserRecord[] => {
     const stage = r.currentStage || 'PLATOON_REVIEW';
 
     switch (stage) {

@@ -134,6 +134,7 @@ export default function AppAdmin() {
     }
     return map
   }, [users])
+  const hqmcDivisionsWithAdmin = useMemo(() => hqmcDivisions.filter(d => (hqmcAdminsByDivision as any)[d.code]?.length), [hqmcDivisions, hqmcAdminsByDivision])
 
   const pendingApprovals = useMemo(() => {
     const STAGES = ['PLATOON_REVIEW','COMPANY_REVIEW','BATTALION_REVIEW','COMMANDER_REVIEW']
@@ -404,48 +405,26 @@ export default function AppAdmin() {
       {mainTab === 'hqmc' && subTab === 'assigned' && (
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">HQMC Admin Assigned</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="text-md font-semibold text-gray-900 mb-2">Current HQMC Admins</h4>
-              <ul className="space-y-2">
-                {hqmcAdmins.map(a => (
-                  <li key={a.id} className="flex items-center justify-between p-2 border rounded">
-                    <span>{`${a.rank} ${a.lastName}, ${a.firstName}${a.mi ? ` ${a.mi}` : ''}`}{a.hqmcDivision ? ` • ${a.hqmcDivision}` : ''}</span>
-                    <button
-                      className="px-2 py-1 text-xs bg-red-600 text-white rounded"
-                      onClick={async () => {
-                        const updated = { ...a, isHqmcAdmin: false }
-                        try {
-                          const res = await upsertUser({
-                            id: updated.id,
-                            email: updated.email,
-                            rank: updated.rank,
-                            firstName: updated.firstName,
-                            lastName: updated.lastName,
-                            mi: updated.mi,
-                            service: updated.service,
-                            role: updated.role,
-                            unitUic: updated.unitUic,
-                            unit: updated.unit,
-                            company: updated.company,
-                            isUnitAdmin: !!updated.isUnitAdmin,
-                            isInstallationAdmin: !!updated.isInstallationAdmin,
-                            isCommandStaff: !!updated.isCommandStaff,
-                            isHqmcAdmin: !!updated.isHqmcAdmin,
-                            hqmcDivision: updated.hqmcDivision,
-                            edipi: updated.edipi,
-                          })
-                          if (!res.ok) { setFeedback({ type: 'error', message: 'Failed to remove HQMC admin (DB error).' }); return }
-                        } catch {}
-                        setUsers(prev => prev.map(u => (u.id === updated.id ? updated as UserRecord : u)))
-                        setFeedback({ type: 'success', message: `Removed HQMC admin: ${updated.rank} ${updated.lastName}.` })
-                      }}
-                    >Remove</button>
-                  </li>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 px-3">Division</th>
+                  <th className="py-2 px-3">Current Admin(s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hqmcDivisionsWithAdmin.map(d => (
+                  <tr key={d.code} className="border-b">
+                    <td className="py-2 px-3">{d.code} — {d.name}</td>
+                    <td className="py-2 px-3">{(hqmcAdminsByDivision[d.code] || []).map(u => `${u.rank} ${u.lastName}, ${u.firstName}${u.mi ? ` ${u.mi}` : ''}`).join(' • ')}</td>
+                  </tr>
                 ))}
-                {hqmcAdmins.length === 0 && (<li className="text-sm text-gray-500">No HQMC admins assigned.</li>)}
-              </ul>
-            </div>
+                {hqmcDivisionsWithAdmin.length === 0 && (
+                  <tr><td colSpan={2} className="py-3 px-3 text-gray-500">No HQMC divisions have admins assigned.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

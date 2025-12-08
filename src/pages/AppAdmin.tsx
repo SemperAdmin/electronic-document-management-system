@@ -2,10 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { UNITS, Unit } from '../lib/units'
 import { upsertUser, listUsers, listRequests, listInstallations } from '../lib/db'
 import { Installation, UserRecord } from '../types'
-<<<<<<< HEAD
-=======
 import { Pagination } from '@/components/Pagination'
->>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
 
 export default function AppAdmin() {
   const [users, setUsers] = useState<UserRecord[]>([])

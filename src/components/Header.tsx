@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import logoImg from '../assets/images/logo.png'
 import { UNITS } from '@/lib/units'
 
@@ -17,8 +17,6 @@ type HeaderProps = {
 export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, hasInstallationSectionDashboard = false, hasInstallationCommandDashboard = false, onManageProfile, onLogout, onNavigate, isLogin = false }) => {
   const [dashOpen, setDashOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
-<<<<<<< HEAD
-=======
   const dashRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     const onDown = (e: Event) => {
@@ -36,7 +34,6 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
       document.removeEventListener('keydown', onKey)
     }
   }, [dashOpen])
->>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
   return (
     <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -127,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
             {!currentUser && (
               <button className="bg-brand-charcoal text-brand-cream px-2 md:px-3 py-1 md:py-2 text-sm md:text-base rounded-lg hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold" onClick={() => onNavigate('login')}>Login</button>
             )}
-            <div className="relative inline-block">
+            <div className="relative inline-block" ref={dashRef}>
               <button className="bg-brand-red text-brand-cream px-2 py-1 md:px-3 md:py-2 text-xs md:text-base rounded hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold whitespace-nowrap" aria-haspopup="menu" aria-expanded={dashOpen} onClick={() => setDashOpen(prev => !prev)}>Dashboards</button>
               <div className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-[var(--surface)] border-2 border-brand-red-2 rounded-lg shadow-lg text-brand-navy`} role="menu" aria-label="Dashboards">
                 <div className="px-4 py-2 bg-brand-red text-brand-cream rounded-t-lg text-sm font-medium">Dashboards</div>

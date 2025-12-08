@@ -348,14 +348,10 @@ export default function SectionDashboard() {
   const isUnitInAnyInstallation = (uic?: string) => {
     const target = uic?.trim();
     if (!target) return false;
-<<<<<<< HEAD
-    return installations.some(inst => Array.isArray((inst as any).unit_uics) && (inst as any).unit_uics.includes(target));
-=======
     return installations.some(inst => {
       const list = (inst as any).unit_uics || (inst as any).unitUics || [];
       return Array.isArray(list) && list.includes(target);
     });
->>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
   }
 
   const approveRequest = async (r: Request) => {

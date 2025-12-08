@@ -403,6 +403,33 @@ export async function listHQMCDivisions(): Promise<Array<{ id: string; name: str
   } catch { return [] }
 }
 
+export async function listHQMCSectionAssignments(): Promise<Array<{ division_code: string; branch: string; reviewers: string[]; approvers: string[] }>> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb.from('hqmc_section_assignments').select('*')
+    if (error) return []
+    const rows: any[] = Array.isArray(data) ? (data as any[]) : []
+    return rows.map((r: any) => ({
+      division_code: String(r.division_code || ''),
+      branch: String(r.branch || ''),
+      reviewers: Array.isArray(r.reviewers) ? r.reviewers.map(String) : [],
+      approvers: Array.isArray(r.approvers) ? r.approvers.map(String) : [],
+    }))
+  } catch { return [] }
+}
+
+export async function upsertHQMCSectionAssignment(payload: { division_code: string; branch: string; reviewers?: string[]; approvers?: string[] }): Promise<{ ok: boolean; error?: any }> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return { ok: false, error: 'supabase not ready' }
+    const { division_code, branch, reviewers = [], approvers = [] } = payload
+    const { error } = await sb.from('hqmc_section_assignments').upsert({ division_code, branch, reviewers, approvers }, { onConflict: 'division_code,branch' })
+    if (error) return { ok: false, error }
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e } }
+}
+
 export async function upsertInstallation(installation: any): Promise<{ ok: boolean; error?: any }> {
   try {
     const sb = getSupabase()

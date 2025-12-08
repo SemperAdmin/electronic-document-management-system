@@ -7,6 +7,7 @@ import CommandDashboard from './CommandDashboard';
 import InstallationSectionDashboard from './InstallationSectionDashboard';
 import InstallationCommandDashboard from './InstallationCommandDashboard';
 import InstallationAdmin from './InstallationAdmin';
+import HQMCAdmin from './HQMCAdmin';
 import { hasCommandDashboardAccess } from '../lib/visibility';
 import { Unit } from '../lib/units';
 import { ProfileForm } from '../components/ProfileForm';
@@ -21,7 +22,7 @@ import { listInstallations } from '../lib/db';
 
 function HomeContent() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
-  const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'review' | 'section' | 'command' | 'installation' | 'installation-section' | 'installation-command' | 'documents' | 'document-viewer' | 'upload'>('login');
+  const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'hqmc-admin' | 'review' | 'section' | 'command' | 'installation' | 'installation-section' | 'installation-command' | 'documents' | 'document-viewer' | 'upload'>('login');
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
     try {
       const savedUser = localStorage.getItem('currentUser');
@@ -44,7 +45,7 @@ function HomeContent() {
     try {
       const params = new URLSearchParams(window.location.search);
       const urlView = params.get('view');
-      if (urlView === 'admin' || urlView === 'profile' || urlView === 'dashboard' || urlView === 'login' || urlView === 'appadmin' || urlView === 'review' || urlView === 'section' || urlView === 'command' || urlView === 'installation' || urlView === 'installation-section' || urlView === 'installation-command' || urlView === 'documents' || urlView === 'document-viewer' || urlView === 'upload') {
+      if (urlView === 'admin' || urlView === 'profile' || urlView === 'dashboard' || urlView === 'login' || urlView === 'appadmin' || urlView === 'hqmc-admin' || urlView === 'review' || urlView === 'section' || urlView === 'command' || urlView === 'installation' || urlView === 'installation-section' || urlView === 'installation-command' || urlView === 'documents' || urlView === 'document-viewer' || urlView === 'upload') {
         setView(urlView as any);
       } else {
         const savedView = localStorage.getItem('currentView');
@@ -184,6 +185,8 @@ function HomeContent() {
           <CommandDashboard />
         ) : view === 'installation' ? (
           <InstallationAdmin />
+        ) : view === 'hqmc-admin' ? (
+          <HQMCAdmin />
         ) : view === 'installation-section' ? (
           <InstallationSectionDashboard />
         ) : view === 'installation-command' ? (

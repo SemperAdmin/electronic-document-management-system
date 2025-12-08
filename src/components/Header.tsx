@@ -142,7 +142,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('appadmin'); setDashOpen(false) }}>App Admin</button>
                   )}
                   {currentUser && !!currentUser.isHqmcAdmin && (
-                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('appadmin'); setDashOpen(false) }}>HQMC Admin</button>
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('hqmc-admin'); setDashOpen(false) }}>HQMC Admin</button>
                   )}
                   {currentUser && !!currentUser.isInstallationAdmin && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('installation'); setDashOpen(false) }}>Installation Admin</button>

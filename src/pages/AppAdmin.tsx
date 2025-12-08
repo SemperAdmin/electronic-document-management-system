@@ -288,24 +288,21 @@ export default function AppAdmin() {
                   <th className="py-2 px-3">Unit</th>
                   <th className="py-2 px-3">UIC</th>
                   <th className="py-2 px-3">Current Admin</th>
-                  <th className="py-2 px-3">Installation</th>
                 </tr>
               </thead>
               <tbody>
                 {assignedSlice.map(unit => {
                   const admin = unitAdmins[unit.uic]!
-                  const installation = installations.find(i => Array.isArray((i as any).unit_uics) && (i as any).unit_uics.includes(unit.uic));
                   return (
                     <tr key={unit.uic} className="border-b">
                       <td className="py-2 px-3">{unit.unitName}</td>
                       <td className="py-2 px-3">{unit.uic}</td>
                       <td className="py-2 px-3">{`${admin.rank} ${admin.lastName}, ${admin.firstName}${admin.mi ? ` ${admin.mi}` : ''}`}</td>
-                      <td className="py-2 px-3">{installation ? installation.name : 'N/A'}</td>
                     </tr>
                   )
                 })}
                 {unitsWithAdmin.length === 0 && (
-                  <tr><td colSpan={4} className="py-3 px-3 text-gray-500">No units have admins assigned.</td></tr>
+                  <tr><td colSpan={3} className="py-3 px-3 text-gray-500">No units have admins assigned.</td></tr>
                 )}
               </tbody>
             </table>

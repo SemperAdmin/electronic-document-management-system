@@ -9,10 +9,12 @@ interface RequestTableProps {
   expandedRows: Record<string, boolean>;
   children: (request: Request) => React.ReactNode;
   platoonSectionMap?: Record<string, Record<string, Record<string, string>>>;
+  variant?: 'default' | 'installation';
 }
 
-const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, expandedRows, children, platoonSectionMap }) => {
+const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, expandedRows, children, platoonSectionMap, variant = 'default' }) => {
   const [modalPeople, setModalPeople] = useState<UserRecord[] | null>(null);
+  const isInstallation = variant === 'installation';
 
   const allUsers = useMemo(() => Object.values(users), [users]);
 
@@ -49,6 +51,10 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
       }
       case 'COMMANDER_REVIEW':
         return r.routeSection || 'Commander';
+      case 'INSTALLATION_REVIEW': {
+        const section = r.routeSection;
+        return section ? `Installation - ${section}` : 'Installation Commander';
+      }
       case 'EXTERNAL_REVIEW': {
         const unitName = r.externalPendingUnitName || 'External';
         const section = r.routeSection;
@@ -69,13 +75,12 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
   const isReturned = (r: Request) => checkLastActivity(r, /returned/i);
   const isRejected = (r: Request) => checkLastActivity(r, /rejected/i);
 
-  const getApprovalStatus = (r: Request): 'approved' | 'endorsed' | null => {
-    const approved = r.activity?.some(a => /(approved by commander|commander.*approved)/i.test(String(a.action || '')));
-    if (approved) return 'approved';
-    const endorsed = r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || '')));
-    if (endorsed) return 'endorsed';
-    return null;
-  };
+  const hasActivity = (r: Request, pattern: RegExp) => r.activity?.some(a => pattern.test(String(a.action || ''))) || false;
+
+  const isUnitApproved = (r: Request) => hasActivity(r, /(approved by commander|commander.*approved)/i) && !hasActivity(r, /installation commander/i);
+  const isUnitEndorsed = (r: Request) => hasActivity(r, /(endorsed by commander|commander.*endorsed)/i) && !hasActivity(r, /installation commander/i);
+  const isInstallationApproved = (r: Request) => hasActivity(r, /(approved by installation commander|installation commander.*approved|installation.*approved)/i);
+  const isInstallationEndorsed = (r: Request) => hasActivity(r, /(endorsed by installation commander|installation commander.*endorsed|installation.*endorsed)/i);
 
   const getCurrentUnit = (r: Request) => {
     const stage = r.currentStage || 'PLATOON_REVIEW';
@@ -86,6 +91,17 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
     return originator?.unit || r.unitUic || 'N/A';
   };
 
+<<<<<<< HEAD
+=======
+  const getUnitWithName = (r: Request) => {
+    const originator = originatorFor(r)
+    const uic = r.unitUic || originator?.unitUic || ''
+    const name = originator?.unit || ''
+    if (uic && name) return `${uic} • ${name}`
+    return uic || name || 'N/A'
+  }
+
+>>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
   const getPeopleAtActionLevel = (r: Request): UserRecord[] => {
     const stage = r.currentStage || 'PLATOON_REVIEW';
 
@@ -126,9 +142,21 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
           (u.role === 'COMMANDER' || u.company === 'HQ')
         );
       }
+      case 'INSTALLATION_REVIEW': {
+        const section = battalionSectionFor(r);
+        return allUsers.filter(u =>
+          u.unitUic === r.unitUic &&
+          u.company === section
+        );
+      }
       default:
         return [];
     }
+  };
+
+  const lastStatusDate = (r: Request) => {
+    const ts = r.activity && r.activity.length ? r.activity[r.activity.length - 1].timestamp : r.createdAt;
+    try { return new Date(ts).toLocaleDateString(); } catch { return r.createdAt; }
   };
 
   return (
@@ -142,9 +170,14 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Status</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Unit</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Originator</th>
-              <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Company</th>
-              <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Platoon</th>
+              {!isInstallation && (
+                <>
+                  <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Company</th>
+                  <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Platoon</th>
+                </>
+              )}
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Created</th>
+              <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Last Status</th>
               <th className="p-3 text-left text-xs font-semibold text-brand-navy uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
@@ -152,9 +185,13 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
             {requests.map((r) => {
               const returned = isReturned(r);
               const rejected = isRejected(r);
-              const isNegative = returned || rejected;
-              const approvalStatus = getApprovalStatus(r);
-              const isPositive = !!approvalStatus;
+              const unitApproved = isUnitApproved(r);
+              const unitEndorsed = isUnitEndorsed(r);
+              const instApproved = isInstallationApproved(r);
+              const instEndorsed = isInstallationEndorsed(r);
+              const anyPositive = unitApproved || unitEndorsed || instApproved || instEndorsed;
+              const isPositive = isInstallation ? (instApproved || instEndorsed) : anyPositive;
+              const isNegative = rejected || (returned && !anyPositive);
               const originator = originatorFor(r);
               const peopleAtLevel = getPeopleAtActionLevel(r);
 
@@ -166,11 +203,16 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                     }`}
                     onClick={() => onRowClick(r)}
                   >
-                    <td className={`p-3 text-sm ${isNegative ? 'text-red-700 font-bold' : isPositive ? 'text-green-700 font-bold' : 'text-[var(--text)]'}`}>
+                   <td className={`p-3 text-sm ${isNegative ? 'text-red-700 font-bold' : isPositive ? 'text-green-700 font-bold' : 'text-[var(--text)]'}`}>
                       {returned && <span className="font-bold">Returned: </span>}
                       {rejected && <span className="font-bold">Rejected: </span>}
-                      {approvalStatus === 'approved' && <span className="font-bold">Approved: </span>}
-                      {approvalStatus === 'endorsed' && <span className="font-bold">Endorsed: </span>}
+                      {!isInstallation && (unitApproved || unitEndorsed || instApproved || instEndorsed) && (
+                        <span className="font-bold">
+                          {unitApproved ? 'Unit Approved: ' : unitEndorsed ? 'Unit Endorsed: ' : instApproved ? 'Installation Approved: ' : 'Installation Endorsed: '}
+                        </span>
+                      )}
+                      {isInstallation && instApproved && <span className="font-bold">Installation Approved: </span>}
+                      {isInstallation && !instApproved && instEndorsed && <span className="font-bold">Installation Endorsed: </span>}
                       {r.subject}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
@@ -179,7 +221,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                       </span>
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
-                      {getCurrentUnit(r)}
+                      {isInstallation ? getUnitWithName(r) : getCurrentUnit(r)}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
                       {(() => {
@@ -187,13 +229,18 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                         return originator ? `${originator.rank} ${originator.lastName}, ${originator.firstName}` : 'N/A';
                       })()}
                     </td>
-                    <td className="p-3 text-sm text-[var(--text)]">
-                      {displayUnitPart(originator?.company)}
-                    </td>
-                    <td className="p-3 text-sm text-[var(--text)]">
-                      {displayUnitPart(originator?.platoon)}
-                    </td>
+                    {!isInstallation && (
+                      <>
+                        <td className="p-3 text-sm text-[var(--text)]">
+                          {displayUnitPart(originator?.company)}
+                        </td>
+                        <td className="p-3 text-sm text-[var(--text)]">
+                          {displayUnitPart(originator?.platoon)}
+                        </td>
+                      </>
+                    )}
                     <td className="p-3 text-sm text-[var(--text)]">{new Date(r.createdAt).toLocaleDateString()}</td>
+                    <td className="p-3 text-sm text-[var(--text)]">{lastStatusDate(r)}</td>
                     <td className="p-3 text-sm text-[var(--text)]">
                       <button
                         onClick={(e) => {
@@ -208,7 +255,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                   </tr>
                   {expandedRows[r.id] && (
                     <tr>
-                      <td colSpan={8} className="p-4 bg-gray-50">
+                      <td colSpan={isInstallation ? 7 : 9} className="p-4 bg-gray-50">
                         {children(r)}
                       </td>
                     </tr>

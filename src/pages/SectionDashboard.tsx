@@ -53,6 +53,7 @@ export default function SectionDashboard() {
   const [activeTab, setActiveTab] = useState<'Pending' | 'Previously in Section'>('Pending');
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [submitToInstallation, setSubmitToInstallation] = useState<Record<string, boolean>>({});
+  const [instSection, setInstSection] = useState<Record<string, string>>({});
 
   useEffect(() => {
     listInstallations().then(data => setInstallations(data as Installation[]));
@@ -347,7 +348,14 @@ export default function SectionDashboard() {
   const isUnitInAnyInstallation = (uic?: string) => {
     const target = uic?.trim();
     if (!target) return false;
+<<<<<<< HEAD
     return installations.some(inst => Array.isArray((inst as any).unit_uics) && (inst as any).unit_uics.includes(target));
+=======
+    return installations.some(inst => {
+      const list = (inst as any).unit_uics || (inst as any).unitUics || [];
+      return Array.isArray(list) && list.includes(target);
+    });
+>>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
   }
 
   const approveRequest = async (r: Request) => {
@@ -464,17 +472,27 @@ export default function SectionDashboard() {
     const extUnit = externalUnit[r.id] || ''
     const extSec = externalSection[r.id] || ''
 
+<<<<<<< HEAD
     if (!extUnitUic.trim()) {
       alert('Please select an external unit')
       return
     }
 
+=======
+>>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
     const actor = getActorDisplayName(currentUser) || 'Battalion'
 
     let updated: Request;
 
     if (submitToInstallation[r.id]) {
+<<<<<<< HEAD
       const installation = installations.find(inst => Array.isArray((inst as any).unit_uics) && (inst as any).unit_uics.includes(extUnitUic));
+=======
+      const installation = installations.find(inst => {
+        const list = (inst as any).unit_uics || (inst as any).unitUics || [];
+        return Array.isArray(list) && list.includes(r.unitUic || '');
+      });
+>>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
       if (!installation) {
         alert('The selected unit is not part of any installation.');
         return;
@@ -488,10 +506,14 @@ export default function SectionDashboard() {
         externalPendingUnitName: undefined,
         externalPendingUnitUic: undefined,
         externalPendingStage: undefined,
-        routeSection: '',
+        routeSection: instSection[r.id] || '',
         activity: [...(r.activity || []), newActivity]
       };
     } else {
+      if (!extUnitUic.trim()) {
+        alert('Please select an external unit')
+        return
+      }
       const actionText = extSec ? `Sent to external unit: ${extUnit} - ${extSec}` : `Sent to external unit: ${extUnit}`
       const newActivity = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
       updated = {
@@ -721,6 +743,7 @@ export default function SectionDashboard() {
                         Save Files
                       </button>
                     </div>
+<<<<<<< HEAD
                     <div className="mt-3 flex items-center justify-end gap-2">
                       <select
                         value={selectedCmdSection[r.id] || 'COMMANDER'}
@@ -773,23 +796,121 @@ export default function SectionDashboard() {
                             onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))}
                             disabled={!externalUnitUic[r.id] || !(externalUnitSections[r.id] || []).length}
                             className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+=======
+                    {(() => {
+                      const stage = r.currentStage || ''
+                      const isBattalion = stage === 'BATTALION_REVIEW'
+                      const lastCommanderAction = (r.activity || []).slice().reverse().find(a => /Commander/i.test(String(a.action || '')))
+                      const isApprovedOrEndorsed = !!lastCommanderAction && (/(Approved|Endorsed)/i.test(String(lastCommanderAction.action || '')))
+                      return (isBattalion && !isApprovedOrEndorsed) ? (
+                        <div className="mt-3 flex items-center justify-end gap-2">
+                          <select
+                            value={selectedCmdSection[r.id] || 'COMMANDER'}
+                            onChange={e => {
+                              console.log('SectionDashboard - Command section selected:', e.target.value, 'for request:', r.id)
+                              setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))
+                            }}
+                            className="px-3 py-2 border border-brand-navy/30 rounded-lg"
                           >
-                            <option value="">Select Section/Office (optional)</option>
-                            {(externalUnitSections[r.id] || []).map(section => (
-                              <option key={section} value={section}>
-                                {section}
-                              </option>
-                            ))}
+                            <option value="COMMANDER">Commander</option>
+                            {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => approveRequest(r)}
+>>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
+                          >
+                            Approve
+                          </button>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => rejectRequest(r)}
+                          >
+                            Return
+                          </button>
+                        </div>
+                      ) : null
+                    })()}
+                    {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
+                    <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
+                      <label className="block text-sm font-medium text-[var(--text)] mb-2">Send to External Unit or Installation</label>
+                      <div className="flex flex-col gap-2">
+                        {!submitToInstallation[r.id] && (
+                          <>
+                            <SearchableUnitSelector
+                              onUnitSelect={(unit) => handleExternalUnitChange(r.id, unit)}
+                              selectedUnit={UNITS.find(u => u.uic === externalUnitUic[r.id])}
+                              placeholder="Search by UIC, RUC, MCC, or Unit Name"
+                            />
+                            <select
+                              value={externalSection[r.id] || ''}
+                              onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                              disabled={!externalUnitUic[r.id] || !(externalUnitSections[r.id] || []).length}
+                              className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <option value="">Select Section/Office (optional)</option>
+                              {(externalUnitSections[r.id] || []).map(section => (
+                                <option key={section} value={section}>
+                                  {section}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={`submit-to-installation-${r.id}`}
+                            checked={submitToInstallation[r.id] || false}
+                            onChange={() => setSubmitToInstallation(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                            disabled={!isUnitInAnyInstallation(r.unitUic)}
+                          />
+                          <label htmlFor={`submit-to-installation-${r.id}`}>
+                            {(() => {
+                              const base = 'Submit to Installation';
+                              if (!(submitToInstallation[r.id])) return base;
+                              const inst = installations.find(inst => {
+                                const list = (inst as any).unit_uics || (inst as any).unitUics || [];
+                                return Array.isArray(list) && list.includes(r.unitUic || '')
+                              });
+                              const name = inst?.name ? ` (${inst.name})` : '';
+                              return base + name;
+                            })()}
+                          </label>
+                        </div>
+                        {!isUnitInAnyInstallation(r.unitUic) && (
+                          <p className="text-xs text-gray-500">Not assigned to installation.</p>
+                        )}
+                        {submitToInstallation[r.id] && isUnitInAnyInstallation(r.unitUic) && (
+                          <select
+                            value={instSection[r.id] || ''}
+                            onChange={(e) => setInstSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                            className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
+                          >
+                            <option value="">Select Installation Section/Office (optional)</option>
+                            {(() => {
+                              const inst = installations.find(inst => {
+                                const list = (inst as any).unit_uics || (inst as any).unitUics || [];
+                                return Array.isArray(list) && list.includes(r.unitUic || '')
+                              })
+                              const secs: string[] = inst?.sections || []
+                              return secs.map(section => (
+                                <option key={section} value={section}>{section}</option>
+                              ))
+                            })()}
+                          </select>
+                        )}
+                        <div className="mt-2">
                           <button
                             className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={() => sendToExternal(r)}
-                            disabled={!externalUnitUic[r.id]}
+                            disabled={submitToInstallation[r.id] ? !isUnitInAnyInstallation(r.unitUic) : !externalUnitUic[r.id]}
                           >
-                            Send to External
+                            {submitToInstallation[r.id] ? 'Submit to Installation' : 'Submit to External'}
                           </button>
                         </div>
                       </div>
+                    </div>
                     )}
                   </div>
                 )}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
-import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
+import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments, listInstallations } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
 import { Request, DocumentItem } from '../types'
 import { UNITS } from '../lib/units'
@@ -22,6 +22,7 @@ export default function CommandDashboard() {
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
   const [selectedCommandSection, setSelectedCommandSection] = useState<Record<string, string>>({})
+  const [installation, setInstallation] = useState<any | null>(null)
   // Removed activeTab state - only showing pending items now
 
   useEffect(() => {
@@ -69,6 +70,14 @@ export default function CommandDashboard() {
       console.error('CommandDashboard - failed to load currentUser:', err)
     }
   }, [])
+
+  useEffect(() => {
+    if (!currentUser?.installationId) return
+    listInstallations().then((all) => {
+      const target = (all as any[]).find(i => i.id === currentUser.installationId)
+      setInstallation(target || null)
+    }).catch(() => setInstallation(null))
+  }, [currentUser])
 
   useEffect(() => {
     listRequests().then((remote) => {
@@ -208,6 +217,14 @@ export default function CommandDashboard() {
     })
   }, [requests, currentUser, getCurrentUserUic])
 
+  const inInstallationCommander = useMemo(() => {
+    const iid = currentUser?.installationId || ''
+    return requests.filter(r => {
+      const stage = r.currentStage || ''
+      return stage === 'INSTALLATION_REVIEW' && (!r.routeSection || r.routeSection === '') && (iid ? r.installationId === iid : true)
+    })
+  }, [requests, currentUser])
+
   const byCommandSection = useMemo(() => {
     const cuic = getCurrentUserUic()
     const result: Record<string, Request[]> = {}
@@ -222,7 +239,6 @@ export default function CommandDashboard() {
     // Initialize with known command sections
     for (const name of commandSections) result[name] = []
 
-    // Process all requests - check ALL COMMANDER_REVIEW requests
     const commanderReviewRequests = requests.filter(r => r.currentStage === 'COMMANDER_REVIEW')
     console.log('CommandDashboard - Total COMMANDER_REVIEW requests:', commanderReviewRequests.length)
 
@@ -236,45 +252,20 @@ export default function CommandDashboard() {
       })
     }
 
-    // Process all requests
     for (const r of requests) {
       const stage = r.currentStage || ''
       const ouic = r.unitUic || ''
       const routeSec = r.routeSection || ''
       const normRouteSec = normalize(routeSec)
 
-      // Only include requests from the current user's unit
-      if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec && (cuic ? ouic === cuic : true)) {
+      if (stage === 'COMMANDER_REVIEW' && routeSec && (cuic ? ouic === cuic : true)) {
         const idx = normSections.indexOf(normRouteSec)
         const sectionKey = idx >= 0 ? commandSections[idx] : routeSec
 
-        console.log('CommandDashboard - MATCHED request to command section:', {
-          id: r.id,
-          subject: r.subject?.substring(0, 30),
-          stage,
-          routeSec,
-          normRouteSec,
-          sectionKey,
-          idx,
-          foundInSections: idx >= 0,
-          ouic,
-          cuic
-        })
-
         if (!result[sectionKey]) {
-          console.log('CommandDashboard - Creating new section key:', sectionKey)
           result[sectionKey] = []
         }
         result[sectionKey].push(r)
-      } else if ((stage === 'COMMANDER_REVIEW' || stage === 'BATTALION_REVIEW') && routeSec) {
-        console.log('CommandDashboard - Request NOT matched (wrong UIC?):', {
-          id: r.id,
-          subject: r.subject?.substring(0, 30),
-          routeSec,
-          ouic,
-          cuic,
-          uicMatch: cuic ? ouic === cuic : true
-        })
       }
     }
     console.log('CommandDashboard - byCommandSection FINAL result:', result)
@@ -493,6 +484,30 @@ export default function CommandDashboard() {
         </div>
 
         <div className="space-y-8">
+          {installation && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-[var(--text)]">Installation Commander</h3>
+                <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{installation.name}</span>
+              </div>
+              <div className="mt-4">
+                <RequestTable
+                  title="Pending"
+                  requests={inInstallationCommander.filter(r => r.currentStage !== 'ARCHIVED')}
+                  users={users}
+                  onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                  expandedRows={expandedCard}
+                  variant="installation"
+                >
+                  {(r: Request) => (
+                    <div className="p-4 bg-gray-50 space-y-3">
+                      <div className="text-xs text-gray-600">Last Status: {new Date((r.activity && r.activity.length ? r.activity[r.activity.length - 1].timestamp : r.createdAt)).toLocaleString()}</div>
+                    </div>
+                  )}
+                </RequestTable>
+              </div>
+            </div>
+          )}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-[var(--text)]">Commander</h3>

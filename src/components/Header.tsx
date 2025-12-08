@@ -6,15 +6,37 @@ type HeaderProps = {
   currentUser: any
   hasSectionDashboard: boolean
   hasCommandDashboard: boolean
+  hasInstallationSectionDashboard?: boolean
+  hasInstallationCommandDashboard?: boolean
   onManageProfile: () => void
   onLogout: () => void
   onNavigate: (view: string) => void
   isLogin?: boolean
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, onManageProfile, onLogout, onNavigate, isLogin = false }) => {
+export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, hasInstallationSectionDashboard = false, hasInstallationCommandDashboard = false, onManageProfile, onLogout, onNavigate, isLogin = false }) => {
   const [dashOpen, setDashOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+<<<<<<< HEAD
+=======
+  const dashRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const onDown = (e: Event) => {
+      if (!dashOpen) return
+      const el = dashRef.current
+      if (el && e.target && !el.contains(e.target as Node)) setDashOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDashOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('touchstart', onDown, { passive: true } as any)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('touchstart', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [dashOpen])
+>>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
   return (
     <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -34,13 +56,13 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
             </>
           ) : (
             <>
-          <div className="flex items-center gap-2 md:gap-4 h-10 md:h-14 flex-shrink-0">
+          <div className="flex items-center gap-2 md:gap-4 h-10 md:h-14 flex-1">
             <img src={logoImg} alt="Semper Admin Logo" className="h-full w-auto rounded object-contain" />
             <div className="min-w-0">
-              <h1 className="text-sm md:text-3xl font-semibold leading-tight text-brand-cream">
-                <span className="hidden md:inline text-3xl md:text-4xl">Electronic Document Management System</span>
-                <span className="md:hidden text-sm">EDMS</span>
-                <a className="text-xs md:text-lg font-normal ml-1 md:ml-3 whitespace-nowrap text-red-500" href="https://linktr.ee/semperadmin">by Semper Admin</a>
+              <h1 className="text-sm lg:text-3xl font-semibold leading-tight text-brand-cream">
+                <span className="hidden lg:inline text-3xl lg:text-4xl">Electronic Document Management System</span>
+                <span className="lg:hidden text-sm">EDMS</span>
+                <a className="text-xs lg:text-lg font-normal ml-1 lg:ml-3 text-red-500" href="https://linktr.ee/semperadmin">by Semper Admin</a>
               </h1>
               <p className="text-xs md:text-sm font-light text-white/70 mt-0.5 hidden md:block">Marine Corps Unit Document Management</p>
             </div>
@@ -122,6 +144,9 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                   {currentUser && !!currentUser.isAppAdmin && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('appadmin'); setDashOpen(false) }}>App Admin</button>
                   )}
+                  {currentUser && !!currentUser.isInstallationAdmin && (
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('installation'); setDashOpen(false) }}>Installation Admin</button>
+                  )}
                 </div>
                 <div className="my-2 border-t border-brand-navy/20" />
                 <div role="group" aria-label="Dashboards">
@@ -130,6 +155,12 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                   )}
                   {(hasCommandDashboard) && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('command'); setDashOpen(false) }}>Command Sections Dashboard</button>
+                  )}
+                  {(currentUser && hasInstallationSectionDashboard) && (
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('installation-section'); setDashOpen(false) }}>Installation Section Dashboard</button>
+                  )}
+                  {(currentUser && hasInstallationCommandDashboard) && (
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('installation-command'); setDashOpen(false) }}>Installation Command Dashboard</button>
                   )}
                   {(String(currentUser?.role || '').includes('REVIEW')) && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('review'); setDashOpen(false) }}>Review Dashboard</button>

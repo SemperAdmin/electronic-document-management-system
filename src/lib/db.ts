@@ -348,13 +348,18 @@ export async function listInstallations(): Promise<any[]> {
     const { data, error } = await sb.from('edms_installations').select('*')
     if (error) return []
     const rows: any[] = Array.isArray(data) ? (data as any[]) : []
-    return rows.map((r: any) => ({
-      id: String(r.id),
-      name: String(r.name || ''),
-      unitUics: Array.isArray(r.unit_uics)
-        ? r.unit_uics.map((x: any) => String(x))
-        : (r.unit_uic ? [String(r.unit_uic)] : []),
-    }))
+  return rows.map((r: any) => ({
+    id: String(r.id),
+    name: String(r.name || ''),
+    unitUics: Array.isArray(r.unit_uics)
+      ? r.unit_uics.map((x: any) => String(x))
+      : (r.unit_uic ? [String(r.unit_uic)] : []),
+    sections: Array.isArray(r.sections) ? r.sections.map((x: any) => String(x)) : [],
+    commandSections: Array.isArray(r.command_sections) ? r.command_sections.map((x: any) => String(x)) : [],
+    sectionAssignments: (r.section_assignments && typeof r.section_assignments === 'object') ? r.section_assignments : {},
+    commandSectionAssignments: (r.command_section_assignments && typeof r.command_section_assignments === 'object') ? r.command_section_assignments : {},
+    commanderUserId: r.commander_user_id ? String(r.commander_user_id) : undefined,
+  }))
   } catch {
     return []
   }
@@ -364,7 +369,17 @@ export async function upsertInstallation(installation: any): Promise<{ ok: boole
   try {
     const sb = getSupabase()
     if (!sb?.from) return { ok: false, error: 'supabase_not_initialized' }
-    const { error } = await sb.from('edms_installations').upsert(installation)
+  const row = {
+    id: String(installation.id),
+    name: String(installation.name || ''),
+    unit_uics: Array.isArray(installation.unitUics) ? installation.unitUics.map(String) : [],
+    sections: Array.isArray(installation.sections) ? installation.sections.map(String) : [],
+    command_sections: Array.isArray(installation.commandSections) ? installation.commandSections.map(String) : [],
+    section_assignments: installation.sectionAssignments || {},
+    command_section_assignments: installation.commandSectionAssignments || {},
+    commander_user_id: installation.commanderUserId || null,
+  }
+    const { error } = await sb.from('edms_installations').upsert(row)
     if (error) return { ok: false, error }
     return { ok: true }
   } catch (e) {

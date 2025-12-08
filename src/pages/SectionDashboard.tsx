@@ -728,60 +728,7 @@ export default function SectionDashboard() {
                         Save Files
                       </button>
                     </div>
-<<<<<<< HEAD
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <select
-                        value={selectedCmdSection[r.id] || 'COMMANDER'}
-                        onChange={e => {
-                          console.log('SectionDashboard - Command section selected:', e.target.value, 'for request:', r.id)
-                          setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))
-                        }}
-                        className="px-3 py-2 border border-brand-navy/30 rounded-lg"
-                      >
-                        <option value="COMMANDER">Commander</option>
-                        {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <button
-                        className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => approveRequest(r)}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => rejectRequest(r)}
-                      >
-                        Return
-                      </button>
-                    </div>
-                    {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
-                      <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
-                        <label className="block text-sm font-medium text-[var(--text)] mb-2">Send to External Unit</label>
-                        <div className="flex flex-col gap-2">
-                          <SearchableUnitSelector
-                            onUnitSelect={(unit) => handleExternalUnitChange(r.id, unit)}
-                            selectedUnit={UNITS.find(u => u.uic === externalUnitUic[r.id])}
-                            placeholder="Search by UIC, RUC, MCC, or Unit Name"
-                          />
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              id={`submit-to-installation-${r.id}`}
-                              checked={submitToInstallation[r.id] || false}
-                              onChange={() => setSubmitToInstallation(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                              disabled={!isUnitInAnyInstallation(externalUnitUic[r.id])}
-                            />
-                            <label htmlFor={`submit-to-installation-${r.id}`}>Submit to Installation</label>
-                          </div>
-                          {!isUnitInAnyInstallation(externalUnitUic[r.id]) && (
-                            <p className="text-xs text-gray-500">Not assigned to installation.</p>
-                          )}
-                          <select
-                            value={externalSection[r.id] || ''}
-                            onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))}
-                            disabled={!externalUnitUic[r.id] || !(externalUnitSections[r.id] || []).length}
-                            className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-=======
+                    
                     {(() => {
                       const stage = r.currentStage || ''
                       const isBattalion = stage === 'BATTALION_REVIEW'
@@ -803,7 +750,6 @@ export default function SectionDashboard() {
                           <button
                             className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
                             onClick={() => approveRequest(r)}
->>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
                           >
                             Approve
                           </button>

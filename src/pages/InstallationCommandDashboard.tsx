@@ -120,6 +120,23 @@ export default function InstallationCommandDashboard() {
     }
   }
 
+  const routeToInstallationSection = async (r: Request) => {
+    const sec = nextInstSection[r.id] || ''
+    if (!sec.trim()) return
+    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Commander'
+    const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}`, comment: (comments[r.id] || '').trim() }
+    const updated: any = { ...r, currentStage: 'INSTALLATION_REVIEW', routeSection: sec, activity: [...(r.activity || []), entry] }
+    try {
+      await upsertRequest(updated)
+      setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setNextInstSection(prev => ({ ...prev, [r.id]: '' }))
+    } catch (e) {
+      console.error('Failed to route to installation section:', e)
+      alert('Failed to route to installation section')
+    }
+  }
+
   const routeToInstallationCommandFromCommander = async (r: Request) => {
     const sec = selectedCmdCommander[r.id] || ''
     if (!sec.trim()) return
@@ -199,6 +216,36 @@ export default function InstallationCommandDashboard() {
       console.error('Failed to record installation commander decision:', e)
       alert('Failed to record decision')
     }
+  }
+
+  const handleExternalUnitChange = (requestId: string, selectedUnit: any | undefined) => {
+    if (!selectedUnit) {
+      setExternalUnitUic(prev => ({ ...prev, [requestId]: '' }))
+      setExternalUnit(prev => ({ ...prev, [requestId]: '' }))
+      setExternalUnitSections(prev => ({ ...prev, [requestId]: [] }))
+      setExternalSection(prev => ({ ...prev, [requestId]: '' }))
+      return
+    }
+
+    const selectedUic = selectedUnit.uic
+    setExternalUnitUic(prev => ({ ...prev, [requestId]: selectedUic }))
+    setExternalUnit(prev => ({ ...prev, [requestId]: selectedUnit.unitName }))
+
+    let sections: string[] = []
+    try {
+      const rawUs = localStorage.getItem('unit_structure')
+      if (rawUs) {
+        const parsed = JSON.parse(rawUs)
+        const unitData = parsed[selectedUic]
+        const unitSections = (unitData?._sections && Array.isArray(unitData._sections)) ? unitData._sections : []
+        const commandSections = (unitData?._commandSections && Array.isArray(unitData._commandSections)) ? unitData._commandSections : []
+        sections = [...unitSections, ...commandSections]
+      }
+    } catch (error) {
+      console.error('InstallationCommandDashboard - Failed to load unit sections from localStorage:', error)
+    }
+    setExternalUnitSections(prev => ({ ...prev, [requestId]: sections }))
+    setExternalSection(prev => ({ ...prev, [requestId]: '' }))
   }
 
   const cmdSections: string[] = useMemo(() => {
@@ -587,32 +634,3 @@ export default function InstallationCommandDashboard() {
     </div>
   )
 }
-  const handleExternalUnitChange = (requestId: string, selectedUnit: any | undefined) => {
-    if (!selectedUnit) {
-      setExternalUnitUic(prev => ({ ...prev, [requestId]: '' }))
-      setExternalUnit(prev => ({ ...prev, [requestId]: '' }))
-      setExternalUnitSections(prev => ({ ...prev, [requestId]: [] }))
-      setExternalSection(prev => ({ ...prev, [requestId]: '' }))
-      return
-    }
-
-    const selectedUic = selectedUnit.uic
-    setExternalUnitUic(prev => ({ ...prev, [requestId]: selectedUic }))
-    setExternalUnit(prev => ({ ...prev, [requestId]: selectedUnit.unitName }))
-
-    let sections: string[] = []
-    try {
-      const rawUs = localStorage.getItem('unit_structure')
-      if (rawUs) {
-        const parsed = JSON.parse(rawUs)
-        const unitData = parsed[selectedUic]
-        const unitSections = (unitData?._sections && Array.isArray(unitData._sections)) ? unitData._sections : []
-        const commandSections = (unitData?._commandSections && Array.isArray(unitData._commandSections)) ? unitData._commandSections : []
-        sections = [...unitSections, ...commandSections]
-      }
-    } catch (error) {
-      console.error('InstallationCommandDashboard - Failed to load unit sections from localStorage:', error)
-    }
-    setExternalUnitSections(prev => ({ ...prev, [requestId]: sections }))
-    setExternalSection(prev => ({ ...prev, [requestId]: '' }))
-  }

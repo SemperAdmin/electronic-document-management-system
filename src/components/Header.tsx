@@ -126,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
             )}
             <div className="relative inline-block" ref={dashRef}>
               <button className="bg-brand-red text-brand-cream px-2 py-1 md:px-3 md:py-2 text-xs md:text-base rounded hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold whitespace-nowrap" aria-haspopup="menu" aria-expanded={dashOpen} onClick={() => setDashOpen(prev => !prev)}>Dashboards</button>
-              <div className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-[var(--surface)] border-2 border-brand-red-2 rounded-lg shadow-lg text-brand-navy`} role="menu" aria-label="Dashboards">
+              <div className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-white border-2 border-brand-red-2 rounded-lg shadow-xl text-brand-navy z-50`} role="menu" aria-label="Dashboards">
                 <div className="px-4 py-2 bg-brand-red text-brand-cream rounded-t-lg text-sm font-medium">Dashboards</div>
                 <div role="group" aria-label="My">
                   {currentUser && (
@@ -141,26 +141,32 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                   {currentUser && !!currentUser.isAppAdmin && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('appadmin'); setDashOpen(false) }}>App Admin</button>
                   )}
+                  {currentUser && !!currentUser.isHqmcAdmin && (
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('appadmin'); setDashOpen(false) }}>HQMC Admin</button>
+                  )}
                   {currentUser && !!currentUser.isInstallationAdmin && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('installation'); setDashOpen(false) }}>Installation Admin</button>
                   )}
                 </div>
                 <div className="my-2 border-t border-brand-navy/20" />
-                <div role="group" aria-label="Dashboards">
+                <div role="group" aria-label="Battalion & Command">
                   {(currentUser && hasSectionDashboard) && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('section'); setDashOpen(false) }}>Battalion Section Dashboard</button>
                   )}
                   {(hasCommandDashboard) && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('command'); setDashOpen(false) }}>Command Sections Dashboard</button>
                   )}
+                  {(String(currentUser?.role || '').includes('REVIEW')) && (
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('review'); setDashOpen(false) }}>Review Dashboard</button>
+                  )}
+                </div>
+                <div className="my-2 border-t border-brand-navy/20" />
+                <div role="group" aria-label="Installation">
                   {(currentUser && hasInstallationSectionDashboard) && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('installation-section'); setDashOpen(false) }}>Installation Section Dashboard</button>
                   )}
                   {(currentUser && hasInstallationCommandDashboard) && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('installation-command'); setDashOpen(false) }}>Installation Command Dashboard</button>
-                  )}
-                  {(String(currentUser?.role || '').includes('REVIEW')) && (
-                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('review'); setDashOpen(false) }}>Review Dashboard</button>
                   )}
                 </div>
               </div>

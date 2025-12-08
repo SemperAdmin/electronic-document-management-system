@@ -55,6 +55,47 @@ export default function InstallationCommandDashboard() {
 
   const docsFor = (requestId: string) => documents.filter(d => String(d.requestId || '') === String(requestId))
 
+  const originatorFor = (r: Request) => usersById[r.uploadedById]
+  const formatCsvCell = (v: any) => {
+    const s = String(v ?? '')
+    const escaped = s.replace(/"/g, '""')
+    return `"${escaped}"`
+  }
+  const buildRows = (list: Request[]) => {
+    const headers = ['Request ID','Subject','Stage','Route Section','Originator','Unit UIC','Created At','Documents']
+    const rows = [headers]
+    for (const r of list) {
+      const o = originatorFor(r)
+      const origin = o ? `${o.rank || ''} ${o.lastName || ''}, ${o.firstName || ''}${o.mi ? ` ${o.mi}` : ''}`.trim() : ''
+      const docs = docsFor(r.id).map(d => d.name).join(' | ')
+      rows.push([
+        r.id,
+        r.subject,
+        r.currentStage || '',
+        r.routeSection || '',
+        origin,
+        r.unitUic || '',
+        new Date(r.createdAt).toLocaleString(),
+        docs
+      ])
+    }
+    return rows.map(row => row.map(formatCsvCell).join(',')).join('\r\n')
+  }
+  const downloadCsv = (filename: string, csv: string) => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+  const exportCommander = () => downloadCsv('installation_commander.csv', buildRows(inInstallationCommander))
+  const exportSection = (name: string) => downloadCsv(`installation_${name}.csv`, buildRows(requestsBySection[name] || []))
+  const exportAll = () => downloadCsv('installation_command_all.csv', buildRows([...inInstallationCommander, ...cmdSections.flatMap(n => requestsBySection[n] || [])]))
+
   const addFilesToRequest = async (r: Request) => {
     const files = attach[r.id] || []
     if (!files.length) return
@@ -306,7 +347,11 @@ export default function InstallationCommandDashboard() {
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-[var(--text)]">Installation Command Dashboard</h2>
-          <div className="text-sm text-[var(--muted)]">{(install?.name || '')}</div>
+          <div className="flex items-center gap-2">
+            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
+            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportCommander}>Export Commander</button>
+            <div className="text-sm text-[var(--muted)]">{(install?.name || '')}</div>
+          </div>
         </div>
         <div className="border-b border-gray-200 mb-4">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
@@ -485,9 +530,10 @@ export default function InstallationCommandDashboard() {
             </div>
             {cmdSections.map((sec) => (
               <div key={sec}>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-semibold text-[var(--text)]">{sec}</h3>
-                </div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-[var(--text)]">{sec}</h3>
+                <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(sec)}>Export {sec}</button>
+              </div>
                 <RequestTable
                   title={`Pending in ${sec}`}
                   requests={requestsBySection[sec] || []}

@@ -126,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
             )}
             <div className="relative inline-block" ref={dashRef}>
               <button className="bg-brand-red text-brand-cream px-2 py-1 md:px-3 md:py-2 text-xs md:text-base rounded hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold whitespace-nowrap" aria-haspopup="menu" aria-expanded={dashOpen} onClick={() => setDashOpen(prev => !prev)}>Dashboards</button>
-              <div className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-[var(--surface)] border-2 border-brand-red-2 rounded-lg shadow-lg text-brand-navy`} role="menu" aria-label="Dashboards">
+              <div className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-white border-2 border-brand-red-2 rounded-lg shadow-xl text-brand-navy z-50`} role="menu" aria-label="Dashboards">
                 <div className="px-4 py-2 bg-brand-red text-brand-cream rounded-t-lg text-sm font-medium">Dashboards</div>
                 <div role="group" aria-label="My">
                   {currentUser && (

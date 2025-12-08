@@ -320,15 +320,15 @@ export default function InstallationSectionDashboard() {
                 </button>
               </div>
               <div className="mt-3">
-                <label className="block text-sm font-medium text-gray-900 mb-2">Route to Installation Section</label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Route to Command Section</label>
                 <div className="flex items-center gap-2">
                   <select
                     className="px-3 py-2 border border-brand-navy/30 rounded-lg"
                     value={selectedCmd[r.id] || ''}
                     onChange={(e) => setSelectedCmd(prev => ({ ...prev, [r.id]: e.target.value }))}
                   >
-                    <option value="">Select installation section</option>
-                    {(install?.sections || []).map((s: string) => (
+                    <option value="">Select command section</option>
+                    {(install?.commandSections || []).map((s: string) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
@@ -339,7 +339,7 @@ export default function InstallationSectionDashboard() {
                       const sec = selectedCmd[r.id] || ''
                       if (!sec.trim()) return
                       const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Section'
-                      const entry = { actor, timestamp: new Date().toISOString(), action: `Routed to installation section: ${sec}` }
+                      const entry = { actor, timestamp: new Date().toISOString(), action: `Routed to installation command section: ${sec}` }
                       const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
                       ;(async () => {
                         try {

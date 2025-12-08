@@ -365,6 +365,24 @@ export async function listInstallations(): Promise<any[]> {
   }
 }
 
+export async function listHQMCStructure(): Promise<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb.from('hqmc_structure').select('*').order('division_code').order('branch')
+    if (error) return []
+    const rows: any[] = Array.isArray(data) ? (data as any[]) : []
+    return rows.map((r: any) => ({
+      division_name: String(r.division_name || ''),
+      division_code: r.division_code ? String(r.division_code) : undefined,
+      branch: String(r.branch || ''),
+      description: r.description ? String(r.description) : undefined,
+    }))
+  } catch {
+    return []
+  }
+}
+
 export async function upsertInstallation(installation: any): Promise<{ ok: boolean; error?: any }> {
   try {
     const sb = getSupabase()

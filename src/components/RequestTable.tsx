@@ -158,10 +158,10 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-[var(--text)] mb-3">
+      <h3 className="text-lg font-semibold text-[var(--text)] mb-3 flex items-center">
         {title}
         {titleActions ? (
-          <span className="ml-2 inline-flex items-center gap-2 align-middle">
+          <span className="ml-auto inline-flex items-center gap-2 align-middle">
             {titleActions}
           </span>
         ) : null}

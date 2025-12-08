@@ -369,7 +369,6 @@ export default function InstallationCommandDashboard() {
                 titleActions={(
                   <>
                     <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportCommander}>Export Commander</button>
-                    <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
                   </>
                 )}
                 requests={inInstallationCommander}
@@ -530,9 +529,9 @@ export default function InstallationCommandDashboard() {
             {cmdSections.map((sec) => (
               <div key={sec}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-[var(--text)]">
+                <h3 className="text-lg font-semibold text-[var(--text)] flex items-center justify-between w-full">
                   {sec}
-                  <span className="ml-2 inline-flex items-center gap-2 align-middle">
+                  <span className="inline-flex items-center gap-2 align-middle">
                     <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(sec)}>Export {sec}</button>
                   </span>
                 </h3>

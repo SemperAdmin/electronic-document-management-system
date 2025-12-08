@@ -468,27 +468,16 @@ export default function SectionDashboard() {
     const extUnit = externalUnit[r.id] || ''
     const extSec = externalSection[r.id] || ''
 
-<<<<<<< HEAD
-    if (!extUnitUic.trim()) {
-      alert('Please select an external unit')
-      return
-    }
-
-=======
->>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
+    // external unit validation happens only when not submitting to installation (see else branch)
     const actor = getActorDisplayName(currentUser) || 'Battalion'
 
     let updated: Request;
 
     if (submitToInstallation[r.id]) {
-<<<<<<< HEAD
-      const installation = installations.find(inst => Array.isArray((inst as any).unit_uics) && (inst as any).unit_uics.includes(extUnitUic));
-=======
       const installation = installations.find(inst => {
         const list = (inst as any).unit_uics || (inst as any).unitUics || [];
         return Array.isArray(list) && list.includes(r.unitUic || '');
       });
->>>>>>> 798ba4d (feat(installation): dashboards, permissions, routing, and UX\n\n- Installation Admin: tabs (Unit/Structure/Permissions), EDIPI assignment, commander\n- Installation Section Dashboard: review notes, files, activity log, route to section/command, return to unit\n- Installation Command Dashboard: all sections grouped, commander panel, notes/files/logs, route to section, send external on endorse, restore from archive\n- SectionDashboard: submit to installation (owning unit), section dropdown, unified submit button, dynamic label\n- RequestTable: installation status formatting, last status date, green on return after approval/endorsement\n- Header: installation menus, click-away close\n- Supabase migrations: installation sections/assignments/commander, final_status, is_installation_admin)
       if (!installation) {
         alert('The selected unit is not part of any installation.');
         return;

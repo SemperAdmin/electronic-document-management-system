@@ -347,11 +347,7 @@ export default function InstallationCommandDashboard() {
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-[var(--text)]">Installation Command Dashboard</h2>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
-            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportCommander}>Export Commander</button>
-            <div className="text-sm text-[var(--muted)]">{(install?.name || '')}</div>
-          </div>
+          <div className="text-sm text-[var(--muted)]">{(install?.name || '')}</div>
         </div>
         <div className="border-b border-gray-200 mb-4">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
@@ -368,11 +364,14 @@ export default function InstallationCommandDashboard() {
         {activeTab === 'Pending' && (
           <div className="space-y-8">
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-[var(--text)]">Commander</h3>
-              </div>
               <RequestTable
                 title="Pending in Commander"
+                titleActions={(
+                  <>
+                    <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportCommander}>Export Commander</button>
+                    <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
+                  </>
+                )}
                 requests={inInstallationCommander}
                 users={usersById}
                 variant="installation"
@@ -531,8 +530,12 @@ export default function InstallationCommandDashboard() {
             {cmdSections.map((sec) => (
               <div key={sec}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-[var(--text)]">{sec}</h3>
-                <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(sec)}>Export {sec}</button>
+                <h3 className="text-lg font-semibold text-[var(--text)]">
+                  {sec}
+                  <span className="ml-2 inline-flex items-center gap-2 align-middle">
+                    <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(sec)}>Export {sec}</button>
+                  </span>
+                </h3>
               </div>
                 <RequestTable
                   title={`Pending in ${sec}`}

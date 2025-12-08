@@ -201,12 +201,7 @@ export default function InstallationSectionDashboard() {
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-[var(--text)]">Installation Section Dashboard</h2>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
-            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPending}>Export Pending</button>
-            <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPrevious}>Export Previous</button>
-            <div className="text-sm text-[var(--muted)]">{(install?.name || '')}</div>
-          </div>
+          <div className="text-sm text-[var(--muted)]">{(install?.name || '')}</div>
         </div>
         <div className="border-b border-gray-200 mb-4">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
@@ -223,6 +218,12 @@ export default function InstallationSectionDashboard() {
         {activeTab === 'Pending' && (
         <RequestTable
           title="Assigned to My Sections"
+          titleActions={(
+            <>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPending}>Export Pending</button>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
+            </>
+          )}
           requests={inMySections}
           users={usersById}
           variant="installation"
@@ -369,6 +370,12 @@ export default function InstallationSectionDashboard() {
         {activeTab === 'Previously in Section' && (
         <RequestTable
           title="Previously in Section"
+          titleActions={(
+            <>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPrevious}>Export Previous</button>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
+            </>
+          )}
           requests={previouslyInSection}
           users={usersById}
           variant="installation"

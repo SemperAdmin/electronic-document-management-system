@@ -6,13 +6,14 @@ interface RequestTableProps {
   users: Record<string, UserRecord>;
   onRowClick: (request: Request) => void;
   title: string;
+  titleActions?: React.ReactNode;
   expandedRows: Record<string, boolean>;
   children: (request: Request) => React.ReactNode;
   platoonSectionMap?: Record<string, Record<string, Record<string, string>>>;
   variant?: 'default' | 'installation';
 }
 
-const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, expandedRows, children, platoonSectionMap, variant = 'default' }) => {
+const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, titleActions, expandedRows, children, platoonSectionMap, variant = 'default' }) => {
   const [modalPeople, setModalPeople] = useState<UserRecord[] | null>(null);
   const isInstallation = variant === 'installation';
 
@@ -157,7 +158,14 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-[var(--text)] mb-3">{title}</h3>
+      <h3 className="text-lg font-semibold text-[var(--text)] mb-3">
+        {title}
+        {titleActions ? (
+          <span className="ml-2 inline-flex items-center gap-2 align-middle">
+            {titleActions}
+          </span>
+        ) : null}
+      </h3>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-[var(--surface)] border border-brand-navy/20">
           <thead className="bg-brand-cream border-b border-brand-navy/20">

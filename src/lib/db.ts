@@ -150,6 +150,7 @@ function toUserRow(u: UserRecord) {
     role_company: u.roleCompany !== undefined ? u.roleCompany : undefined,
     role_platoon: u.rolePlatoon !== undefined ? u.rolePlatoon : undefined,
     installation_id: u.installationId !== undefined ? u.installationId : undefined,
+    hqmc_division: u.hqmcDivision !== undefined ? u.hqmcDivision : undefined,
   }
 }
 
@@ -194,6 +195,7 @@ function fromUserRow(r: any): UserRecord {
     roleCompany: roleCompany,
     rolePlatoon: rolePlatoon,
     installationId: r.installation_id ? String(r.installation_id) : undefined,
+    hqmcDivision: r.hqmc_division ? String(r.hqmc_division) : undefined,
   }
 }
 
@@ -383,6 +385,22 @@ export async function listHQMCStructure(): Promise<Array<{ division_name: string
   } catch {
     return []
   }
+}
+
+export async function listHQMCDivisions(): Promise<Array<{ id: string; name: string; code: string; description?: string }>> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return []
+    const { data, error } = await sb.from('hqmc_divisions').select('*').order('code')
+    if (error) return []
+    const rows: any[] = Array.isArray(data) ? (data as any[]) : []
+    return rows.map((r: any) => ({
+      id: String(r.id),
+      name: String(r.name || ''),
+      code: String(r.code || ''),
+      description: r.description ? String(r.description) : undefined,
+    }))
+  } catch { return [] }
 }
 
 export async function upsertInstallation(installation: any): Promise<{ ok: boolean; error?: any }> {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { UNITS, Unit } from '../lib/units'
-import { upsertUser, listUsers, listRequests, listInstallations } from '../lib/db'
+import { upsertUser, listUsers, listRequests, listInstallations, listHQMCDivisions } from '../lib/db'
 import { Installation, UserRecord } from '../types'
 import { Pagination } from '@/components/Pagination'
 
@@ -13,6 +13,8 @@ export default function AppAdmin() {
   const [adminView, setAdminView] = useState<'assigned' | 'missing' | 'installation' | 'hqmc'>('assigned')
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [selectedInstallation, setSelectedInstallation] = useState<string>('');
+  const [hqmcDivisions, setHqmcDivisions] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [selectedHqmcDivision, setSelectedHqmcDivision] = useState<string>('')
 
   const refreshUsers = () => {
     listUsers().then((us) => setUsers(us as any)).catch(() => setUsers([]))
@@ -27,6 +29,7 @@ export default function AppAdmin() {
   useEffect(() => {
     refreshAll()
     listInstallations().then(data => setInstallations(data as Installation[]));
+    listHQMCDivisions().then(data => setHqmcDivisions(data));
   }, [adminView])
 
   const unitAdmins = useMemo(() => {
@@ -345,6 +348,7 @@ export default function AppAdmin() {
                 <thead>
                   <tr className="text-left border-b">
                     <th className="py-2 px-3">Assign</th>
+                    <th className="py-2 px-3">Division</th>
                     <th className="py-2 px-3">Action</th>
                   </tr>
                 </thead>
@@ -363,14 +367,26 @@ export default function AppAdmin() {
                       </select>
                     </td>
                     <td className="py-2 px-3">
+                      <select
+                        value={selectedHqmcDivision}
+                        onChange={(e) => setSelectedHqmcDivision(e.target.value)}
+                        className="px-2 py-1 border rounded"
+                      >
+                        <option value="">Select division</option>
+                        {hqmcDivisions.map(d => (
+                          <option key={d.code} value={d.code}>{d.code} — {d.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-2 px-3">
                       <button
                         className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
-                        disabled={!assignInstallationMap['hqmc']}
+                        disabled={!assignInstallationMap['hqmc'] || !selectedHqmcDivision}
                         onClick={async () => {
                           const selectedId = assignInstallationMap['hqmc']
                           const user = users.find(x => x.id === selectedId)
                           if (!user) return
-                          const updated: UserRecord = { ...user, isHqmcAdmin: true }
+                          const updated: UserRecord = { ...user, isHqmcAdmin: true, hqmcDivision: selectedHqmcDivision }
                           try {
                             const res = await upsertUser({
                               id: updated.id,
@@ -388,6 +404,7 @@ export default function AppAdmin() {
                               isInstallationAdmin: !!updated.isInstallationAdmin,
                               isCommandStaff: !!updated.isCommandStaff,
                               isHqmcAdmin: !!updated.isHqmcAdmin,
+                              hqmcDivision: updated.hqmcDivision,
                               edipi: updated.edipi,
                             })
                             if (!res.ok) { setFeedback({ type: 'error', message: 'Failed to assign HQMC admin (DB error).' }); return }
@@ -406,7 +423,7 @@ export default function AppAdmin() {
               <ul className="space-y-2">
                 {hqmcAdmins.map(a => (
                   <li key={a.id} className="flex items-center justify-between p-2 border rounded">
-                    <span>{`${a.rank} ${a.lastName}, ${a.firstName}${a.mi ? ` ${a.mi}` : ''}`}</span>
+                    <span>{`${a.rank} ${a.lastName}, ${a.firstName}${a.mi ? ` ${a.mi}` : ''}`}{a.hqmcDivision ? ` • ${a.hqmcDivision}` : ''}</span>
                     <button
                       className="px-2 py-1 text-xs bg-red-600 text-white rounded"
                       onClick={async () => {
@@ -428,6 +445,7 @@ export default function AppAdmin() {
                             isInstallationAdmin: !!updated.isInstallationAdmin,
                             isCommandStaff: !!updated.isCommandStaff,
                             isHqmcAdmin: !!updated.isHqmcAdmin,
+                            hqmcDivision: updated.hqmcDivision,
                             edipi: updated.edipi,
                           })
                           if (!res.ok) { setFeedback({ type: 'error', message: 'Failed to remove HQMC admin (DB error).' }); return }

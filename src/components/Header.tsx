@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useState } from 'react'
 import logoImg from '../assets/images/logo.png'
 import { UNITS } from '@/lib/units'
 
@@ -15,30 +15,6 @@ type HeaderProps = {
 export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, onManageProfile, onLogout, onNavigate, isLogin = false }) => {
   const [dashOpen, setDashOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
-  const dashRef = useRef<HTMLDivElement | null>(null)
-  const profileRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const t = e.target as Node | null
-      if (dashOpen && dashRef.current && t && !dashRef.current.contains(t)) setDashOpen(false)
-      if (profileOpen && profileRef.current && t && !profileRef.current.contains(t)) setProfileOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (dashOpen) setDashOpen(false)
-        if (profileOpen) setProfileOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    document.addEventListener('touchstart', handler, { passive: true })
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', handler)
-      document.removeEventListener('touchstart', handler)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [dashOpen, profileOpen])
   return (
     <header className="bg-brand-navy text-brand-cream shadow-sm border-b border-brand-navy/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -114,7 +90,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
               )}
             </div>
             {currentUser && (
-              <div className="md:hidden relative" ref={profileRef}>
+              <div className="md:hidden relative">
                 <div className="h-8 w-8 rounded-full bg-brand-cream text-brand-navy flex items-center justify-center text-xs font-semibold border border-white/30 select-none cursor-pointer" onClick={() => setProfileOpen(!profileOpen)}>
                   {`${(currentUser.lastName || '').charAt(0)}${(currentUser.firstName || '').charAt(0)}`.toUpperCase()}
                 </div>
@@ -129,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
             {!currentUser && (
               <button className="bg-brand-charcoal text-brand-cream px-2 md:px-3 py-1 md:py-2 text-sm md:text-base rounded-lg hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold" onClick={() => onNavigate('login')}>Login</button>
             )}
-            <div className="relative inline-block" ref={dashRef}>
+            <div className="relative inline-block">
               <button className="bg-brand-red text-brand-cream px-2 py-1 md:px-3 md:py-2 text-xs md:text-base rounded hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold whitespace-nowrap" aria-haspopup="menu" aria-expanded={dashOpen} onClick={() => setDashOpen(prev => !prev)}>Dashboards</button>
               <div className={`${dashOpen ? 'block' : 'hidden'} absolute right-0 mt-2 w-60 bg-[var(--surface)] border-2 border-brand-red-2 rounded-lg shadow-lg text-brand-navy`} role="menu" aria-label="Dashboards">
                 <div className="px-4 py-2 bg-brand-red text-brand-cream rounded-t-lg text-sm font-medium">Dashboards</div>

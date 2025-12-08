@@ -201,7 +201,7 @@ export default function AppAdmin() {
               <tbody>
                 {unitsWithAdmin.map(unit => {
                   const admin = unitAdmins[unit.uic]!
-                  const installation = installations.find(i => Array.isArray(i.unitUics) && i.unitUics.includes(unit.uic));
+                  const installation = installations.find(i => Array.isArray((i as any).unit_uics) && (i as any).unit_uics.includes(unit.uic));
                   return (
                     <tr key={unit.uic} className="border-b">
                       <td className="py-2 px-3">{unit.unitName}</td>

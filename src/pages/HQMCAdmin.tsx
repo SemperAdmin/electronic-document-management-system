@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listHQMCStructure, listHQMCDivisions, listUsers, upsertUser } from '../lib/db'
+import { listHQMCStructure, listHQMCDivisions, listUsers, upsertUser, listHQMCSectionAssignments, upsertHQMCSectionAssignment, getUserByEdipi } from '../lib/db'
 import { UserRecord } from '@/types'
 
 export default function HQMCAdmin() {
@@ -9,6 +9,9 @@ export default function HQMCAdmin() {
   const [users, setUsers] = useState<UserRecord[]>([])
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [viewTab, setViewTab] = useState<'structure' | 'permissions'>('structure')
+  const [assignments, setAssignments] = useState<Record<string, { reviewers: string[]; approvers: string[] }>>({})
+  const [edipiReviewerByBranch, setEdipiReviewerByBranch] = useState<Record<string, string>>({})
+  const [edipiApproverByBranch, setEdipiApproverByBranch] = useState<Record<string, string>>({})
 
   useEffect(() => {
     try {
@@ -18,6 +21,14 @@ export default function HQMCAdmin() {
     listHQMCDivisions().then(setDivisions)
     listHQMCStructure().then(setStructure)
     listUsers().then((remote) => setUsers(remote as any)).catch(() => setUsers([]))
+    listHQMCSectionAssignments().then(rows => {
+      const map: Record<string, { reviewers: string[]; approvers: string[] }> = {}
+      for (const r of rows) {
+        const key = `${r.division_code}::${r.branch}`
+        map[key] = { reviewers: r.reviewers || [], approvers: r.approvers || [] }
+      }
+      setAssignments(map)
+    })
   }, [])
 
   const myDivisionCode = currentUser?.hqmcDivision || ''
@@ -77,30 +88,107 @@ export default function HQMCAdmin() {
 
           {viewTab === 'permissions' && (
             <div className="grid grid-cols-1 gap-4">
-              <div className="p-4 border border-gray-200 rounded-lg">
+              <div className="md:col-span-2 p-4 border border-gray-200 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">Division Admins</h4>
+                  <h4 className="font-medium text-gray-900">Section Reviewers & Approvers</h4>
+                  <button
+                    className="text-sm px-2 py-1 bg-gray-100 rounded"
+                    onClick={async () => {
+                      for (const b of branches) {
+                        const key = `${myDivisionCode}::${b.branch}`
+                        const a = assignments[key] || { reviewers: [], approvers: [] }
+                        await upsertHQMCSectionAssignment({ division_code: myDivisionCode, branch: b.branch, reviewers: a.reviewers, approvers: a.approvers })
+                      }
+                      setFeedback({ type: 'success', message: 'HQMC section permissions saved.' })
+                    }}
+                  >Save</button>
                 </div>
-                <ul className="space-y-2">
-                  {divisionAdmins.map(a => (
-                    <li key={a.id} className="flex items-center justify-between p-2 border rounded">
-                      <span>{`${a.rank || ''} ${a.lastName || ''}, ${a.firstName || ''}`.trim()}</span>
-                      <button
-                        className="px-2 py-1 text-xs bg-red-600 text-white rounded"
-                        onClick={async () => {
-                          const updated = { ...a, isHqmcAdmin: false }
-                          try {
-                            const res = await upsertUser({ id: updated.id, isHqmcAdmin: !!updated.isHqmcAdmin })
-                            if (!res.ok) { setFeedback({ type: 'error', message: 'Failed to remove HQMC admin (DB error).' }); return }
-                          } catch {}
-                          setUsers(prev => prev.map(u => (u.id === updated.id ? updated as UserRecord : u)))
-                          setFeedback({ type: 'success', message: `Removed HQMC admin: ${updated.lastName || ''}.` })
-                        }}
-                      >Remove</button>
-                    </li>
-                  ))}
-                  {divisionAdmins.length === 0 && (<li className="text-sm text-gray-500">No HQMC admins for this division.</li>)}
-                </ul>
+                <div className="space-y-4">
+                  {branches.map(b => {
+                    const key = `${myDivisionCode}::${b.branch}`
+                    const a = assignments[key] || { reviewers: [], approvers: [] }
+                    const displayUser = (u: any) => `${u.rank || ''} ${u.lastName || ''}, ${u.firstName || ''}${u.mi ? ' ' + u.mi : ''}`.trim()
+                    return (
+                      <div key={key} className="p-3 border border-gray-200 rounded-lg">
+                        <div className="font-medium text-gray-900 mb-2">{b.branch}</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <input
+                                type="text"
+                                value={edipiReviewerByBranch[key] || ''}
+                                onChange={(e) => setEdipiReviewerByBranch(prev => ({ ...prev, [key]: e.target.value }))}
+                                placeholder="Enter EDIPI to add reviewer"
+                                className="px-2 py-1 border rounded w-56"
+                              />
+                              <button
+                                className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                                disabled={!edipiReviewerByBranch[key]}
+                                onClick={async () => {
+                                  const ed = (edipiReviewerByBranch[key] || '').trim()
+                                  if (!ed) return
+                                  const { user } = await getUserByEdipi(ed)
+                                  if (!user?.id) { setFeedback({ type: 'error', message: `No user found for EDIPI ${ed}` }); return }
+                                  setAssignments(prev => ({ ...prev, [key]: { ...a, reviewers: Array.from(new Set([...(a.reviewers || []), user.id])) } }))
+                                  setEdipiReviewerByBranch(prev => ({ ...prev, [key]: '' }))
+                                  setFeedback({ type: 'success', message: `Added reviewer ${user.lastName || ''}, ${user.firstName || ''}` })
+                                }}
+                              >Add Reviewer</button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {(a.reviewers || []).map(userId => {
+                                const u = users.find(x => x.id === userId)
+                                return (
+                                  <span key={userId} className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-gray-100 rounded border">
+                                    <span>{u ? displayUser(u) : userId}</span>
+                                    <button className="text-red-600" onClick={() => setAssignments(prev => ({ ...prev, [key]: { ...a, reviewers: (a.reviewers || []).filter(id => id !== userId) } }))}>✕</button>
+                                  </span>
+                                )
+                              })}
+                              {(a.reviewers || []).length === 0 && (<span className="text-xs text-gray-500">No reviewers assigned</span>)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <input
+                                type="text"
+                                value={edipiApproverByBranch[key] || ''}
+                                onChange={(e) => setEdipiApproverByBranch(prev => ({ ...prev, [key]: e.target.value }))}
+                                placeholder="Enter EDIPI to add approver"
+                                className="px-2 py-1 border rounded w-56"
+                              />
+                              <button
+                                className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                                disabled={!edipiApproverByBranch[key]}
+                                onClick={async () => {
+                                  const ed = (edipiApproverByBranch[key] || '').trim()
+                                  if (!ed) return
+                                  const { user } = await getUserByEdipi(ed)
+                                  if (!user?.id) { setFeedback({ type: 'error', message: `No user found for EDIPI ${ed}` }); return }
+                                  setAssignments(prev => ({ ...prev, [key]: { ...a, approvers: Array.from(new Set([...(a.approvers || []), user.id])) } }))
+                                  setEdipiApproverByBranch(prev => ({ ...prev, [key]: '' }))
+                                  setFeedback({ type: 'success', message: `Added approver ${user.lastName || ''}, ${user.firstName || ''}` })
+                                }}
+                              >Add Approver</button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {(a.approvers || []).map(userId => {
+                                const u = users.find(x => x.id === userId)
+                                return (
+                                  <span key={userId} className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-gray-100 rounded border">
+                                    <span>{u ? displayUser(u) : userId}</span>
+                                    <button className="text-red-600" onClick={() => setAssignments(prev => ({ ...prev, [key]: { ...a, approvers: (a.approvers || []).filter(id => id !== userId) } }))}>✕</button>
+                                  </span>
+                                )
+                              })}
+                              {(a.approvers || []).length === 0 && (<span className="text-xs text-gray-500">No approvers assigned</span>)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -113,4 +201,3 @@ export default function HQMCAdmin() {
     </div>
   )
 }
-

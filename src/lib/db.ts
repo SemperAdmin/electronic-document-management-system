@@ -367,7 +367,14 @@ export async function listInstallations(): Promise<any[]> {
     if (!sb?.from) return []
     const { data, error } = await sb.from('edms_installations').select('*')
     if (error) return []
-    return data ?? []
+    const rows: any[] = Array.isArray(data) ? (data as any[]) : []
+    return rows.map((r: any) => ({
+      id: String(r.id),
+      name: String(r.name || ''),
+      unitUics: Array.isArray(r.unit_uics)
+        ? r.unit_uics.map((x: any) => String(x))
+        : (r.unit_uic ? [String(r.unit_uic)] : []),
+    }))
   } catch {
     return []
   }

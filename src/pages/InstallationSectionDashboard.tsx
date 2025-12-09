@@ -4,6 +4,7 @@ import { SearchableUnitSelector } from '@/components/SearchableUnitSelector'
 import type { DocumentRecord } from '@/lib/db'
 import RequestTable from '@/components/RequestTable'
 import { Request } from '@/types'
+import InstallationPermissionManager from '@/components/InstallationPermissionManager'
 
 export default function InstallationSectionDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -32,6 +33,7 @@ export default function InstallationSectionDashboard() {
   const [hqmcDivisionSel, setHqmcDivisionSel] = useState<Record<string, string>>({})
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
   const [readdressHQMCInst, setReaddressHQMCInst] = useState<Record<string, boolean>>({})
+  const [permOpen, setPermOpen] = useState(false)
 
   useEffect(() => {
     try {
@@ -147,6 +149,13 @@ export default function InstallationSectionDashboard() {
     const assignments = install.sectionAssignments || {}
     const entries = Object.entries(assignments).filter(([, ids]: any) => Array.isArray(ids) && ids.includes(currentUser.id))
     return entries.map(([name]) => String(name))
+  }, [install, currentUser])
+
+  const canManageAnySection = useMemo(() => {
+    if (!install || !currentUser?.id) return false
+    if (currentUser.isInstallationAdmin) return true
+    const assignments = install.sectionAssignments || {}
+    return Object.values(assignments).some((ids: any) => Array.isArray(ids) && ids.includes(currentUser.id))
   }, [install, currentUser])
 
   const inMySections = useMemo(() => {
@@ -328,7 +337,12 @@ export default function InstallationSectionDashboard() {
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-[var(--text)]">Installation Section Dashboard</h2>
-          <div className="text-sm text-[var(--muted)]">{(install?.name || '')}</div>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-[var(--muted)]">{(install?.name || '')}</div>
+            {canManageAnySection && (
+              <button className="px-3 py-1 text-xs rounded bg-brand-red text-brand-cream border-2 border-brand-red-2 shadow hover:bg-brand-red-2" onClick={() => setPermOpen(true)}>Manage Section Access</button>
+            )}
+          </div>
         </div>
         <div className="border-b border-gray-200 mb-4">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
@@ -564,6 +578,9 @@ export default function InstallationSectionDashboard() {
         </RequestTable>
         )}
       </div>
+      {permOpen && currentUser && (
+        <InstallationPermissionManager currentUser={currentUser} onClose={() => setPermOpen(false)} />
+      )}
     </div>
   )
 }

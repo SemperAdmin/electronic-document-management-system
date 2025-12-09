@@ -431,6 +431,7 @@ export default function InstallationSectionDashboard() {
                 </button>
               </div>
               { (r.activity || []).some(a => /Endorsed by Installation Commander/i.test(String(a.action || ''))) && (
+                <>
                 <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
                   <label className="block text-sm font-medium text-[var(--text)] mb-2">Send Options</label>
                   <div className="flex flex-col gap-2">
@@ -488,6 +489,7 @@ export default function InstallationSectionDashboard() {
                   <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => approveFromInstSection(r)}>Approve</button>
                   <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2" onClick={() => returnToUnit(r)}>Return</button>
                 </div>
+                </>
               )}
             </div>
           )}

@@ -3,6 +3,7 @@ import { listRequests, listDocuments, listUsers, upsertRequest, listHQMCSectionA
 import { UserRecord } from '@/types'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
+import HQMCSectionPermissionManager from '@/components/HQMCSectionPermissionManager'
 
 interface DocumentItem {
   id: string
@@ -37,6 +38,7 @@ export default function HQMCSectionDashboard() {
   const [activeTab, setActiveTab] = useState<'Pending' | 'In Scope'>('Pending')
   const [hqmcStructure, setHqmcStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
+  const [permOpen, setPermOpen] = useState(false)
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -136,6 +138,9 @@ export default function HQMCSectionDashboard() {
             <div className="mt-2 flex items-center gap-2">
               <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{myDivision || 'N/A'}</span>
               <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
+              {scopeBranches.length > 0 && (
+                <button className="px-3 py-1 text-xs rounded bg-brand-red text-brand-cream border-2 border-brand-red-2 shadow hover:bg-brand-red-2" onClick={() => setPermOpen(true)}>Manage Section Access</button>
+              )}
             </div>
           </div>
         </div>
@@ -249,6 +254,15 @@ export default function HQMCSectionDashboard() {
           )}
         </div>
       </div>
+      {permOpen && currentUser && (
+        <HQMCSectionPermissionManager
+          currentUser={currentUser}
+          divisionCode={myDivision}
+          branches={hqmcStructure.filter(s => String(s.division_code || '') === myDivision).map(s => s.branch)}
+          assignments={assignments}
+          onClose={() => setPermOpen(false)}
+        />
+      )}
     </div>
   )
 }

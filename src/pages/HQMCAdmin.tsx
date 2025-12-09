@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listUsers, listHQMCSectionAssignments, upsertHQMCSectionAssignment, getUserByEdipi } from '../lib/db'
+import { listUsers, listHQMCDivisions, listHQMCSectionAssignments, upsertHQMCSectionAssignment, getUserByEdipi } from '../lib/db'
 import { loadHQMCStructureFromBundle } from '@/lib/hqmcStructure'
 import { UserRecord } from '@/types'
 
@@ -21,14 +21,11 @@ export default function HQMCAdmin() {
       const savedUser = localStorage.getItem('currentUser')
       if (savedUser) setCurrentUser(JSON.parse(savedUser))
     } catch {}
+    listHQMCDivisions().then((rows: any[]) => {
+      try { setDivisions(rows.map((d: any) => ({ code: String(d.code || ''), name: String(d.name || '') }))) } catch { setDivisions([]) }
+    })
     loadHQMCStructureFromBundle().then(rows => {
       setStructure(rows as any)
-      const map: Record<string, { code: string; name: string }> = {}
-      for (const r of rows) {
-        const c = String(r.division_code || '')
-        if (c && !map[c]) map[c] = { code: c, name: r.division_name || '' }
-      }
-      setDivisions(Object.values(map))
     })
     listUsers().then((remote) => setUsers(remote as any)).catch(() => setUsers([]))
     listHQMCSectionAssignments().then(rows => {

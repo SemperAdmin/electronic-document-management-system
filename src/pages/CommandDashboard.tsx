@@ -484,30 +484,6 @@ export default function CommandDashboard() {
         </div>
 
         <div className="space-y-8">
-          {installation && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-[var(--text)]">Installation Commander</h3>
-                <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{installation.name}</span>
-              </div>
-              <div className="mt-4">
-                <RequestTable
-                  title="Pending"
-                  requests={inInstallationCommander.filter(r => r.currentStage !== 'ARCHIVED')}
-                  users={users}
-                  onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                  expandedRows={expandedCard}
-                  variant="installation"
-                >
-                  {(r: Request) => (
-                    <div className="p-4 bg-gray-50 space-y-3">
-                      <div className="text-xs text-gray-600">Last Status: {new Date((r.activity && r.activity.length ? r.activity[r.activity.length - 1].timestamp : r.createdAt)).toLocaleString()}</div>
-                    </div>
-                  )}
-                </RequestTable>
-              </div>
-            </div>
-          )}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-[var(--text)]">Commander</h3>

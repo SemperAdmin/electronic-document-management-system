@@ -511,7 +511,6 @@ export default function SectionDashboard() {
       updated = {
         ...r,
         routeSection: branch,
-        installationId: undefined,
         externalPendingUnitName: undefined,
         externalPendingUnitUic: undefined,
         externalPendingStage: undefined,

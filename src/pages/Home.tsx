@@ -9,6 +9,7 @@ import InstallationCommandDashboard from './InstallationCommandDashboard';
 import InstallationAdmin from './InstallationAdmin';
 import HQMCAdmin from './HQMCAdmin';
 import HQMCSectionDashboard from './HQMCSectionDashboard';
+import HQMCApproverDashboard from './HQMCApproverDashboard';
 import { hasCommandDashboardAccess } from '../lib/visibility';
 import { Unit } from '../lib/units';
 import { ProfileForm } from '../components/ProfileForm';
@@ -23,7 +24,7 @@ import { listInstallations } from '../lib/db';
 
 function HomeContent() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
-  const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'hqmc-admin' | 'hqmc-section' | 'review' | 'section' | 'command' | 'installation' | 'installation-section' | 'installation-command' | 'documents' | 'document-viewer' | 'upload'>('login');
+  const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'hqmc-admin' | 'hqmc-section' | 'hqmc-approver' | 'review' | 'section' | 'command' | 'installation' | 'installation-section' | 'installation-command' | 'documents' | 'document-viewer' | 'upload'>('login');
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
     try {
       const savedUser = localStorage.getItem('currentUser');
@@ -40,6 +41,7 @@ function HomeContent() {
   const [hasInstallationSectionDashboard, setHasInstallationSectionDashboard] = useState(false);
   const [hasInstallationCommandDashboard, setHasInstallationCommandDashboard] = useState(false);
   const [hasHQMCSectionDashboard, setHasHQMCSectionDashboard] = useState(false);
+  const [hasHQMCApproverDashboard, setHasHQMCApproverDashboard] = useState(false);
   const navigate = useNavigate();
 
   // Load view from URL params or localStorage
@@ -47,7 +49,7 @@ function HomeContent() {
     try {
       const params = new URLSearchParams(window.location.search);
       const urlView = params.get('view');
-      if (urlView === 'admin' || urlView === 'profile' || urlView === 'dashboard' || urlView === 'login' || urlView === 'appadmin' || urlView === 'hqmc-admin' || urlView === 'hqmc-section' || urlView === 'review' || urlView === 'section' || urlView === 'command' || urlView === 'installation' || urlView === 'installation-section' || urlView === 'installation-command' || urlView === 'documents' || urlView === 'document-viewer' || urlView === 'upload') {
+      if (urlView === 'admin' || urlView === 'profile' || urlView === 'dashboard' || urlView === 'login' || urlView === 'appadmin' || urlView === 'hqmc-admin' || urlView === 'hqmc-section' || urlView === 'hqmc-approver' || urlView === 'review' || urlView === 'section' || urlView === 'command' || urlView === 'installation' || urlView === 'installation-section' || urlView === 'installation-command' || urlView === 'documents' || urlView === 'document-viewer' || urlView === 'upload') {
         setView(urlView as any);
       } else {
         const savedView = localStorage.getItem('currentView');
@@ -155,6 +157,8 @@ function HomeContent() {
         const rows = await listHQMCSectionAssignments()
         const any = rows.some(r => r.division_code === myDiv && ((r.reviewers || []).includes(meId) || (r.approvers || []).includes(meId)))
         setHasHQMCSectionDashboard(any || !!currentUser?.isHqmcAdmin)
+        const isApprover = rows.some(r => r.division_code === myDiv && (r.approvers || []).includes(meId))
+        setHasHQMCApproverDashboard(isApprover)
       } catch { setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin) }
     })()
   }, [currentUser]);
@@ -168,6 +172,7 @@ function HomeContent() {
         hasInstallationSectionDashboard={hasInstallationSectionDashboard}
         hasInstallationCommandDashboard={hasInstallationCommandDashboard}
         hasHQMCSectionDashboard={hasHQMCSectionDashboard}
+        hasHQMCApproverDashboard={hasHQMCApproverDashboard}
         onManageProfile={() => { setProfileMode('edit'); setView('profile'); navigate('/?view=profile') }}
         onLogout={() => { setCurrentUser(null); setView('login'); navigate('/?view=login') }}
         onNavigate={(v) => { setView(v as any); navigate(`/?view=${v}`) }}
@@ -207,6 +212,8 @@ function HomeContent() {
           <InstallationCommandDashboard />
         ) : view === 'hqmc-section' ? (
           <HQMCSectionDashboard />
+        ) : view === 'hqmc-approver' ? (
+          <HQMCApproverDashboard />
         ) : (
           <DocumentManager selectedUnit={selectedUnit} currentUser={currentUser} />
         )}

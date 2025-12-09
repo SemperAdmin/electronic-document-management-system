@@ -222,22 +222,12 @@ export default function InstallationCommandDashboard() {
           activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}` }]
         }
       } else {
-        // Endorsed: return to installation review without requiring external unit selection
-        const sec = selectedCmdCommander[r.id] || ''
-        if (sec.trim()) {
-          updated = {
-            ...r,
-            currentStage: 'INSTALLATION_REVIEW',
-            routeSection: sec,
-            activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}` }]
-          }
-        } else {
-          updated = {
-            ...r,
-            currentStage: 'INSTALLATION_REVIEW',
-            routeSection: '',
-            activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: 'Returned to installation command for further routing' }]
-          }
+        const prevSec = getPreviousInstallSection(r)
+        updated = {
+          ...r,
+          currentStage: 'INSTALLATION_REVIEW',
+          routeSection: prevSec,
+          activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: prevSec ? `Sent to installation section: ${prevSec}` : 'Returned to installation commander' }]
         }
       }
     }
@@ -307,10 +297,11 @@ export default function InstallationCommandDashboard() {
   }, [requests, iid])
 
   const getPreviousInstallSection = (r: Request) => {
-    const lastRoute = (r.activity || []).slice().reverse().find(a => /Routed to installation command section/i.test(String(a.action || '')))
-    if (lastRoute) {
-      const m = String(lastRoute.action || '').match(/\(from\s+(.+?)\)/i)
-      if (m) return m[1]
+    const acts = (r.activity || []).slice().reverse()
+    for (const a of acts) {
+      const s = String(a.action || '')
+      const m = s.match(/Sent to installation section:\s*(.+)/i) || s.match(/Restored to installation section:\s*(.+)/i) || s.match(/Returned to installation section:\s*(.+)/i)
+      if (m) return m[1].trim()
     }
     return ''
   }

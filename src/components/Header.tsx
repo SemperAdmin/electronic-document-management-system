@@ -172,7 +172,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                 </div>
                 <div className="my-2 border-t border-brand-navy/20" />
                 <div role="group" aria-label="HQMC">
-                  {(currentUser && hasHQMCSectionDashboard) && (
+                  {(currentUser && (hasHQMCSectionDashboard || !!currentUser.isHqmcAdmin)) && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('hqmc-section'); setDashOpen(false) }}>HQMC Section Dashboard</button>
                   )}
                 </div>

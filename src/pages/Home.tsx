@@ -150,12 +150,12 @@ function HomeContent() {
       try {
         const myDiv = String(currentUser?.hqmcDivision || '')
         const meId = String(currentUser?.id || '')
-        if (!myDiv || !meId) { setHasHQMCSectionDashboard(false); return }
+        if (!myDiv || !meId) { setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin); return }
         const { listHQMCSectionAssignments } = await import('../lib/db')
         const rows = await listHQMCSectionAssignments()
         const any = rows.some(r => r.division_code === myDiv && ((r.reviewers || []).includes(meId) || (r.approvers || []).includes(meId)))
-        setHasHQMCSectionDashboard(any)
-      } catch { setHasHQMCSectionDashboard(false) }
+        setHasHQMCSectionDashboard(any || !!currentUser?.isHqmcAdmin)
+      } catch { setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin) }
     })()
   }, [currentUser]);
 

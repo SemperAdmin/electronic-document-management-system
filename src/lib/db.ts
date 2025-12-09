@@ -222,6 +222,18 @@ export async function upsertDocuments(docs: DocumentRecord[]): Promise<{ ok: boo
   }
 }
 
+export async function deleteDocumentById(id: string): Promise<{ ok: boolean; error?: any }> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return { ok: false, error: 'supabase_not_initialized' }
+    const { error } = await sb.from('edms_documents').delete().eq('id', id)
+    if (error) return { ok: false, error }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e }
+  }
+}
+
 export async function listRequests(): Promise<RequestRecord[]> {
   try {
     const sb = getSupabase()
@@ -242,6 +254,26 @@ export async function upsertRequest(r: RequestRecord): Promise<{ ok: boolean; er
   } catch (e) {
     return { ok: false, error: e }
   }
+}
+
+export async function deleteDocumentsByRequestId(requestId: string): Promise<{ ok: boolean; error?: any }> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return { ok: false, error: 'supabase_not_initialized' }
+    const { error } = await sb.from('edms_documents').delete().eq('request_id', requestId)
+    if (error) return { ok: false, error }
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e } }
+}
+
+export async function deleteRequestById(id: string): Promise<{ ok: boolean; error?: any }> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) return { ok: false, error: 'supabase_not_initialized' }
+    const { error } = await sb.from('edms_requests').delete().eq('id', id)
+    if (error) return { ok: false, error }
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e } }
 }
 
 export async function listUsers(): Promise<UserRecord[]> {

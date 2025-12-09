@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { Unit } from '../lib/units';
 import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers, DocumentRecord, RequestRecord } from '../lib/db';
+import { deleteDocumentById, deleteRequestById, deleteDocumentsByRequestId } from '@/lib/db'
 import { getSupabaseUrl } from '../lib/supabase';
 import { usePagination } from '@/hooks/usePagination';
 import { Pagination } from '@/components/Pagination';
@@ -383,6 +384,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
           View/Edit
         </button
         >
+        <button
+          className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+          onClick={(e) => { e.stopPropagation(); deleteDocument(doc) }}
+        >
+          Delete
+        </button>
         
       </div>
     </div>
@@ -425,6 +432,58 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     if (!href) return
     window.open(href, '_blank');
   };
+
+  const extractStoragePath = (publicUrl?: string): string | null => {
+    if (!publicUrl) return null
+    try {
+      const marker = '/storage/v1/object/public/edms-docs/'
+      if (/^https?:\/\//i.test(publicUrl)) {
+        const u = new URL(publicUrl)
+        const idx = u.pathname.indexOf(marker)
+        if (idx >= 0) return u.pathname.substring(idx + marker.length)
+        return null
+      }
+      const idx = publicUrl.indexOf(marker)
+      if (idx >= 0) return publicUrl.substring(idx + marker.length)
+      return null
+    } catch { return null }
+  }
+
+  const deleteDocument = async (doc: Document) => {
+    const pathKey = extractStoragePath(doc.fileUrl)
+    try {
+      if (pathKey) {
+        await fetch('/api/storage/delete-object', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
+      }
+    } catch {}
+    try {
+      await deleteDocumentById(doc.id)
+      setDocuments(prev => prev.filter(d => d.id !== doc.id))
+      if (doc.requestId) {
+        setUserRequests(prev => prev.map(r => (r.id === doc.requestId ? { ...r, documentIds: (r.documentIds || []).filter(id => id !== doc.id) } : r)))
+      }
+      setFeedback({ type: 'success', message: 'Document deleted.' })
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: `Failed to delete: ${String(e?.message || e)}` })
+    }
+  }
+
+  const deleteRequest = async (req: Request) => {
+    const prefix = `${req.unitUic || 'N-A'}/${req.id}`
+    try {
+      await fetch('/api/storage/delete-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefix }) })
+    } catch {}
+    try {
+      await deleteDocumentsByRequestId(req.id)
+      await deleteRequestById(req.id)
+      setDocuments(prev => prev.filter(d => d.requestId !== req.id))
+      setUserRequests(prev => prev.filter(r => r.id !== req.id))
+      setSelectedRequest(null)
+      setFeedback({ type: 'success', message: 'Request and files deleted.' })
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: `Failed to delete request: ${String(e?.message || e)}` })
+    }
+  }
 
 
   const saveRequestEdits = async () => {
@@ -897,6 +956,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                 <button className="px-4 py-2 rounded-lg bg-brand-gold text-brand-charcoal hover:brightness-110" onClick={archiveByOriginator}>Archive</button>
               ) : (
                 <button className="px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits} disabled={!currentUser || currentUser.id !== (selectedRequest?.uploadedById || '')}>Save Changes</button>
+              )}
+              {currentUser && currentUser.id === (selectedRequest?.uploadedById || '') && (
+                <button className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700" onClick={() => deleteRequest(selectedRequest!)}>Delete Request</button>
               )}
             </div>
           </div>

@@ -249,6 +249,75 @@ export default defineConfig(({ mode }) => {
             }
           })
         })
+
+        server.middlewares.use('/api/storage/delete-object', (req, res, next) => {
+          if (req.method !== 'POST') return next()
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', async () => {
+            try {
+              const json = JSON.parse(body || '{}')
+              const pathKey = String(json.path || '')
+              if (!pathKey) throw new Error('path_required')
+              const url = env.VITE_SUPABASE_URL
+              const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
+              if (!url || !serviceKey) throw new Error('supabase_env_missing')
+              const sb = createClient(url, serviceKey)
+              const { error } = await sb.storage.from('edms-docs').remove([pathKey])
+              if (error) throw error
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true }))
+            } catch (e) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: String((e as any)?.message || e) }))
+            }
+          })
+        })
+
+        server.middlewares.use('/api/storage/delete-folder', (req, res, next) => {
+          if (req.method !== 'POST') return next()
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', async () => {
+            try {
+              const json = JSON.parse(body || '{}')
+              const prefix = String(json.prefix || '')
+              if (!prefix) throw new Error('prefix_required')
+              const url = env.VITE_SUPABASE_URL
+              const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
+              if (!url || !serviceKey) throw new Error('supabase_env_missing')
+              const sb = createClient(url, serviceKey)
+              // List all objects under prefix and remove
+              const paths: string[] = []
+              async function listAll(dir: string) {
+                const { data, error } = await sb.storage.from('edms-docs').list(dir, { limit: 1000 })
+                if (error) throw error
+                for (const entry of (data || [])) {
+                  const full = `${dir}/${entry.name}`
+                  if (entry?.id || entry?.created_at || entry?.updated_at) {
+                    paths.push(full)
+                  } else {
+                    await listAll(full)
+                  }
+                }
+              }
+              await listAll(prefix)
+              if (paths.length) {
+                const { error: rmErr } = await sb.storage.from('edms-docs').remove(paths)
+                if (rmErr) throw rmErr
+              }
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true, removed: paths.length }))
+            } catch (e) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: String((e as any)?.message || e) }))
+            }
+          })
+        })
       }
     }
     ],

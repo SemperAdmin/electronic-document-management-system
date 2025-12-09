@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { UNITS, Unit } from '../lib/units'
-import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments, listInstallations } from '@/lib/db'
+import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments, listInstallations, listHQMCDivisions, listHQMCStructure } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
 import { SearchableUnitSelector } from '../components/SearchableUnitSelector'
 import { Request, Installation, UserRecord } from '../types'
@@ -54,9 +54,17 @@ export default function SectionDashboard() {
   const [installations, setInstallations] = useState<Installation[]>([]);
   const [submitToInstallation, setSubmitToInstallation] = useState<Record<string, boolean>>({});
   const [instSection, setInstSection] = useState<Record<string, string>>({});
+  const [sendToExternal, setSendToExternal] = useState<Record<string, boolean>>({});
+  const [submitToHQMC, setSubmitToHQMC] = useState<Record<string, boolean>>({});
+  const [hqmcDivisions, setHqmcDivisions] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [hqmcStructure, setHqmcStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
+  const [hqmcDivisionSel, setHqmcDivisionSel] = useState<Record<string, string>>({})
+  const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
 
   useEffect(() => {
     listInstallations().then(data => setInstallations(data as Installation[]));
+    listHQMCDivisions().then(setHqmcDivisions).catch(() => setHqmcDivisions([]))
+    listHQMCStructure().then(setHqmcStructure).catch(() => setHqmcStructure([]))
   }, []);
 
   useEffect(() => {
@@ -463,7 +471,7 @@ export default function SectionDashboard() {
     setExternalSection(prev => ({ ...prev, [requestId]: '' }))
   }
 
-  const sendToExternal = async (r: Request) => {
+  const sendOut = async (r: Request) => {
     const extUnitUic = externalUnitUic[r.id] || ''
     const extUnit = externalUnit[r.id] || ''
     const extSec = externalSection[r.id] || ''
@@ -494,6 +502,20 @@ export default function SectionDashboard() {
         routeSection: instSection[r.id] || '',
         activity: [...(r.activity || []), newActivity]
       };
+    } else if (submitToHQMC[r.id]) {
+      const div = hqmcDivisionSel[r.id] || ''
+      const branch = hqmcBranchSel[r.id] || ''
+      if (!div || !branch) { alert('Select HQMC division and section'); return }
+      const actionText = `Sent to HQMC: ${div} - ${branch}`
+      const newActivity = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+      updated = {
+        ...r,
+        routeSection: branch,
+        externalPendingUnitName: undefined,
+        externalPendingUnitUic: undefined,
+        externalPendingStage: undefined,
+        activity: [...(r.activity || []), newActivity]
+      }
     } else {
       if (!extUnitUic.trim()) {
         alert('Please select an external unit')
@@ -520,6 +542,8 @@ export default function SectionDashboard() {
       setExternalUnitUic(prev => ({ ...prev, [r.id]: '' }))
       setExternalSection(prev => ({ ...prev, [r.id]: '' }))
       setSubmitToInstallation(prev => ({ ...prev, [r.id]: false }))
+      setSubmitToHQMC(prev => ({ ...prev, [r.id]: false }))
+      setSendToExternal(prev => ({ ...prev, [r.id]: false }))
     } catch (error) {
       console.error('Failed to send request to external unit:', error)
       alert('Failed to send request to external unit. Please try again.')
@@ -764,9 +788,46 @@ export default function SectionDashboard() {
                     })()}
                     {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
                     <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
-                      <label className="block text-sm font-medium text-[var(--text)] mb-2">Send to External Unit or Installation</label>
+                      <label className="block text-sm font-medium text-[var(--text)] mb-2">Send Options</label>
                       <div className="flex flex-col gap-2">
-                        {!submitToInstallation[r.id] && (
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id={`send-to-external-${r.id}`}
+                            checked={sendToExternal[r.id] || false}
+                            onChange={() => {
+                              const next = !(sendToExternal[r.id] || false)
+                              setSendToExternal(prev => ({ ...prev, [r.id]: next }))
+                              if (next) { setSubmitToInstallation(prev => ({ ...prev, [r.id]: false })); setSubmitToHQMC(prev => ({ ...prev, [r.id]: false })) }
+                            }}
+                          />
+                          <label htmlFor={`send-to-external-${r.id}`}>Send to External Unit</label>
+                          <input
+                            type="checkbox"
+                            id={`submit-to-installation-${r.id}`}
+                            checked={submitToInstallation[r.id] || false}
+                            onChange={() => {
+                              const next = !(submitToInstallation[r.id] || false)
+                              setSubmitToInstallation(prev => ({ ...prev, [r.id]: next }))
+                              if (next) { setSendToExternal(prev => ({ ...prev, [r.id]: false })); setSubmitToHQMC(prev => ({ ...prev, [r.id]: false })) }
+                            }}
+                            disabled={!isUnitInAnyInstallation(r.unitUic)}
+                          />
+                          <label htmlFor={`submit-to-installation-${r.id}`}>Submit to Installation</label>
+                          <input
+                            type="checkbox"
+                            id={`submit-to-hqmc-${r.id}`}
+                            checked={submitToHQMC[r.id] || false}
+                            onChange={() => {
+                              const next = !(submitToHQMC[r.id] || false)
+                              setSubmitToHQMC(prev => ({ ...prev, [r.id]: next }))
+                              if (next) { setSendToExternal(prev => ({ ...prev, [r.id]: false })); setSubmitToInstallation(prev => ({ ...prev, [r.id]: false })) }
+                            }}
+                          />
+                          <label htmlFor={`submit-to-hqmc-${r.id}`}>Submit to HQMC</label>
+                        </div>
+
+                        {sendToExternal[r.id] && (
                           <>
                             <SearchableUnitSelector
                               onUnitSelect={(unit) => handleExternalUnitChange(r.id, unit)}
@@ -781,37 +842,16 @@ export default function SectionDashboard() {
                             >
                               <option value="">Select Section/Office (optional)</option>
                               {(externalUnitSections[r.id] || []).map(section => (
-                                <option key={section} value={section}>
-                                  {section}
-                                </option>
+                                <option key={section} value={section}>{section}</option>
                               ))}
                             </select>
                           </>
                         )}
                         <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id={`submit-to-installation-${r.id}`}
-                            checked={submitToInstallation[r.id] || false}
-                            onChange={() => setSubmitToInstallation(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                            disabled={!isUnitInAnyInstallation(r.unitUic)}
-                          />
-                          <label htmlFor={`submit-to-installation-${r.id}`}>
-                            {(() => {
-                              const base = 'Submit to Installation';
-                              if (!(submitToInstallation[r.id])) return base;
-                              const inst = installations.find(inst => {
-                                const list = (inst as any).unit_uics || (inst as any).unitUics || [];
-                                return Array.isArray(list) && list.includes(r.unitUic || '')
-                              });
-                              const name = inst?.name ? ` (${inst.name})` : '';
-                              return base + name;
-                            })()}
-                          </label>
+                          {!isUnitInAnyInstallation(r.unitUic) && (
+                            <p className="text-xs text-gray-500">Not assigned to installation.</p>
+                          )}
                         </div>
-                        {!isUnitInAnyInstallation(r.unitUic) && (
-                          <p className="text-xs text-gray-500">Not assigned to installation.</p>
-                        )}
                         {submitToInstallation[r.id] && isUnitInAnyInstallation(r.unitUic) && (
                           <select
                             value={instSection[r.id] || ''}
@@ -831,13 +871,42 @@ export default function SectionDashboard() {
                             })()}
                           </select>
                         )}
+                        {submitToHQMC[r.id] && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <select
+                              value={hqmcDivisionSel[r.id] || ''}
+                              onChange={(e) => { setHqmcDivisionSel(prev => ({ ...prev, [r.id]: e.target.value })); setHqmcBranchSel(prev => ({ ...prev, [r.id]: '' })) }}
+                              className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
+                            >
+                              <option value="">Select HQMC Division</option>
+                              {hqmcDivisions.map(d => (<option key={d.code} value={d.code}>{d.code} — {d.name}</option>))}
+                            </select>
+                            <select
+                              value={hqmcBranchSel[r.id] || ''}
+                              onChange={(e) => setHqmcBranchSel(prev => ({ ...prev, [r.id]: e.target.value }))}
+                              disabled={!hqmcDivisionSel[r.id]}
+                              className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <option value="">Select HQMC Section</option>
+                              {hqmcStructure.filter(s => String(s.division_code || '') === String(hqmcDivisionSel[r.id] || '')).map(s => (
+                                <option key={s.branch} value={s.branch}>{s.branch}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                         <div className="mt-2">
                           <button
                             className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => sendToExternal(r)}
-                            disabled={submitToInstallation[r.id] ? !isUnitInAnyInstallation(r.unitUic) : !externalUnitUic[r.id]}
+                            onClick={() => sendOut(r)}
+                            disabled={
+                              submitToInstallation[r.id]
+                                ? !isUnitInAnyInstallation(r.unitUic)
+                                : submitToHQMC[r.id]
+                                  ? !(hqmcDivisionSel[r.id] && hqmcBranchSel[r.id])
+                                  : !externalUnitUic[r.id]
+                            }
                           >
-                            {submitToInstallation[r.id] ? 'Submit to Installation' : 'Submit to External'}
+                            {submitToInstallation[r.id] ? 'Submit to Installation' : submitToHQMC[r.id] ? 'Submit to HQMC' : 'Submit to External'}
                           </button>
                         </div>
                       </div>

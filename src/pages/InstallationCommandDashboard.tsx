@@ -466,26 +466,7 @@ export default function InstallationCommandDashboard() {
                       </button>
                     </div>
                     <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-900 mb-2">Send to Section</label>
-                      <div className="flex items-center gap-2">
-                        <select
-                          className="px-3 py-2 border border-brand-navy/30 rounded-lg"
-                          value={nextInstSection[r.id] || ''}
-                          onChange={(e) => setNextInstSection(prev => ({ ...prev, [r.id]: e.target.value }))}
-                        >
-                          <option value="">Select installation section</option>
-                          {(install?.sections || []).map((s: string) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                        <button
-                          className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={!nextInstSection[r.id]}
-                          onClick={() => routeToInstallationSection(r)}
-                        >
-                          Route to Section
-                        </button>
-                      </div>
+                      
                     </div>
                     <div className="mt-3">
                       <label className="block text-sm font-medium text-[var(--text)] mb-2">Final Decision</label>
@@ -510,18 +491,7 @@ export default function InstallationCommandDashboard() {
                         </button>
                       </div>
                     </div>
-                    <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
-                      <label className="block text-sm font-medium text-[var(--text)] mb-2">External Unit (Endorse only)</label>
-                      <div className="space-y-2">
-                        <SearchableUnitSelector onUnitSelect={(u) => handleExternalUnitChange(r.id, u)} selectedUnit={{ uic: externalUnitUic[r.id] || '', unitName: externalUnit[r.id] || '' } as any} placeholder="Search by UIC, RUC, MCC, or Unit Name" />
-                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg" value={externalSection[r.id] || ''} onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!(externalUnitSections[r.id] || []).length}>
-                          <option value="">Select Section/Office (optional)</option>
-                          {(externalUnitSections[r.id] || []).map(section => (
-                            <option key={section} value={section}>{section}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+                    
                   </div>
                 )}
               </RequestTable>

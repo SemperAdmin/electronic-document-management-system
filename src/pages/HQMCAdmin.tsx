@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listHQMCStructure, listHQMCDivisions, listUsers, upsertUser, listHQMCSectionAssignments, upsertHQMCSectionAssignment, getUserByEdipi } from '../lib/db'
+import { listUsers, listHQMCDivisions, listHQMCSectionAssignments, upsertHQMCSectionAssignment, getUserByEdipi } from '../lib/db'
+import { loadHQMCStructureFromBundle } from '@/lib/hqmcStructure'
 import { UserRecord } from '@/types'
 
 export default function HQMCAdmin() {
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(null)
-  const [divisions, setDivisions] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [divisions, setDivisions] = useState<Array<{ code: string; name: string }>>([])
   const [structure, setStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
+  const [newBranch, setNewBranch] = useState<string>('')
+  const [newBranchDesc, setNewBranchDesc] = useState<string>('')
   const [users, setUsers] = useState<UserRecord[]>([])
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [viewTab, setViewTab] = useState<'structure' | 'permissions'>('structure')
@@ -18,8 +21,12 @@ export default function HQMCAdmin() {
       const savedUser = localStorage.getItem('currentUser')
       if (savedUser) setCurrentUser(JSON.parse(savedUser))
     } catch {}
-    listHQMCDivisions().then(setDivisions)
-    listHQMCStructure().then(setStructure)
+    listHQMCDivisions().then((rows: any[]) => {
+      try { setDivisions(rows.map((d: any) => ({ code: String(d.code || ''), name: String(d.name || '') }))) } catch { setDivisions([]) }
+    })
+    loadHQMCStructureFromBundle().then(rows => {
+      setStructure(rows as any)
+    })
     listUsers().then((remote) => setUsers(remote as any)).catch(() => setUsers([]))
     listHQMCSectionAssignments().then(rows => {
       const map: Record<string, { reviewers: string[]; approvers: string[] }> = {}
@@ -31,7 +38,7 @@ export default function HQMCAdmin() {
     })
   }, [])
 
-  const myDivisionCode = currentUser?.hqmcDivision || ''
+  const myDivisionCode = currentUser?.hqmcDivision || (divisions[0]?.code || '')
   const myDivision = useMemo(() => divisions.find(d => d.code === myDivisionCode), [divisions, myDivisionCode])
   const branches = useMemo(() => structure.filter(s => String(s.division_code || '') === myDivisionCode), [structure, myDivisionCode])
   const divisionAdmins = useMemo(() => users.filter(u => !!u.isHqmcAdmin && String(u.hqmcDivision || '') === myDivisionCode), [users, myDivisionCode])
@@ -83,6 +90,27 @@ export default function HQMCAdmin() {
                   )}
                 </tbody>
               </table>
+              {currentUser?.isHqmcAdmin && (
+                <div className="mt-4 p-3 border rounded">
+                  <div className="text-sm font-medium text-gray-900 mb-2">Add Branch/Section</div>
+                  <div className="flex items-center gap-2">
+                    <input value={newBranch} onChange={(e) => setNewBranch(e.target.value)} placeholder="Branch" className="px-2 py-1 border rounded" />
+                    <input value={newBranchDesc} onChange={(e) => setNewBranchDesc(e.target.value)} placeholder="Description" className="px-2 py-1 border rounded w-64" />
+                    <button
+                      className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                      disabled={!newBranch.trim()}
+                      onClick={async () => {
+                        try {
+                          await fetch('/api/hqmc-structure/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ division_code: myDivisionCode, division_name: divisions.find(d => d.code === myDivisionCode)?.name || '', branch: newBranch.trim(), description: newBranchDesc.trim() }) })
+                          const rows = await fetch('/api/hqmc-structure').then(r => r.json())
+                          setStructure(rows as any)
+                          setNewBranch(''); setNewBranchDesc('')
+                        } catch {}
+                      }}
+                    >Add</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

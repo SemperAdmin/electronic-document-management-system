@@ -18,6 +18,8 @@ interface CommanderRequestDetailsProps {
   commandSections: string[];
   sendToCommandSection: (r: Request) => void;
   commanderDecision: (r: Request, type: 'Approved' | 'Endorsed' | 'Rejected') => void;
+  commanderArchive: (r: Request) => void;
+  commanderReturn: (r: Request) => void;
   expandedLogs: Record<string, boolean>;
   setExpandedLogs: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }
@@ -39,6 +41,8 @@ const CommanderRequestDetails: React.FC<CommanderRequestDetailsProps> = ({
   commandSections,
   sendToCommandSection,
   commanderDecision,
+  commanderArchive,
+  commanderReturn,
   expandedLogs,
   setExpandedLogs,
 }) => {
@@ -168,6 +172,18 @@ const CommanderRequestDetails: React.FC<CommanderRequestDetailsProps> = ({
             onClick={() => commanderDecision(r, 'Rejected')}
           >
             Rejected
+          </button>
+          <button
+            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+            onClick={() => commanderReturn(r)}
+          >
+            Return to Battalion
+          </button>
+          <button
+            className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+            onClick={() => commanderArchive(r)}
+          >
+            Archive
           </button>
         </div>
       </div>

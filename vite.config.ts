@@ -139,6 +139,62 @@ export default defineConfig(({ mode }) => {
           }
         })
 
+        server.middlewares.use('/api/hqmc-structure/save', (req, res, next) => {
+          if (req.method !== 'POST') return next()
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', () => {
+            try {
+              const payload = JSON.parse(body || '[]')
+              const outDir = path.resolve(process.cwd(), 'src', 'hqmc-structure')
+              if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
+              const rows = Array.isArray(payload) ? payload : [payload]
+              for (const row of rows) {
+                if (!row || typeof row !== 'object') continue
+                const divCode = String(row.division_code || '').replace(/[^A-Za-z0-9_-]/g, '')
+                const divName = String(row.division_name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                const branch = String(row.branch || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                if (!divCode || !branch) continue
+                const base = `${divCode}${divName ? `__${divName}` : ''}__${branch}`
+                const file = path.resolve(outDir, `${base}.json`)
+                fs.writeFileSync(file, JSON.stringify({ division_code: row.division_code, division_name: row.division_name, branch: row.branch, description: row.description || '' }, null, 2), 'utf-8')
+              }
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true }))
+            } catch (e) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: String(e) }))
+            }
+          })
+        })
+
+        server.middlewares.use('/api/hqmc-structure', (req, res, next) => {
+          if (req.method !== 'GET') return next()
+          try {
+            const dir = path.resolve(process.cwd(), 'src', 'hqmc-structure')
+            const rows: any[] = []
+            if (fs.existsSync(dir)) {
+              const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.json') && !/^(readme|sample)/i.test(f))
+              for (const f of files) {
+                try {
+                  const raw = fs.readFileSync(path.join(dir, f), 'utf-8')
+                  const data = JSON.parse(raw)
+                  rows.push(data)
+                } catch {}
+              }
+            }
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(rows))
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ ok: false, error: String(e) }))
+          }
+        })
+
         server.middlewares.use('/api/permissions-audit/save', (req, res, next) => {
           if (req.method !== 'POST') return next()
           let body = ''
@@ -186,6 +242,75 @@ export default defineConfig(({ mode }) => {
               res.statusCode = 200
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({ ok: true, signedUrl: data?.signedUrl, path: data?.path }))
+            } catch (e) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: String((e as any)?.message || e) }))
+            }
+          })
+        })
+
+        server.middlewares.use('/api/storage/delete-object', (req, res, next) => {
+          if (req.method !== 'POST') return next()
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', async () => {
+            try {
+              const json = JSON.parse(body || '{}')
+              const pathKey = String(json.path || '')
+              if (!pathKey) throw new Error('path_required')
+              const url = env.VITE_SUPABASE_URL
+              const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
+              if (!url || !serviceKey) throw new Error('supabase_env_missing')
+              const sb = createClient(url, serviceKey)
+              const { error } = await sb.storage.from('edms-docs').remove([pathKey])
+              if (error) throw error
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true }))
+            } catch (e) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: String((e as any)?.message || e) }))
+            }
+          })
+        })
+
+        server.middlewares.use('/api/storage/delete-folder', (req, res, next) => {
+          if (req.method !== 'POST') return next()
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', async () => {
+            try {
+              const json = JSON.parse(body || '{}')
+              const prefix = String(json.prefix || '')
+              if (!prefix) throw new Error('prefix_required')
+              const url = env.VITE_SUPABASE_URL
+              const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
+              if (!url || !serviceKey) throw new Error('supabase_env_missing')
+              const sb = createClient(url, serviceKey)
+              // List all objects under prefix and remove
+              const paths: string[] = []
+              async function listAll(dir: string) {
+                const { data, error } = await sb.storage.from('edms-docs').list(dir, { limit: 1000 })
+                if (error) throw error
+                for (const entry of (data || [])) {
+                  const full = `${dir}/${entry.name}`
+                  if (entry?.id || entry?.created_at || entry?.updated_at) {
+                    paths.push(full)
+                  } else {
+                    await listAll(full)
+                  }
+                }
+              }
+              await listAll(prefix)
+              if (paths.length) {
+                const { error: rmErr } = await sb.storage.from('edms-docs').remove(paths)
+                if (rmErr) throw rmErr
+              }
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true, removed: paths.length }))
             } catch (e) {
               res.statusCode = 500
               res.setHeader('Content-Type', 'application/json')

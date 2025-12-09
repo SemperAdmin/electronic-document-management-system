@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Request, UserRecord } from '../types';
+import { Stage, formatStageLabel } from '@/lib/stage';
 
 interface RequestTableProps {
   requests: Request[];
@@ -16,6 +17,17 @@ interface RequestTableProps {
 const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick, title, titleActions, expandedRows, children, platoonSectionMap, variant = 'default' }) => {
   const [modalPeople, setModalPeople] = useState<UserRecord[] | null>(null);
   const isInstallation = variant === 'installation';
+
+  const [filters, setFilters] = useState({
+    subject: '',
+    status: '',
+    unit: '',
+    originator: '',
+    company: '',
+    platoon: '',
+    created: '',
+    lastStatus: ''
+  });
 
   const allUsers = useMemo(() => Object.values(users), [users]);
 
@@ -39,34 +51,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
     return norm(mapped);
   };
 
-  const formatStage = (r: Request) => {
-    const stage = r.currentStage || 'PLATOON_REVIEW';
-    switch (stage) {
-      case 'PLATOON_REVIEW':
-        return 'Platoon';
-      case 'COMPANY_REVIEW':
-        return 'Company';
-      case 'BATTALION_REVIEW': {
-        const section = battalionSectionFor(r);
-        return section || 'Battalion';
-      }
-      case 'COMMANDER_REVIEW':
-        return r.routeSection || 'Commander';
-      case 'INSTALLATION_REVIEW': {
-        const section = r.routeSection;
-        return section ? `Installation - ${section}` : 'Installation Commander';
-      }
-      case 'EXTERNAL_REVIEW': {
-        const unitName = r.externalPendingUnitName || 'External';
-        const section = r.routeSection;
-        return section ? `${unitName} - ${section}` : unitName;
-      }
-      case 'ARCHIVED':
-        return 'Archived';
-      default:
-        return stage;
-    }
-  };
+  const formatStage = (r: Request) => formatStageLabel(r);
 
   const checkLastActivity = (r: Request, pattern: RegExp) => {
     const a = r.activity?.[r.activity.length - 1];
@@ -157,6 +142,63 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
     try { return new Date(ts).toLocaleDateString(); } catch { return r.createdAt; }
   };
 
+  const getInstallationName = (id?: string): string => {
+    try {
+      const raw = localStorage.getItem('installations_cache') || '[]'
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) {
+        const match = arr.find((i: any) => String(i.id) === String(id || ''))
+        return match ? String(match.name || '') : ''
+      }
+    } catch {}
+    return ''
+  }
+
+  const getStatusLabel = (r: Request): string => {
+    const stage = r.currentStage || 'PLATOON_REVIEW'
+    if (stage === 'ORIGINATOR_REVIEW') {
+      return 'Member'
+    }
+    if (stage === 'PLATOON_REVIEW') {
+      const originator = originatorFor(r)
+      const c = originator?.company && originator.company !== 'N/A' ? originator.company : ''
+      const p = originator?.platoon && originator.platoon !== 'N/A' ? originator.platoon : ''
+      if (c && p) return `${c}-${p}`
+      if (c) return c
+      return 'Platoon'
+    }
+    if (stage === 'COMPANY_REVIEW') {
+      const originator = originatorFor(r)
+      const c = originator?.company && originator.company !== 'N/A' ? originator.company : ''
+      return c ? `Company ${c}` : 'Company'
+    }
+    if (stage === 'BATTALION_REVIEW') {
+      const section = battalionSectionFor(r)
+      return section || 'Battalion'
+    }
+    if (stage === 'COMMANDER_REVIEW') {
+      return r.routeSection ? r.routeSection : 'Commander'
+    }
+    if (stage === 'INSTALLATION_REVIEW') {
+      const name = getInstallationName(r.installationId)
+      const sec = r.routeSection || ''
+      if (name && sec) return `${name} - ${sec}`
+      return name || 'Installation'
+    }
+    if (stage === 'HQMC_REVIEW') {
+      const branch = r.routeSection || ''
+      return branch ? `HQMC - ${branch}` : 'HQMC'
+    }
+    if (stage === 'EXTERNAL_REVIEW') {
+      const unitName = r.externalPendingUnitName || ''
+      const sec = r.routeSection || ''
+      if (unitName && sec) return `${unitName} - ${sec}`
+      return unitName || 'External'
+    }
+    if (stage === 'ARCHIVED') return 'Archived'
+    return formatStage(r)
+  }
+
   return (
     <div>
       <h3 className="text-lg font-semibold text-[var(--text)] mb-3 flex items-center">
@@ -187,19 +229,107 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
             </tr>
           </thead>
           <tbody>
-            {requests.map((r) => {
+            <tr>
+              <td className="p-2">
+                <input
+                  value={filters.subject}
+                  onChange={(e) => setFilters({ ...filters, subject: e.target.value })}
+                  placeholder="Filter"
+                  className="w-full px-2 py-1 border border-brand-navy/20 rounded text-xs"
+                />
+              </td>
+              <td className="p-2">
+                <input
+                  value={filters.status}
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  placeholder="Filter"
+                  className="w-full px-2 py-1 border border-brand-navy/20 rounded text-xs"
+                />
+              </td>
+              <td className="p-2">
+                <input
+                  value={filters.unit}
+                  onChange={(e) => setFilters({ ...filters, unit: e.target.value })}
+                  placeholder="Filter"
+                  className="w-full px-2 py-1 border border-brand-navy/20 rounded text-xs"
+                />
+              </td>
+              <td className="p-2">
+                <input
+                  value={filters.originator}
+                  onChange={(e) => setFilters({ ...filters, originator: e.target.value })}
+                  placeholder="Filter"
+                  className="w-full px-2 py-1 border border-brand-navy/20 rounded text-xs"
+                />
+              </td>
+              {!isInstallation && (
+                <>
+                  <td className="p-2">
+                    <input
+                      value={filters.company}
+                      onChange={(e) => setFilters({ ...filters, company: e.target.value })}
+                      placeholder="Filter"
+                      className="w-full px-2 py-1 border border-brand-navy/20 rounded text-xs"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <input
+                      value={filters.platoon}
+                      onChange={(e) => setFilters({ ...filters, platoon: e.target.value })}
+                      placeholder="Filter"
+                      className="w-full px-2 py-1 border border-brand-navy/20 rounded text-xs"
+                    />
+                  </td>
+                </>
+              )}
+              <td className="p-2">
+                <input
+                  value={filters.created}
+                  onChange={(e) => setFilters({ ...filters, created: e.target.value })}
+                  placeholder="Filter"
+                  className="w-full px-2 py-1 border border-brand-navy/20 rounded text-xs"
+                />
+              </td>
+              <td className="p-2">
+                <input
+                  value={filters.lastStatus}
+                  onChange={(e) => setFilters({ ...filters, lastStatus: e.target.value })}
+                  placeholder="Filter"
+                  className="w-full px-2 py-1 border border-brand-navy/20 rounded text-xs"
+                />
+              </td>
+              <td className="p-2"></td>
+            </tr>
+            {requests.filter((r) => {
+              const subjOk = !filters.subject || String(r.subject || '').toLowerCase().includes(filters.subject.toLowerCase());
+              const statusText = getStatusLabel(r);
+              const statusOk = !filters.status || statusText.toLowerCase().includes(filters.status.toLowerCase());
+              const unitTxt = isInstallation ? getUnitWithName(r) : getCurrentUnit(r);
+              const unitOk = !filters.unit || unitTxt.toLowerCase().includes(filters.unit.toLowerCase());
+              const origin = originatorFor(r);
+              const originTxt = origin ? `${origin.rank || ''} ${origin.lastName || ''} ${origin.firstName || ''}`.trim() : '';
+              const originOk = !filters.originator || originTxt.toLowerCase().includes(filters.originator.toLowerCase());
+              const compOk = isInstallation || !filters.company || (origin?.company ? origin.company.toLowerCase().includes(filters.company.toLowerCase()) : false);
+              const platoonOk = isInstallation || !filters.platoon || (origin?.platoon ? origin.platoon.toLowerCase().includes(filters.platoon.toLowerCase()) : false);
+              const createdTxt = new Date(r.createdAt).toLocaleDateString();
+              const createdOk = !filters.created || createdTxt.toLowerCase().includes(filters.created.toLowerCase());
+              const lastTxt = lastStatusDate(r);
+              const lastOk = !filters.lastStatus || lastTxt.toLowerCase().includes(filters.lastStatus.toLowerCase());
+              return subjOk && statusOk && unitOk && originOk && compOk && platoonOk && createdOk && lastOk;
+            }).map((r) => {
               const returned = isReturned(r);
               const rejected = isRejected(r);
               const unitApproved = isUnitApproved(r);
               const unitEndorsed = isUnitEndorsed(r);
               const instApproved = isInstallationApproved(r);
               const instEndorsed = isInstallationEndorsed(r);
-              const isHQMCStage = (r.currentStage || '') === 'HQMC_REVIEW';
+              const isHQMCStage = (r.currentStage || '') === Stage.HQMC_REVIEW;
               const anyPositive = unitApproved || unitEndorsed || instApproved || instEndorsed;
               const isPositive = isInstallation ? (instApproved || instEndorsed) : (isHQMCStage ? isHQMCApproved(r) : anyPositive);
               const isNegative = rejected || (returned && !anyPositive);
               const originator = originatorFor(r);
               const peopleAtLevel = getPeopleAtActionLevel(r);
+              const isSkeleton = !r.subject && !r.uploadedById && (r.documentIds || []).length === 0;
 
               return (
                 <React.Fragment key={r.id}>
@@ -212,45 +342,42 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                    <td className={`p-3 text-sm ${isNegative ? 'text-red-700 font-bold' : isPositive ? 'text-green-700 font-bold' : 'text-[var(--text)]'}`}>
                       {returned && <span className="font-bold">Returned: </span>}
                       {rejected && <span className="font-bold">Rejected: </span>}
-                      {!isInstallation && !isHQMCStage && (unitApproved || unitEndorsed || instApproved || instEndorsed) && (
+                      {!isSkeleton && !isInstallation && !isHQMCStage && (unitApproved || unitEndorsed || instApproved || instEndorsed) && (
                         <span className="font-bold">
                           {unitApproved ? 'Unit Approved: ' : unitEndorsed ? 'Unit Endorsed: ' : instApproved ? 'Installation Approved: ' : 'Installation Endorsed: '}
                         </span>
                       )}
-                      {isInstallation && instApproved && <span className="font-bold">Installation Approved: </span>}
-                      {isInstallation && !instApproved && instEndorsed && <span className="font-bold">Installation Endorsed: </span>}
-                      {!isInstallation && isHQMCStage && isHQMCApproved(r) && (
+                      {!isSkeleton && isInstallation && instApproved && <span className="font-bold">Installation Approved: </span>}
+                      {!isSkeleton && isInstallation && !instApproved && instEndorsed && <span className="font-bold">Installation Endorsed: </span>}
+                      {!isSkeleton && !isInstallation && isHQMCStage && isHQMCApproved(r) && (
                         <span className="font-bold">HQMC Approved: </span>
                       )}
-                      {r.subject}
+                      {isSkeleton ? <span className="inline-block w-40 h-4 bg-gray-100 animate-pulse rounded" /> : r.subject}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
-                      <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">
-                        {formatStage(r)}
-                      </span>
+                      {isSkeleton ? <span className="inline-block w-24 h-5 bg-gray-100 animate-pulse rounded" /> : <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{getStatusLabel(r)}</span>}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
-                      {isInstallation ? getUnitWithName(r) : getCurrentUnit(r)}
+                      {isSkeleton ? <span className="inline-block w-28 h-4 bg-gray-100 animate-pulse rounded" /> : (isInstallation ? getUnitWithName(r) : getCurrentUnit(r))}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
                       {(() => {
                         const originator = originatorFor(r);
-                        return originator ? `${originator.rank} ${originator.lastName}, ${originator.firstName}` : 'N/A';
+                        return isSkeleton ? <span className="inline-block w-28 h-4 bg-gray-100 animate-pulse rounded" /> : (originator ? `${originator.rank} ${originator.lastName}, ${originator.firstName}` : 'N/A');
                       })()}
                     </td>
                     {!isInstallation && (
                       <>
-                        <td className="p-3 text-sm text-[var(--text)]">
-                          {displayUnitPart(originator?.company)}
-                        </td>
-                        <td className="p-3 text-sm text-[var(--text)]">
-                          {displayUnitPart(originator?.platoon)}
-                        </td>
+                        <td className="p-3 text-sm text-[var(--text)]">{isSkeleton ? <span className="inline-block w-16 h-4 bg-gray-100 animate-pulse rounded" /> : displayUnitPart(originator?.company)}</td>
+                        <td className="p-3 text-sm text-[var(--text)]">{isSkeleton ? <span className="inline-block w-16 h-4 bg-gray-100 animate-pulse rounded" /> : displayUnitPart(originator?.platoon)}</td>
                       </>
                     )}
-                    <td className="p-3 text-sm text-[var(--text)]">{new Date(r.createdAt).toLocaleDateString()}</td>
-                    <td className="p-3 text-sm text-[var(--text)]">{lastStatusDate(r)}</td>
+                    <td className="p-3 text-sm text-[var(--text)]">{isSkeleton ? <span className="inline-block w-20 h-4 bg-gray-100 animate-pulse rounded" /> : new Date(r.createdAt).toLocaleDateString()}</td>
+                    <td className="p-3 text-sm text-[var(--text)]">{isSkeleton ? <span className="inline-block w-20 h-4 bg-gray-100 animate-pulse rounded" /> : lastStatusDate(r)}</td>
                     <td className="p-3 text-sm text-[var(--text)]">
+                      {isSkeleton ? (
+                        <span className="inline-block w-24 h-6 bg-gray-100 animate-pulse rounded" />
+                      ) : (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -260,6 +387,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                       >
                         Contacts ({peopleAtLevel.length})
                       </button>
+                      )}
                     </td>
                   </tr>
                   {expandedRows[r.id] && (

@@ -751,6 +751,20 @@ export default function SectionDashboard() {
                       >
                         Save Files
                       </button>
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                          onClick={() => rejectRequest(r)}
+                        >
+                          Return to Previous
+                        </button>
+                        <button
+                          className="px-3 py-1 text-xs rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2"
+                          onClick={() => archiveRequest(r)}
+                        >
+                          Archive
+                        </button>
+                      </div>
                     </div>
                     
                     {(() => {
@@ -782,6 +796,12 @@ export default function SectionDashboard() {
                             onClick={() => rejectRequest(r)}
                           >
                             Return
+                          </button>
+                          <button
+                            className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            onClick={() => archiveRequest(r)}
+                          >
+                            Archive
                           </button>
                         </div>
                       ) : null

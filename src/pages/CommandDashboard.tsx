@@ -413,6 +413,45 @@ export default function CommandDashboard() {
     }
   }
 
+  const commanderArchive = async (r: Request) => {
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
+    const entry = { actor, timestamp: new Date().toISOString(), action: 'Archived by Commander', comment: (comments[r.id] || '').trim() }
+    const updated: Request = {
+      ...r,
+      currentStage: 'ARCHIVED',
+      finalStatus: 'Archived',
+      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+    }
+    try {
+      await upsertRequest(updated as any)
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to archive request:', error)
+    }
+  }
+
+  const commanderReturn = async (r: Request) => {
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
+    const dest = battalionSectionFor(r)
+    const entry = { actor, timestamp: new Date().toISOString(), action: `Returned to ${dest || 'Battalion'} by Commander`, comment: (comments[r.id] || '').trim() }
+    const updated: Request = {
+      ...r,
+      currentStage: 'BATTALION_REVIEW',
+      routeSection: dest || r.routeSection || '',
+      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+    }
+    try {
+      await upsertRequest(updated as any)
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
+    } catch (error) {
+      console.error('Failed to return request:', error)
+    }
+  }
+
   const commandSectionReturn = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Command Section'
     const dest = battalionSectionFor(r)
@@ -516,6 +555,8 @@ export default function CommandDashboard() {
                       commandSections={commandSections}
                       sendToCommandSection={sendToCommandSection}
                       commanderDecision={commanderDecision}
+                      commanderArchive={commanderArchive}
+                      commanderReturn={commanderReturn}
                       expandedLogs={expandedLogs}
                       setExpandedLogs={setExpandedLogs}
                     />

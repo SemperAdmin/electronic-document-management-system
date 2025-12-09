@@ -1,4 +1,5 @@
 import React from 'react'
+import { logEvent } from '@/lib/logger'
 
 type Props = { children: React.ReactNode }
 type State = { hasError: boolean; error?: any }
@@ -14,7 +15,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: any, info: any) {
-    try { console.error('Render error:', error, info) } catch {}
+    try { logEvent('render_error', { error: String(error || ''), info }) } catch {}
   }
 
   render() {
@@ -32,4 +33,3 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return this.props.children
   }
 }
-

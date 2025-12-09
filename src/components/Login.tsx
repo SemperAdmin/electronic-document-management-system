@@ -34,6 +34,8 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [idValid, setIdValid] = useState<boolean>(true)
+  const [pwValid, setPwValid] = useState<boolean>(true)
   
   React.useEffect(() => {}, [])
 
@@ -45,6 +47,12 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
     try {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       const isEdipiLike = /^[0-9]{10}$/.test(identifier);
+      const idOk = ALLOW_EDIPI_LOGIN ? (emailPattern.test(identifier.trim().toLowerCase()) || isEdipiLike) : emailPattern.test(identifier.trim().toLowerCase())
+      const pwOk = password.length >= 6
+      setIdValid(idOk)
+      setPwValid(pwOk)
+      if (!idOk) { setFeedback({ type: 'error', message: 'Enter a valid email or 10-digit EDIPI.' }); return }
+      if (!pwOk) { setFeedback({ type: 'error', message: 'Password must be at least 6 characters.' }); return }
       let user: any = null;
       let dbError: string | null = null;
       let emailForLogin = identifier.trim().toLowerCase();
@@ -101,7 +109,7 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+    <div className="max-w-md mx-auto bg-[var(--surface)] rounded-lg shadow-lg border border-brand-navy/20 p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Login</h2>
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
@@ -111,8 +119,12 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
             autoComplete="username"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`w-full px-3 py-2 border ${idValid ? 'border-gray-300' : 'border-red-500'} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            aria-invalid={!idValid}
           />
+          {!idValid && (
+            <div className="mt-1 text-xs text-red-600">Enter a valid email or 10-digit EDIPI.</div>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
@@ -121,8 +133,12 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`w-full px-3 py-2 border ${pwValid ? 'border-gray-300' : 'border-red-500'} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            aria-invalid={!pwValid}
           />
+          {!pwValid && (
+            <div className="mt-1 text-xs text-red-600">Password must be at least 6 characters.</div>
+          )}
         </div>
         {feedback && (
           <div className={`p-3 rounded-lg border ${feedback.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
@@ -131,7 +147,7 @@ export const Login: React.FC<LoginProps> = ({ onLoggedIn, onCreateAccount }) => 
         )}
         <div className="flex justify-between items-center">
           <button type="button" onClick={onCreateAccount} className="text-blue-600 hover:underline">Create Account</button>
-          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Login</button>
+          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60" disabled={!idValid || !pwValid}>Login</button>
         </div>
       </form>
 

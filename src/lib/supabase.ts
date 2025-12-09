@@ -8,11 +8,6 @@ declare const __ENV_SUPABASE_ANON_KEY: string | undefined;
 // is loaded, preventing race conditions or initialization failures on mobile browsers
 // that may have issues with Vite's lazy environment variable loading.
 
-// *** CRITICAL DIAGNOSTIC HARDCODE - MUST BE REMOVED AFTER FIX ***
-const SUPABASE_URL = 'https://rjcbsaxdkggloyzjbbln.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqY2JzYXhka2dnbG95empiYmxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMTg4NzgsImV4cCI6MjA3OTc5NDg3OH0.aUwxlvNCbNHFvM4Qv8eO1Xz0nMaFO4Dl0QX12fO4V5Y';
-// *** END HARDCODE ***
-
 // In-memory cache for environments where localStorage is blocked
 let memoryCache: { url?: string; anonKey?: string } = {};
 
@@ -52,8 +47,8 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
       const noTicks = trimmed.replace(/^`+|`+$/g, '').replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
       return noTicks
     }
-    const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url || SUPABASE_URL)
-    const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey || SUPABASE_ANON_KEY)
+    const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url)
+    const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey)
 
     // allow runtime query param override for prod debugging
     try {
@@ -122,18 +117,20 @@ const safeLocalStorage = (() => {
 const { url, anonKey } = resolveSupabaseConfig();
 
 // Immediately create and export the client
-export const supabaseClient = createClient(
-  url!,
-  anonKey!,
-  {
-    auth: {
-      persistSession: true,
-      storage: safeLocalStorage, // Use the safe storage implementation
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  }
-);
+export const supabaseClient: any = (url && anonKey)
+  ? createClient(
+      url,
+      anonKey,
+      {
+        auth: {
+          persistSession: true,
+          storage: safeLocalStorage,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      }
+    )
+  : null;
 
 // Maintain the original getSupabase function for compatibility
 export function getSupabase(): any {
@@ -142,7 +139,7 @@ export function getSupabase(): any {
 
 // Export a convenience getter for the URL if needed elsewhere
 export function getSupabaseUrl(): string {
-  return SUPABASE_URL;
+  return url || '';
 }
 
 // Legacy exports for compatibility

@@ -8,6 +8,8 @@ import { Pagination } from '@/components/Pagination';
 import RequestTable from './RequestTable';
 import { Request, UserRecord } from '../types';
 import { normalizeString, hasReviewer } from '../lib/reviewers';
+import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly } from '@/lib/stage';
+import { logEvent } from '@/lib/logger';
 
 interface Document {
   id: string;
@@ -71,6 +73,31 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     const files = event.target.files ? Array.from(event.target.files) : [];
     setSelectedFiles((prev) => [...prev, ...files]);
     try { event.target.value = '' } catch {}
+  };
+
+  const archiveByOriginator = async () => {
+    if (!selectedRequest || !currentUser?.id || selectedRequest.uploadedById !== currentUser.id) return;
+    const entry = {
+      actor: `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`,
+      timestamp: new Date().toISOString(),
+      action: 'Archived by Originator',
+      comment: (editRequestNotes || '').trim()
+    };
+    const updated: Request = {
+      ...selectedRequest,
+      currentStage: Stage.ARCHIVED,
+      finalStatus: 'Archived',
+      activity: Array.isArray(selectedRequest.activity) ? [...selectedRequest.activity, entry] : [entry]
+    };
+    try {
+      const resReq = await upsertRequest(updated as unknown as RequestRecord);
+      if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
+      setUserRequests(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+      setSelectedRequest(updated);
+      setFeedback({ type: 'success', message: 'Request archived.' });
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: `Failed to archive: ${String(e?.message || e)}` });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -178,21 +205,21 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       const hasPlatoonReviewer = hasReviewer(users, 'PLATOON_REVIEWER', { company: originCompany, platoon: originPlatoon, uic: originUnitUic });
       const hasCompanyReviewer = hasReviewer(users, 'COMPANY_REVIEWER', { company: originCompany, uic: originUnitUic });
 
-      const requestPayload = {
-        id: requestId,
-        subject: subject.trim(),
-        dueDate: dueDate || undefined,
-        notes: notes.trim() || undefined,
-        unitUic: targetUic,
-        uploadedById: targetUserId,
-        submitForUserId: targetUserId,
-        documentIds: docs.map(d => d.id),
-        createdAt: new Date().toISOString(),
-        currentStage: hasPlatoonReviewer ? 'PLATOON_REVIEW' : hasCompanyReviewer ? 'COMPANY_REVIEW' : 'BATTALION_REVIEW',
-        activity: [
-          { actor, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
-        ]
-      };
+    const requestPayload = {
+      id: requestId,
+      subject: subject.trim(),
+      dueDate: dueDate || undefined,
+      notes: notes.trim() || undefined,
+      unitUic: targetUic,
+      uploadedById: targetUserId,
+      submitForUserId: targetUserId,
+      documentIds: docs.map(d => d.id),
+      createdAt: new Date().toISOString(),
+      currentStage: hasPlatoonReviewer ? Stage.PLATOON_REVIEW : hasCompanyReviewer ? Stage.COMPANY_REVIEW : Stage.BATTALION_REVIEW,
+      activity: [
+        { actor, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
+      ]
+    };
       try {
         const resReq = await upsertRequest(requestPayload as unknown as RequestRecord);
         if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
@@ -200,6 +227,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
         if (!resDocs.ok) throw new Error(getApiErrorMessage(resDocs, 'document_upsert_failed'));
       } catch (e: any) {
         setIsUploading(false);
+        try { logEvent('request_persist_failed', { requestId, error: String(e?.message || e) }, 'error') } catch {}
         setFeedback({ type: 'error', message: `Failed to persist submission: ${String(e?.message || e)}` });
         return;
       }
@@ -210,8 +238,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       setIsUploading(false);
       setFeedback({ type: 'success', message: 'Submission successful.' });
       setShowForm(false);
-    } catch {
+      } catch {
       setIsUploading(false);
+      try { logEvent('request_persist_failed', { requestId }, 'error') } catch {}
       setFeedback({ type: 'error', message: 'Failed to persist submission.' });
     }
   };
@@ -359,16 +388,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     </div>
   );
 
-  const formatStage = (r: Request) => {
-    const stage = r.currentStage || 'PLATOON_REVIEW'
-    if (stage === 'PLATOON_REVIEW') return 'Platoon'
-    if (stage === 'COMPANY_REVIEW') return 'Company'
-    if (stage === 'BATTALION_REVIEW') return r.routeSection || 'Battalion'
-    if (stage === 'COMMANDER_REVIEW') return r.routeSection || 'Commander'
-    if (stage === 'EXTERNAL_REVIEW') return (r as any).externalPendingUnitName || 'External'
-    if (stage === 'ARCHIVED') return 'Archived'
-    return stage
-  }
+  const formatStage = (r: Request) => formatStageLabel(r)
 
   const normalizeDocUrl = (url?: string): string | undefined => {
     if (!url) return undefined
@@ -475,12 +495,18 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       ]
     };
     try {
+      const allowed = currentUser && canRequesterEdit(selectedRequest, String(currentUser.id || ''))
+      if (!allowed) {
+        setFeedback({ type: 'error', message: 'Editing is not allowed at the current stage unless returned.' })
+        return
+      }
       try {
         const resDocs = await upsertDocuments(newDocs as unknown as DocumentRecord[]);
         if (!resDocs.ok) throw new Error(getApiErrorMessage(resDocs, 'document_upsert_failed'));
         const resReq = await upsertRequest(updatedRequest as unknown as RequestRecord);
         if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
       } catch (e: any) {
+        try { logEvent('request_update_failed', { requestId: updatedRequest.id, error: String(e?.message || e) }, 'error') } catch {}
         setFeedback({ type: 'error', message: `Failed to persist documents: ${String(e?.message || e)}` });
         return;
       }
@@ -495,10 +521,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
   };
 
+  const [loadingDocuments, setLoadingDocuments] = useState<boolean>(true)
+  const [loadingRequests, setLoadingRequests] = useState<boolean>(true)
   useEffect(() => {
     listDocuments().then((remote) => {
       setDocuments(remote as any);
-    }).catch(() => setDocuments([]));
+    }).catch(() => setDocuments([])).finally(() => setLoadingDocuments(false));
   }, []);
 
   useEffect(() => {
@@ -515,7 +543,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   useEffect(() => {
     listRequests().then((remote) => {
       setUserRequests(remote as any);
-    }).catch(() => setUserRequests([]));
+    }).catch(() => setUserRequests([])).finally(() => setLoadingRequests(false));
   }, []);
 
   useEffect(() => { setCurrentUser(cuProp || null) }, [cuProp]);
@@ -559,7 +587,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="Document subject/title"
-                className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                className={`w-full px-3 py-2 border ${subject.trim() ? 'border-brand-navy/30' : 'border-brand-red'} rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold`}
               />
             </div>
             <div>
@@ -635,7 +663,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
             </div>
             <div className="md:ml-auto flex gap-2">
               <button type="button" onClick={() => { setShowForm(false); setSelectedFiles([]); setSubject(''); setDueDate(''); setNotes(''); setFeedback(null); }} className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream">Cancel</button>
-              <button type="submit" className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors">Submit</button>
+              <button type="submit" className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors disabled:opacity-60" disabled={!subject.trim()}>Submit</button>
             </div>
           </div>
 
@@ -669,19 +697,27 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                 </button>
               </nav>
             </div>
+            <div className="flex items-center justify-between py-2 text-sm text-[var(--muted)]">
+              <div>{requestsPagination.totalItems > 0 ? `${requestsPagination.startIndex}–${requestsPagination.endIndex} of ${requestsPagination.totalItems}` : ''}</div>
+              {loadingRequests && <div className="animate-pulse">Loading requests…</div>}
+            </div>
             <RequestTable
               title="Your Requests"
-              requests={requestsPagination.currentData}
+              requests={loadingRequests ? Array.from({ length: 5 }).map((_, i) => ({ id: `s-${i}`, subject: '', uploadedById: '', documentIds: [], createdAt: new Date().toISOString(), currentStage: Stage.PLATOON_REVIEW } as any)) : requestsPagination.currentData}
               users={usersByIdMap}
               onRowClick={(r) => setSelectedRequest(r)}
               expandedRows={expandedRequests}
             >
               {(r: Request) => (
                 <div id={`req-docs-${r.id}`}>
-                  {documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
-                    <DocCard key={d.id} doc={d} />
-                  ))}
-                  {documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
+                  {loadingDocuments ? (
+                    <div className="h-16 rounded bg-gray-100 animate-pulse" />
+                  ) : (
+                    documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
+                      <DocCard key={d.id} doc={d} />
+                    ))
+                  )}
+                  {!loadingDocuments && documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
                     <div className="text-sm text-[var(--muted)]">No documents</div>
                   )}
                 </div>
@@ -827,35 +863,41 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                     <DocCard key={d.id} doc={d} />
                   ))}
                 </div>
-                <div className="mt-3">
-                  <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded-lg hover:brightness-110 cursor-pointer inline-block">
-                    <input type="file" multiple onChange={(e) => { const files = e.target.files ? Array.from(e.target.files) : []; setAttachFiles(prev => [...prev, ...files]); try { e.target.value = '' } catch {} }} className="hidden" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" />
-                    Add Files
-                  </label>
-                  <div className="ml-2 flex flex-wrap gap-2">
-                    {attachFiles.length === 0 ? (
-                      <span className="text-xs text-[var(--muted)]">No files selected</span>
-                    ) : (
-                      attachFiles.map((f, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded border border-brand-navy/20">
-                          <span className="max-w-[240px] truncate" title={f.name}>{f.name}</span>
-                          <button
-                            type="button"
-                            className="text-brand-red-2 hover:underline"
-                            onClick={() => setAttachFiles(prev => prev.filter((_, i) => i !== idx))}
-                          >
-                            Delete
-                          </button>
-                        </span>
-                      ))
-                    )}
+                {!originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && (
+                  <div className="mt-3">
+                    <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded-lg hover:brightness-110 cursor-pointer inline-block">
+                      <input type="file" multiple onChange={(e) => { const files = e.target.files ? Array.from(e.target.files) : []; setAttachFiles(prev => [...prev, ...files]); try { e.target.value = '' } catch {} }} className="hidden" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" />
+                      Add Files
+                    </label>
+                    <div className="ml-2 flex flex-wrap gap-2">
+                      {attachFiles.length === 0 ? (
+                        <span className="text-xs text-[var(--muted)]">No files selected</span>
+                      ) : (
+                        attachFiles.map((f, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded border border-brand-navy/20">
+                            <span className="max-w-[240px] truncate" title={f.name}>{f.name}</span>
+                            <button
+                              type="button"
+                              className="text-brand-red-2 hover:underline"
+                              onClick={() => setAttachFiles(prev => prev.filter((_, i) => i !== idx))}
+                            >
+                              Delete
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex justify-end gap-2">
               <button className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream" onClick={() => setSelectedRequest(null)}>Close</button>
-              <button className="ml-2 px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits} disabled={!currentUser || currentUser.id !== (selectedRequest?.uploadedById || '')}>Save Changes</button>
+              {originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) ? (
+                <button className="px-4 py-2 rounded-lg bg-brand-gold text-brand-charcoal hover:brightness-110" onClick={archiveByOriginator}>Archive</button>
+              ) : (
+                <button className="px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits} disabled={!currentUser || currentUser.id !== (selectedRequest?.uploadedById || '')}>Save Changes</button>
+              )}
             </div>
           </div>
         </div>

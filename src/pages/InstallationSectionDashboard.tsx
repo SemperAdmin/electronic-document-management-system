@@ -282,6 +282,31 @@ export default function InstallationSectionDashboard() {
     }
   }
 
+  const approveFromInstSection = async (r: Request) => {
+    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Section'
+    let updated: any = { ...r }
+    if (submitToHQMCInst[r.id]) {
+      const div = hqmcDivisionSel[r.id] || ''
+      const branch = hqmcBranchSel[r.id] || ''
+      if (!div || !branch) { alert('Select HQMC division and section'); return }
+      const entry = { actor, timestamp: new Date().toISOString(), action: `Submitted to HQMC Approver: ${div} - ${branch}`, comment: (comments[r.id] || '').trim() }
+      updated = { ...r, currentStage: 'HQMC_REVIEW', routeSection: branch, activity: [...(r.activity || []), entry] }
+    } else {
+      const entry = { actor, timestamp: new Date().toISOString(), action: 'Submitted to HQMC Approver', comment: (comments[r.id] || '').trim() }
+      updated = { ...r, currentStage: 'HQMC_REVIEW', activity: [...(r.activity || []), entry] }
+    }
+    try {
+      await upsertRequest(updated)
+      setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setSendToExternalInst(prev => ({ ...prev, [r.id]: false }))
+      setSubmitToHQMCInst(prev => ({ ...prev, [r.id]: false }))
+    } catch (e) {
+      console.error('InstallationSectionDashboard - Failed to approve to HQMC:', e)
+      alert('Failed to submit to HQMC approver')
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
@@ -458,6 +483,10 @@ export default function InstallationSectionDashboard() {
                       }>{ submitToHQMCInst[r.id] ? 'Submit to HQMC' : sendToExternalInst[r.id] ? 'Submit to External' : 'Submit' }</button>
                     </div>
                   </div>
+                </div>
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => approveFromInstSection(r)}>Approve</button>
+                  <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2" onClick={() => returnToUnit(r)}>Return</button>
                 </div>
               )}
             </div>

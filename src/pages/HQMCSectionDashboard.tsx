@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { listRequests, listDocuments, listUsers, upsertRequest, listHQMCSectionAssignments } from '@/lib/db'
+import { listRequests, listDocuments, listUsers, upsertRequest, listHQMCSectionAssignments, listHQMCStructure } from '@/lib/db'
 import { UserRecord } from '@/types'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
@@ -35,6 +35,8 @@ export default function HQMCSectionDashboard() {
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [assignments, setAssignments] = useState<Array<{ division_code: string; branch: string; reviewers: string[]; approvers: string[] }>>([])
   const [activeTab, setActiveTab] = useState<'Pending' | 'In Scope'>('Pending')
+  const [hqmcStructure, setHqmcStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
+  const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -67,6 +69,7 @@ export default function HQMCSectionDashboard() {
     }).catch(() => setUsers({}))
   }, [])
   useEffect(() => { listHQMCSectionAssignments().then(setAssignments).catch(() => setAssignments([])) }, [])
+  useEffect(() => { listHQMCStructure().then(setHqmcStructure).catch(() => setHqmcStructure([])) }, [])
 
   const myId = currentUser?.id || ''
   const myDivision = String(currentUser?.hqmcDivision || '')
@@ -107,8 +110,10 @@ export default function HQMCSectionDashboard() {
 
   const approveRequest = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Reviewer'
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'HQMC Approved', comment: (comments[r.id] || '').trim() }
-    const updated: Request = { ...r, currentStage: 'ARCHIVED', activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
+    const branch = String(hqmcBranchSel[r.id] || '').trim()
+    if (!branch) { alert('Select an HQMC section to route to approver'); return }
+    const entry = { actor, timestamp: new Date().toISOString(), action: `Routed to HQMC section: ${branch}`, comment: (comments[r.id] || '').trim() }
+    const updated: Request = { ...r, routeSection: branch, activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
     try { await upsertRequest(updated as any) } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
@@ -152,6 +157,19 @@ export default function HQMCSectionDashboard() {
             >
               {(r: Request) => (
                 <div id={`details-hq-${r.id}`}>
+                  <div className="mt-3 flex items-center gap-2">
+                    <label className="text-sm text-[var(--text)]">Route to HQMC Section</label>
+                    <select
+                      value={hqmcBranchSel[r.id] || ''}
+                      onChange={(e) => setHqmcBranchSel(prev => ({ ...prev, [r.id]: e.target.value }))}
+                      className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
+                    >
+                      <option value="">Select section</option>
+                      {hqmcStructure.filter(s => String(s.division_code || '') === myDivision).map(s => (
+                        <option key={s.branch} value={s.branch}>{s.branch}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="mt-3">
                     <button className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" aria-expanded={!!expandedDocs[r.id]} aria-controls={`docs-hq-${r.id}`} onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}>
                       <span>Show Documents</span>
@@ -232,4 +250,3 @@ export default function HQMCSectionDashboard() {
     </div>
   )
 }
-

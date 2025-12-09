@@ -363,7 +363,6 @@ export default function InstallationCommandDashboard() {
         </div>
         {activeTab === 'Pending' && (
           <div className="space-y-8">
-            {false && (
             <div>
               <RequestTable
                 title="Pending in Commander"
@@ -527,7 +526,6 @@ export default function InstallationCommandDashboard() {
                 )}
               </RequestTable>
             </div>
-            )}
             {cmdSections.map((sec) => (
               <div key={sec}>
               <div className="flex items-center justify-between mb-3">

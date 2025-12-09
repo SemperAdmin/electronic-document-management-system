@@ -157,25 +157,6 @@ export default function HQMCSectionDashboard() {
             >
               {(r: Request) => (
                 <div id={`details-hq-${r.id}`}>
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm text-[var(--text)]">Route to HQMC Section</label>
-                      <select
-                        value={hqmcBranchSel[r.id] || ''}
-                        onChange={(e) => setHqmcBranchSel(prev => ({ ...prev, [r.id]: e.target.value }))}
-                        className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
-                      >
-                        <option value="">Select section</option>
-                        {hqmcStructure.filter(s => String(s.division_code || '') === myDivision).map(s => (
-                          <option key={s.branch} value={s.branch}>{s.branch}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => approveRequest(r)}>Approve</button>
-                      <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2" onClick={() => returnRequest(r)}>Return</button>
-                    </div>
-                  </div>
                   <div className="mt-3">
                     <button className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" aria-expanded={!!expandedDocs[r.id]} aria-controls={`docs-hq-${r.id}`} onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}>
                       <span>Show Documents</span>
@@ -203,6 +184,25 @@ export default function HQMCSectionDashboard() {
                   <div className="mt-3">
                     <label className="block text-sm font-medium text-[var(--text)] mb-1">HQMC Comment</label>
                     <textarea rows={2} value={comments[r.id] || ''} onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))} className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg" placeholder="Optional notes" />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-[var(--text)]">Route to HQMC Section</label>
+                      <select
+                        value={hqmcBranchSel[r.id] || ''}
+                        onChange={(e) => setHqmcBranchSel(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
+                      >
+                        <option value="">Select section</option>
+                        {hqmcStructure.filter(s => String(s.division_code || '') === myDivision).map(s => (
+                          <option key={s.branch} value={s.branch}>{s.branch}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => approveRequest(r)}>Approve</button>
+                      <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2" onClick={() => returnRequest(r)}>Return</button>
+                    </div>
                   </div>
                 </div>
               )}

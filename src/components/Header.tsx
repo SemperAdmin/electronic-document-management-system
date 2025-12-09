@@ -8,13 +8,14 @@ type HeaderProps = {
   hasCommandDashboard: boolean
   hasInstallationSectionDashboard?: boolean
   hasInstallationCommandDashboard?: boolean
+  hasHQMCSectionDashboard?: boolean
   onManageProfile: () => void
   onLogout: () => void
   onNavigate: (view: string) => void
   isLogin?: boolean
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, hasInstallationSectionDashboard = false, hasInstallationCommandDashboard = false, onManageProfile, onLogout, onNavigate, isLogin = false }) => {
+export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard, hasCommandDashboard, hasInstallationSectionDashboard = false, hasInstallationCommandDashboard = false, hasHQMCSectionDashboard = false, onManageProfile, onLogout, onNavigate, isLogin = false }) => {
   const [dashOpen, setDashOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const dashRef = useRef<HTMLDivElement | null>(null)
@@ -167,6 +168,12 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                   )}
                   {(currentUser && hasInstallationCommandDashboard) && (
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('installation-command'); setDashOpen(false) }}>Installation Command Dashboard</button>
+                  )}
+                </div>
+                <div className="my-2 border-t border-brand-navy/20" />
+                <div role="group" aria-label="HQMC">
+                  {(currentUser && hasHQMCSectionDashboard) && (
+                    <button className="w-full text-left px-4 py-2 text-sm hover:bg-brand-cream text-brand-navy" role="menuitem" onClick={() => { onNavigate('hqmc-section'); setDashOpen(false) }}>HQMC Section Dashboard</button>
                   )}
                 </div>
               </div>

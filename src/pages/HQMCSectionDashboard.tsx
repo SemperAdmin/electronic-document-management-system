@@ -1,352 +1,235 @@
-import React, { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Filter, Search } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { useHQMCStore } from '../stores/hqmcStore'
-import { SectionRequest, HQMCSection } from '../types'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { listRequests, listDocuments, listUsers, upsertRequest, listHQMCSectionAssignments } from '@/lib/db'
+import { UserRecord } from '@/types'
+import RequestTable from '../components/RequestTable'
+import { Request } from '../types'
 
-const HQMCSectionDashboard: React.FC = () => {
-  const { sectionType } = useParams<{ sectionType: 'MM' | 'MP' | 'FM' }>()
-  const navigate = useNavigate()
-  const { sections } = useHQMCStore()
-  const [currentSection, setCurrentSection] = useState<HQMCSection | null>(null)
-  const [sectionRequests, setSectionRequests] = useState<SectionRequest[]>([])
-  const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [priorityFilter, setPriorityFilter] = useState<string>('all')
-  const [searchTerm, setSearchTerm] = useState('')
+interface DocumentItem {
+  id: string
+  name: string
+  type: string
+  size: number
+  uploadedAt: string | Date
+  subject: string
+  requestId?: string
+}
+
+const STAGES = ['PLATOON_REVIEW', 'COMPANY_REVIEW', 'BATTALION_REVIEW', 'COMMANDER_REVIEW', 'ARCHIVED']
+
+const prevStage = (stage?: string) => {
+  const i = STAGES.indexOf(stage || STAGES[0])
+  return i > 0 ? STAGES[i - 1] : STAGES[0]
+}
+
+export default function HQMCSectionDashboard() {
+  const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
+    try { const raw = localStorage.getItem('currentUser'); return raw ? JSON.parse(raw) : null } catch { return null }
+  })
+  const [requests, setRequests] = useState<Request[]>([])
+  const [documents, setDocuments] = useState<DocumentItem[]>([])
+  const [comments, setComments] = useState<Record<string, string>>({})
+  const [users, setUsers] = useState<Record<string, any>>({})
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
+  const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
+  const [openDocsId, setOpenDocsId] = useState<string | null>(null)
+  const docsRef = useRef<HTMLDivElement | null>(null)
+  const [assignments, setAssignments] = useState<Array<{ division_code: string; branch: string; reviewers: string[]; approvers: string[] }>>([])
+  const [activeTab, setActiveTab] = useState<'Pending' | 'In Scope'>('Pending')
 
   useEffect(() => {
-    if (sectionType) {
-      const section = sections.find(s => s.type === sectionType)
-      if (section) {
-        setCurrentSection(section)
-        fetchSectionRequests(section.id)
+    const handleOutside = (e: MouseEvent) => {
+      if (openDocsId && docsRef.current && !docsRef.current.contains(e.target as Node)) {
+        setExpandedDocs(prev => ({ ...prev, [openDocsId]: false }))
+        setOpenDocsId(null)
       }
     }
-  }, [sectionType, sections])
-
-  const fetchSectionRequests = async (sectionId: string) => {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('section_requests')
-        .select('*')
-        .eq('section_id', sectionId)
-        .order('submission_date', { ascending: false })
-
-      if (error) throw error
-      if (data) {
-        setSectionRequests(data as SectionRequest[])
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && openDocsId) {
+        setExpandedDocs(prev => ({ ...prev, [openDocsId]: false }))
+        setOpenDocsId(null)
       }
-    } catch (error) {
-      console.error('Error fetching section requests:', error)
-    } finally {
-      setLoading(false)
     }
-  }
-
-  const handleViewRequest = (request: SectionRequest) => {
-    alert(`Request Details:\n\nTitle: ${request.title}\nDescription: ${request.description || 'No description'}\nStatus: ${request.status}\nPriority: ${request.priority}`)
-  }
-
-  const handleUpdateStatus = async (requestId: string, status: 'pending' | 'approved' | 'rejected' | 'in_review') => {
-    try {
-      const { error } = await supabase
-        .from('section_requests')
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', requestId)
-
-      if (error) throw error
-      
-      if (currentSection) {
-        fetchSectionRequests(currentSection.id)
-      }
-    } catch (error) {
-      console.error('Error updating request status:', error)
-      alert('Failed to update request status')
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
     }
+  }, [openDocsId])
+
+  useEffect(() => { listRequests().then((remote) => setRequests(remote as any)).catch(() => setRequests([])) }, [])
+  useEffect(() => { listDocuments().then((remote) => setDocuments(remote as any)).catch(() => setDocuments([])) }, [])
+  useEffect(() => {
+    listUsers().then((remote) => {
+      const map: Record<string, any> = {}
+      for (const u of (remote as any)) if (u?.id) map[u.id] = u
+      setUsers(map)
+    }).catch(() => setUsers({}))
+  }, [])
+  useEffect(() => { listHQMCSectionAssignments().then(setAssignments).catch(() => setAssignments([])) }, [])
+
+  const myId = currentUser?.id || ''
+  const myDivision = String(currentUser?.hqmcDivision || '')
+  const scopeBranches = useMemo(() => {
+    return assignments.filter(a => a.division_code === myDivision && ((a.reviewers || []).includes(myId) || (a.approvers || []).includes(myId))).map(a => a.branch)
+  }, [assignments, myDivision, myId])
+
+  const originatorFor = (r: Request) => users[r.uploadedById] || null
+
+  const isInMyScope = (r: Request) => {
+    if (!myDivision || !myId) return false
+    const branch = String(r.routeSection || '')
+    return scopeBranches.includes(branch)
   }
 
-  const handleCreateRequest = () => {
-    const title = prompt('Enter request title:')
-    const description = prompt('Enter request description:')
-    const priority = prompt('Enter priority (low/medium/high):') || 'medium'
-    
-    if (title && currentSection) {
-      createRequest(title, description, priority as 'low' | 'medium' | 'high')
+  const inScope = useMemo(() => requests.filter(isInMyScope), [requests, scopeBranches])
+  const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== 'ARCHIVED'), [inScope])
+  const inScopeOther = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED'), [inScope])
+
+  const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
+
+  const formatCsvCell = (v: any) => { const s = String(v ?? ''); const escaped = s.replace(/"/g, '""'); return `"${escaped}"` }
+  const buildRows = (list: Request[]) => {
+    const headers = ['Request ID','Subject','Stage','HQMC Section','Originator','Unit UIC','Created At','Documents']
+    const rows = [headers]
+    for (const r of list) {
+      const o = originatorFor(r)
+      const origin = o ? `${o.rank} ${o.lastName}, ${o.firstName}${o.mi ? ` ${o.mi}` : ''}` : ''
+      const docs = docsFor(r.id).map(d => d.name).join(' | ')
+      rows.push([r.id, r.subject, r.currentStage || '', r.routeSection || '', origin, r.unitUic || '', new Date(r.createdAt).toLocaleString(), docs])
     }
+    return rows.map(row => row.map(formatCsvCell).join(',')).join('\r\n')
   }
+  const downloadCsv = (filename: string, csv: string) => { const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url) }
+  const exportPending = () => downloadCsv('hqmc_pending.csv', buildRows(pending))
+  const exportInScope = () => downloadCsv('hqmc_in_scope.csv', buildRows(inScopeOther))
+  const exportAll = () => downloadCsv('hqmc_all.csv', buildRows([...pending, ...inScopeOther]))
 
-  const createRequest = async (title: string, description: string | null, priority: 'low' | 'medium' | 'high') => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { error } = await supabase
-        .from('section_requests')
-        .insert({
-          section_id: currentSection!.id,
-          title,
-          description,
-          priority,
-          submitted_by: user.id,
-          status: 'pending'
-        })
-
-      if (error) throw error
-      
-      if (currentSection) {
-        fetchSectionRequests(currentSection.id)
-      }
-    } catch (error) {
-      console.error('Error creating request:', error)
-      alert('Failed to create request')
-    }
+  const approveRequest = async (r: Request) => {
+    const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Reviewer'
+    const entry = { actor, timestamp: new Date().toISOString(), action: 'HQMC Approved', comment: (comments[r.id] || '').trim() }
+    const updated: Request = { ...r, currentStage: 'ARCHIVED', activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
+    try { await upsertRequest(updated as any) } catch {}
+    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+    setComments(prev => ({ ...prev, [r.id]: '' }))
   }
-
-  const filteredRequests = sectionRequests.filter(request => {
-    const matchesStatus = statusFilter === 'all' || request.status === statusFilter
-    const matchesPriority = priorityFilter === 'all' || request.priority === priorityFilter
-    const matchesSearch = searchTerm === '' || 
-      request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (request.description && request.description.toLowerCase().includes(searchTerm.toLowerCase()))
-    
-    return matchesStatus && matchesPriority && matchesSearch
-  })
-
-  if (!currentSection) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Section Not Found</h2>
-          <p className="text-gray-600 mb-4">The requested section does not exist.</p>
-          <button
-            onClick={() => navigate('/hqmc-dashboard')}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Dashboard</span>
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'approved':
-        return 'bg-green-100 text-green-800'
-      case 'rejected':
-        return 'bg-red-100 text-red-800'
-      case 'in_review':
-        return 'bg-blue-100 text-blue-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-800'
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'low':
-        return 'bg-green-100 text-green-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
+  const returnRequest = async (r: Request) => {
+    const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Reviewer'
+    const entry = { actor, timestamp: new Date().toISOString(), action: 'Returned by HQMC', comment: (comments[r.id] || '').trim() }
+    const updated: Request = { ...r, currentStage: prevStage(r.currentStage), activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
+    try { await upsertRequest(updated as any) } catch {}
+    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+    setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b-2 border-red-600">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate('/hqmc-dashboard')}
-                className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                <span>Back to Dashboard</span>
-              </button>
-              
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{currentSection.name}</h1>
-                <p className="text-sm text-gray-600">{currentSection.type} Section Dashboard</p>
-              </div>
+    <div className="max-w-7xl mx-auto p-6">
+      <div className="bg-[var(--surface)] rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-[var(--text)]">HQMC Section Dashboard</h2>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{myDivision || 'N/A'}</span>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
             </div>
-            
-            <button
-              onClick={handleCreateRequest}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          </div>
+        </div>
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            <button onClick={() => setActiveTab('Pending')} className={`${activeTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Pending</button>
+            <button onClick={() => setActiveTab('In Scope')} className={`${activeTab === 'In Scope' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>In Scope</button>
+          </nav>
+        </div>
+        <div className="mt-4">
+          {activeTab === 'Pending' && (
+            <RequestTable
+              title="Pending"
+              titleActions={(<button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportPending}>Export Pending</button>)}
+              requests={pending}
+              users={users}
+              onRowClick={(r) => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+              expandedRows={expandedLogs}
             >
-              <Plus className="w-4 h-4" />
-              <span>New Request</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Filter className="w-5 h-5 text-gray-500" />
-              <span className="font-medium text-gray-700">Filters</span>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search requests..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="in_review">In Review</option>
-              </select>
-              
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Priority</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Requests Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Section Requests</h2>
-            <p className="text-sm text-gray-600">{filteredRequests.length} requests found</p>
-          </div>
-          
-          {loading ? (
-            <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading requests...</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Title
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Priority
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Submitted
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredRequests.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                        No requests found for this section.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRequests.map((request) => (
-                      <tr key={request.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{request.title}</div>
-                          {request.description && (
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
-                              {request.description}
-                            </div>
+              {(r: Request) => (
+                <div id={`details-hq-${r.id}`}>
+                  <div className="mt-3">
+                    <button className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" aria-expanded={!!expandedDocs[r.id]} aria-controls={`docs-hq-${r.id}`} onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}>
+                      <span>Show Documents</span>
+                      <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                    </button>
+                  </div>
+                  <div id={`docs-hq-${r.id}`} ref={expandedDocs[r.id] ? docsRef : undefined} className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}>
+                    {docsFor(r.id).map(d => (
+                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                        <div className="text-sm text-[var(--muted)]">
+                          <div className="font-medium text-[var(--text)]">{d.name}</div>
+                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          { (d as any).fileUrl ? (
+                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2">Open</a>
+                          ) : (
+                            <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
-                            {request.status.replace('_', ' ').toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(request.priority)}`}>
-                            {request.priority.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(request.submission_date).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => handleViewRequest(request)}
-                              className="text-blue-600 hover:text-blue-900 p-1"
-                              title="View Details"
-                            >
-                              View
-                            </button>
-                            
-                            {request.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => handleUpdateStatus(request.id, 'approved')}
-                                  className="text-green-600 hover:text-green-900 p-1"
-                                  title="Approve"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateStatus(request.id, 'rejected')}
-                                  className="text-red-600 hover:text-red-900 p-1"
-                                  title="Reject"
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </div>
+                    ))}
+                    {docsFor(r.id).length === 0 && (<div className="text-sm text-[var(--muted)]">No documents</div>)}
+                  </div>
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-[var(--text)] mb-1">HQMC Comment</label>
+                    <textarea rows={2} value={comments[r.id] || ''} onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))} className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg" placeholder="Optional notes" />
+                  </div>
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => approveRequest(r)}>Approve</button>
+                    <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2" onClick={() => returnRequest(r)}>Return</button>
+                  </div>
+                </div>
+              )}
+            </RequestTable>
+          )}
+          {activeTab === 'In Scope' && (
+            <RequestTable
+              title="In Scope"
+              titleActions={(<button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportInScope}>Export In Scope</button>)}
+              requests={inScopeOther}
+              users={users}
+              onRowClick={(r) => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+              expandedRows={expandedLogs}
+            >
+              {(r: Request) => (
+                <div id={`details-hq-${r.id}`}>
+                  <div className="mt-3">
+                    <button className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" aria-expanded={!!expandedDocs[r.id]} aria-controls={`docs-hq-${r.id}`} onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}>
+                      <span>Show Documents</span>
+                      <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
+                    </button>
+                  </div>
+                  <div id={`docs-hq-${r.id}`} ref={expandedDocs[r.id] ? docsRef : undefined} className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}>
+                    {docsFor(r.id).map(d => (
+                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
+                        <div className="text-sm text-[var(--muted)]">
+                          <div className="font-medium text-[var(--text)]">{d.name}</div>
+                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          { (d as any).fileUrl ? (
+                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2">Open</a>
+                          ) : (
+                            <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {docsFor(r.id).length === 0 && (<div className="text-sm text-[var(--muted)]">No documents</div>)}
+                  </div>
+                </div>
+              )}
+            </RequestTable>
           )}
         </div>
-      </main>
+      </div>
     </div>
   )
 }
 
-export default HQMCSectionDashboard

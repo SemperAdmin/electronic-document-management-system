@@ -222,28 +222,21 @@ export default function InstallationCommandDashboard() {
           activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}` }]
         }
       } else {
-        // Endorsed: prefer external if selected, otherwise section
-        const extUnitUic = externalUnitUic[r.id] || ''
-        const extUnit = externalUnit[r.id] || ''
-        const extSec = externalSection[r.id] || ''
-        if (extUnitUic.trim()) {
-          updated = {
-            ...r,
-            currentStage: 'EXTERNAL_REVIEW',
-            externalPendingUnitName: extUnit,
-            externalPendingUnitUic: extUnitUic,
-            externalPendingStage: extSec || undefined,
-            routeSection: extSec || '',
-            activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: extSec ? `Sent to external unit: ${extUnit} - ${extSec}` : `Sent to external unit: ${extUnit}` }]
-          }
-        } else {
-          const sec = selectedCmdCommander[r.id] || ''
-          if (!sec.trim()) { alert('Select a command section to send to'); return }
+        // Endorsed: return to installation review without requiring external unit selection
+        const sec = selectedCmdCommander[r.id] || ''
+        if (sec.trim()) {
           updated = {
             ...r,
             currentStage: 'INSTALLATION_REVIEW',
             routeSection: sec,
             activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}` }]
+          }
+        } else {
+          updated = {
+            ...r,
+            currentStage: 'INSTALLATION_REVIEW',
+            routeSection: '',
+            activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: 'Returned to installation command for further routing' }]
           }
         }
       }

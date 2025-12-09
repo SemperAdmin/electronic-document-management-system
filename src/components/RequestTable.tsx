@@ -82,6 +82,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
   const isUnitEndorsed = (r: Request) => hasActivity(r, /(endorsed by commander|commander.*endorsed)/i) && !hasActivity(r, /installation commander/i);
   const isInstallationApproved = (r: Request) => hasActivity(r, /(approved by installation commander|installation commander.*approved|installation.*approved)/i);
   const isInstallationEndorsed = (r: Request) => hasActivity(r, /(endorsed by installation commander|installation commander.*endorsed|installation.*endorsed)/i);
+  const isHQMCApproved = (r: Request) => hasActivity(r, /hqmc.*approved/i);
 
   const getCurrentUnit = (r: Request) => {
     const stage = r.currentStage || 'PLATOON_REVIEW';
@@ -193,8 +194,9 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
               const unitEndorsed = isUnitEndorsed(r);
               const instApproved = isInstallationApproved(r);
               const instEndorsed = isInstallationEndorsed(r);
+              const isHQMCStage = (r.currentStage || '') === 'HQMC_REVIEW';
               const anyPositive = unitApproved || unitEndorsed || instApproved || instEndorsed;
-              const isPositive = isInstallation ? (instApproved || instEndorsed) : anyPositive;
+              const isPositive = isInstallation ? (instApproved || instEndorsed) : (isHQMCStage ? isHQMCApproved(r) : anyPositive);
               const isNegative = rejected || (returned && !anyPositive);
               const originator = originatorFor(r);
               const peopleAtLevel = getPeopleAtActionLevel(r);
@@ -210,13 +212,16 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                    <td className={`p-3 text-sm ${isNegative ? 'text-red-700 font-bold' : isPositive ? 'text-green-700 font-bold' : 'text-[var(--text)]'}`}>
                       {returned && <span className="font-bold">Returned: </span>}
                       {rejected && <span className="font-bold">Rejected: </span>}
-                      {!isInstallation && (unitApproved || unitEndorsed || instApproved || instEndorsed) && (
+                      {!isInstallation && !isHQMCStage && (unitApproved || unitEndorsed || instApproved || instEndorsed) && (
                         <span className="font-bold">
                           {unitApproved ? 'Unit Approved: ' : unitEndorsed ? 'Unit Endorsed: ' : instApproved ? 'Installation Approved: ' : 'Installation Endorsed: '}
                         </span>
                       )}
                       {isInstallation && instApproved && <span className="font-bold">Installation Approved: </span>}
                       {isInstallation && !instApproved && instEndorsed && <span className="font-bold">Installation Endorsed: </span>}
+                      {!isInstallation && isHQMCStage && isHQMCApproved(r) && (
+                        <span className="font-bold">HQMC Approved: </span>
+                      )}
                       {r.subject}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">

@@ -41,12 +41,11 @@ export const InstallationPermissionManager: React.FC<Props> = ({ currentUser, on
   }, [assignments, selectedSection, usersById])
 
   const eligibleUsers = useMemo(() => {
-    const unitUics: string[] = Array.isArray(install?.unitUics) ? install.unitUics : []
+    const unitUics: string[] = Array.isArray(install?.unitUics) ? (install.unitUics as string[]).map(String) : []
     return users.filter(u => {
       if (u.id === currentUser.id) return false
-      const inInstall = String(u.installationId || '') === String(install?.id || '')
-      const byUnit = unitUics.includes(String(u.unitUic || ''))
-      return inInstall || byUnit
+      const uic = String(u.unitUic || '')
+      return unitUics.includes(uic)
     })
   }, [users, install, currentUser])
 

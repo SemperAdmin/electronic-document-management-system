@@ -205,11 +205,13 @@ export default function InstallationCommandDashboard() {
     const decisionEntry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
 
     if (type === 'Rejected') {
+      const prevSec = getPreviousInstallSection(r)
       updated = {
         ...r,
-        currentStage: 'ARCHIVED',
-        finalStatus: 'Rejected',
-        activity: [...(r.activity || []), decisionEntry]
+        currentStage: 'INSTALLATION_REVIEW',
+        finalStatus: undefined,
+        routeSection: prevSec,
+        activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: prevSec ? `Returned to installation section: ${prevSec}` : 'Returned to installation commander' }]
       }
     } else {
       if (type === 'Approved') {

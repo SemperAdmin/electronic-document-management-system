@@ -347,7 +347,7 @@ export default function InstallationCommandDashboard() {
       const branch = hqmcBranchSelCmd[r.id] || ''
       if (!div || !branch) { alert('Select HQMC division and section'); return }
       const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to HQMC: ${div} - ${branch}`, comment: (comments[r.id] || '').trim() }
-      updated = { ...r, routeSection: branch, activity: [...(r.activity || []), entry] }
+      updated = { ...r, currentStage: 'HQMC_REVIEW', routeSection: branch, activity: [...(r.activity || []), entry] }
     } else if (sendToExternalCmd[r.id]) {
       const extUnitUicVal = externalUnitUic[r.id] || ''
       const extUnitVal = externalUnit[r.id] || ''

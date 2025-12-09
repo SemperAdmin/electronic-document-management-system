@@ -250,7 +250,7 @@ export default function InstallationSectionDashboard() {
       const branch = hqmcBranchSel[r.id] || ''
       if (!div || !branch) { alert('Select HQMC division and section'); return }
       const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to HQMC: ${div} - ${branch}`, comment: (comments[r.id] || '').trim() }
-      updated = { ...r, routeSection: branch, activity: [...(r.activity || []), entry] }
+      updated = { ...r, currentStage: 'HQMC_REVIEW', routeSection: branch, activity: [...(r.activity || []), entry] }
     } else if (sendToExternalInst[r.id]) {
       const extUic = externalUnitUic[r.id] || ''
       const extUnitName = externalUnit[r.id] || ''

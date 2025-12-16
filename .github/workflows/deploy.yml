@@ -29,6 +29,8 @@ jobs:
         run: npm install
       - name: Build
         run: npm run build
+        env:
+          VITE_STORAGE_API_URL: https://edms-storage-api.onrender.com
       - name: SPA fallback
         run: cp docs/index.html docs/404.html
       - name: Upload artifact

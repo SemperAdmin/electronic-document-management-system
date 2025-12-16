@@ -11,7 +11,7 @@ import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly } from
 import { logEvent } from '@/lib/logger';
 import { supabaseClient } from '../lib/supabase';
 
-const STORAGE_BUCKET = 'documents';
+const STORAGE_BUCKET = 'edms-docs';
 
 interface Document {
   id: string;

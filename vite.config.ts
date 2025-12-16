@@ -3,6 +3,29 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 import { createClient } from '@supabase/supabase-js'
+import { google } from 'googleapis'
+
+// Google Drive client initialization (lazy loaded)
+let driveClient: ReturnType<typeof google.drive> | null = null
+function getGoogleDriveClient(env: Record<string, string>) {
+  if (driveClient) return driveClient
+
+  const clientEmail = env.GOOGLE_CLIENT_EMAIL
+  const privateKey = env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+
+  if (!clientEmail || !privateKey) {
+    return null
+  }
+
+  const auth = new google.auth.JWT({
+    email: clientEmail,
+    key: privateKey,
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  })
+
+  driveClient = google.drive({ version: 'v3', auth })
+  return driveClient
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -222,26 +245,85 @@ export default defineConfig(({ mode }) => {
           })
         })
 
-        // Supabase Storage: create signed upload URL for client-side uploads
-        server.middlewares.use('/api/storage/sign-upload', (req, res, next) => {
+        // Google Drive Storage: Initialize resumable upload session
+        // Returns uploadUri for direct client upload and fileId for finalization
+        server.middlewares.use('/api/storage/init-upload', (req, res, next) => {
           if (req.method !== 'POST') return next()
           let body = ''
           req.on('data', (chunk) => { body += chunk })
           req.on('end', async () => {
             try {
               const json = JSON.parse(body || '{}')
-              const pathKey = String(json.path || '')
-              if (!pathKey) throw new Error('path_required')
-              const url = env.VITE_SUPABASE_URL
-              const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
-              if (!url || !serviceKey) throw new Error('supabase_env_missing')
-              const sb = createClient(url, serviceKey)
-              try { await sb.storage.createBucket('edms-docs', { public: true }) } catch {}
-              const { data, error } = await sb.storage.from('edms-docs').createSignedUploadUrl(pathKey)
-              if (error) throw error
+              const fileName = String(json.fileName || '')
+              const mimeType = String(json.mimeType || 'application/octet-stream')
+              const fileSize = Number(json.fileSize || 0)
+              const folderPath = String(json.folderPath || '')
+
+              if (!fileName) throw new Error('fileName_required')
+              if (!fileSize) throw new Error('fileSize_required')
+
+              const drive = getGoogleDriveClient(env)
+              if (!drive) throw new Error('google_drive_not_configured')
+
+              const rootFolderId = env.GOOGLE_DRIVE_FOLDER_ID
+              if (!rootFolderId) throw new Error('GOOGLE_DRIVE_FOLDER_ID_not_set')
+
+              // Find or create folder structure (e.g., unitUic/requestId)
+              let targetFolderId = rootFolderId
+              if (folderPath) {
+                const parts = folderPath.split('/').filter(Boolean)
+                for (const folderName of parts) {
+                  // Search for existing folder
+                  const searchRes = await drive.files.list({
+                    q: `name = '${folderName}' and '${targetFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                    fields: 'files(id)',
+                  })
+                  const existing = searchRes.data.files?.[0]
+                  if (existing?.id) {
+                    targetFolderId = existing.id
+                  } else {
+                    // Create new folder
+                    const createRes = await drive.files.create({
+                      requestBody: { name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [targetFolderId] },
+                      fields: 'id',
+                    })
+                    if (!createRes.data.id) throw new Error('failed_to_create_folder')
+                    targetFolderId = createRes.data.id
+                  }
+                }
+              }
+
+              // Get access token for resumable upload
+              const auth = drive.context._options.auth as InstanceType<typeof google.auth.JWT>
+              const accessToken = await auth.getAccessToken()
+              if (!accessToken.token) throw new Error('failed_to_get_access_token')
+
+              // Initiate resumable upload session
+              const initResponse = await fetch(
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${accessToken.token}`,
+                    'Content-Type': 'application/json',
+                    'X-Upload-Content-Type': mimeType,
+                    'X-Upload-Content-Length': String(fileSize),
+                  },
+                  body: JSON.stringify({ name: fileName, parents: [targetFolderId] }),
+                }
+              )
+
+              if (!initResponse.ok) {
+                const errorText = await initResponse.text()
+                throw new Error(`resumable_init_failed: ${errorText}`)
+              }
+
+              const uploadUri = initResponse.headers.get('Location')
+              if (!uploadUri) throw new Error('no_upload_uri_returned')
+
               res.statusCode = 200
               res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ ok: true, signedUrl: data?.signedUrl, path: data?.path }))
+              res.end(JSON.stringify({ ok: true, uploadUri, folderId: targetFolderId }))
             } catch (e) {
               res.statusCode = 500
               res.setHeader('Content-Type', 'application/json')
@@ -250,6 +332,46 @@ export default defineConfig(({ mode }) => {
           })
         })
 
+        // Finalize upload: make file public and return the public URL
+        server.middlewares.use('/api/storage/finalize-upload', (req, res, next) => {
+          if (req.method !== 'POST') return next()
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', async () => {
+            try {
+              const json = JSON.parse(body || '{}')
+              const fileId = String(json.fileId || '')
+              if (!fileId) throw new Error('fileId_required')
+
+              const drive = getGoogleDriveClient(env)
+              if (!drive) throw new Error('google_drive_not_configured')
+
+              // Make file public
+              await drive.permissions.create({
+                fileId,
+                requestBody: { role: 'reader', type: 'anyone' },
+              })
+
+              // Get the public link
+              const fileInfo = await drive.files.get({
+                fileId,
+                fields: 'webViewLink,webContentLink',
+              })
+
+              const publicUrl = fileInfo.data.webContentLink || fileInfo.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`
+
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true, publicUrl, fileId }))
+            } catch (e) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: String((e as any)?.message || e) }))
+            }
+          })
+        })
+
+        // Delete a file by its Google Drive file ID or URL
         server.middlewares.use('/api/storage/delete-object', (req, res, next) => {
           if (req.method !== 'POST') return next()
           let body = ''
@@ -257,14 +379,21 @@ export default defineConfig(({ mode }) => {
           req.on('end', async () => {
             try {
               const json = JSON.parse(body || '{}')
-              const pathKey = String(json.path || '')
-              if (!pathKey) throw new Error('path_required')
-              const url = env.VITE_SUPABASE_URL
-              const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
-              if (!url || !serviceKey) throw new Error('supabase_env_missing')
-              const sb = createClient(url, serviceKey)
-              const { error } = await sb.storage.from('edms-docs').remove([pathKey])
-              if (error) throw error
+              let fileId = String(json.fileId || json.path || '')
+              if (!fileId) throw new Error('fileId_required')
+
+              // Extract file ID from URL if a full URL was provided
+              const urlPatterns = [/\/file\/d\/([a-zA-Z0-9_-]+)/, /[?&]id=([a-zA-Z0-9_-]+)/, /\/files\/([a-zA-Z0-9_-]+)/]
+              for (const pattern of urlPatterns) {
+                const match = fileId.match(pattern)
+                if (match?.[1]) { fileId = match[1]; break }
+              }
+
+              const drive = getGoogleDriveClient(env)
+              if (!drive) throw new Error('google_drive_not_configured')
+
+              await drive.files.delete({ fileId })
+
               res.statusCode = 200
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({ ok: true }))
@@ -276,6 +405,7 @@ export default defineConfig(({ mode }) => {
           })
         })
 
+        // Delete all files in a folder path
         server.middlewares.use('/api/storage/delete-folder', (req, res, next) => {
           if (req.method !== 'POST') return next()
           let body = ''
@@ -283,34 +413,62 @@ export default defineConfig(({ mode }) => {
           req.on('end', async () => {
             try {
               const json = JSON.parse(body || '{}')
-              const prefix = String(json.prefix || '')
-              if (!prefix) throw new Error('prefix_required')
-              const url = env.VITE_SUPABASE_URL
-              const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
-              if (!url || !serviceKey) throw new Error('supabase_env_missing')
-              const sb = createClient(url, serviceKey)
-              // List all objects under prefix and remove
-              const paths: string[] = []
-              async function listAll(dir: string) {
-                const { data, error } = await sb.storage.from('edms-docs').list(dir, { limit: 1000 })
-                if (error) throw error
-                for (const entry of (data || [])) {
-                  const full = `${dir}/${entry.name}`
-                  if (entry?.id || entry?.created_at || entry?.updated_at) {
-                    paths.push(full)
-                  } else {
-                    await listAll(full)
-                  }
+              const folderId = String(json.folderId || '')
+              const folderPath = String(json.prefix || json.folderPath || '')
+
+              const drive = getGoogleDriveClient(env)
+              if (!drive) throw new Error('google_drive_not_configured')
+
+              let targetFolderId = folderId
+
+              // If folder path provided instead of ID, navigate to find the folder
+              if (!targetFolderId && folderPath) {
+                const rootFolderId = env.GOOGLE_DRIVE_FOLDER_ID
+                if (!rootFolderId) throw new Error('GOOGLE_DRIVE_FOLDER_ID_not_set')
+
+                targetFolderId = rootFolderId
+                const parts = folderPath.split('/').filter(Boolean)
+                for (const folderName of parts) {
+                  const searchRes = await drive.files.list({
+                    q: `name = '${folderName}' and '${targetFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                    fields: 'files(id)',
+                  })
+                  const existing = searchRes.data.files?.[0]
+                  if (!existing?.id) throw new Error(`folder_not_found: ${folderName}`)
+                  targetFolderId = existing.id
                 }
               }
-              await listAll(prefix)
-              if (paths.length) {
-                const { error: rmErr } = await sb.storage.from('edms-docs').remove(paths)
-                if (rmErr) throw rmErr
+
+              if (!targetFolderId) throw new Error('folderId_or_folderPath_required')
+
+              // List and delete all files in the folder
+              let deletedCount = 0
+              let pageToken: string | undefined
+              do {
+                const listRes = await drive.files.list({
+                  q: `'${targetFolderId}' in parents and trashed = false`,
+                  fields: 'nextPageToken, files(id)',
+                  pageSize: 100,
+                  pageToken,
+                })
+                const files = listRes.data.files || []
+                for (const file of files) {
+                  if (file.id) {
+                    await drive.files.delete({ fileId: file.id })
+                    deletedCount++
+                  }
+                }
+                pageToken = listRes.data.nextPageToken || undefined
+              } while (pageToken)
+
+              // Optionally delete the folder itself
+              if (json.deleteFolder) {
+                await drive.files.delete({ fileId: targetFolderId })
               }
+
               res.statusCode = 200
               res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ ok: true, removed: paths.length }))
+              res.end(JSON.stringify({ ok: true, removed: deletedCount }))
             } catch (e) {
               res.statusCode = 500
               res.setHeader('Content-Type', 'application/json')

@@ -1,9 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getSupabase } from '../lib/supabase';
 import { Unit } from '../lib/units';
 import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers, DocumentRecord, RequestRecord } from '../lib/db';
-import { deleteDocumentById, deleteRequestById, deleteDocumentsByRequestId } from '@/lib/db'
-import { getSupabaseUrl } from '../lib/supabase';
+import { deleteDocumentById, deleteRequestById, deleteDocumentsByRequestId } from '@/lib/db';
 import { usePagination } from '@/hooks/usePagination';
 import { Pagination } from '@/components/Pagination';
 import RequestTable from './RequestTable';
@@ -122,49 +120,70 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     const requestId = `req-${now}`;
 
     let docs: Document[] = [];
-    const supaUrl = getSupabaseUrl() || ((import.meta as any)?.env?.VITE_SUPABASE_URL as string || localStorage.getItem('supabase_url') || '')
-    const makePublicUrl = (pathKey: string) => {
-      try {
-        const sb = getSupabase()
-        if (sb && sb.storage && typeof sb.storage.from === 'function') {
-          const res = sb.storage.from('edms-docs').getPublicUrl(pathKey)
-          if (res?.data?.publicUrl) return String(res.data.publicUrl)
-        }
-      } catch {}
-      return `${supaUrl}/storage/v1/object/public/edms-docs/${pathKey}`
-    }
     const sanitize = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
-    async function uploadToStorage(file: File, pathKey: string) {
-      try {
-        const resp = await fetch('/api/storage/sign-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
-        const json = await resp.json()
-        if (!resp.ok || !json?.signedUrl) throw new Error(String(json?.error || 'sign_url_failed'))
-        const putRes = await fetch(String(json.signedUrl), { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
-        if (!putRes.ok) {
-          let msg = 'upload_failed'
-          try { msg = await putRes.text() } catch {}
-          throw new Error(msg)
-        }
-        return makePublicUrl(pathKey)
-      } catch (e) {
-        try {
-          const sb = getSupabase()
-          if (!sb?.storage) throw e
-          const { data, error } = await sb.storage.from('edms-docs').upload(pathKey, file, { upsert: true, contentType: file.type || 'application/octet-stream' })
-          if (error) throw error
-          return makePublicUrl(pathKey)
-        } catch (fallbackErr) {
-          throw (e || fallbackErr)
-        }
+
+    // Google Drive resumable upload flow
+    async function uploadToGoogleDrive(file: File, folderPath: string, fileName: string): Promise<string> {
+      // Step 1: Initialize resumable upload session
+      const initResp = await fetch('/api/storage/init-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName,
+          mimeType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          folderPath,
+        }),
+      })
+      const initJson = await initResp.json()
+      if (!initResp.ok || !initJson?.uploadUri) {
+        throw new Error(String(initJson?.error || 'init_upload_failed'))
       }
+
+      // Step 2: Upload file directly to Google Drive using resumable URI
+      const uploadResp = await fetch(initJson.uploadUri, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'Content-Length': String(file.size),
+        },
+        body: file,
+      })
+
+      if (!uploadResp.ok) {
+        let msg = 'upload_failed'
+        try { msg = await uploadResp.text() } catch {}
+        throw new Error(msg)
+      }
+
+      // Step 3: Parse response to get file ID
+      const uploadResult = await uploadResp.json()
+      const fileId = uploadResult?.id
+      if (!fileId) {
+        throw new Error('no_file_id_returned')
+      }
+
+      // Step 4: Finalize upload - make file public and get URL
+      const finalizeResp = await fetch('/api/storage/finalize-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId }),
+      })
+      const finalizeJson = await finalizeResp.json()
+      if (!finalizeResp.ok || !finalizeJson?.publicUrl) {
+        throw new Error(String(finalizeJson?.error || 'finalize_failed'))
+      }
+
+      return finalizeJson.publicUrl
     }
     if (selectedFiles && selectedFiles.length > 0) {
       const uploadedUrls: string[] = []
       for (let i = 0; i < selectedFiles.length; i++) {
         const f = selectedFiles[i]
-        const pathKey = `${targetUic}/${requestId}/${now}-${i}-${sanitize(f.name)}`
+        const folderPath = `${targetUic}/${requestId}`
+        const fileName = `${now}-${i}-${sanitize(f.name)}`
         try {
-          const url = await uploadToStorage(f, pathKey)
+          const url = await uploadToGoogleDrive(f, folderPath, fileName)
           uploadedUrls.push(url)
         } catch (err: any) {
           setIsUploading(false)
@@ -397,33 +416,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
   const formatStage = (r: Request) => formatStageLabel(r)
 
+  // For Google Drive, URLs are already absolute - just return as-is
   const normalizeDocUrl = (url?: string): string | undefined => {
     if (!url) return undefined
-    const supaBase = getSupabaseUrl() || localStorage.getItem('supabase_url') || ((import.meta as any)?.env?.VITE_SUPABASE_URL as string || '')
-    if (!supaBase) return url
-    try {
-      // Absolute URL: rewrite host if path matches storage
-      if (/^https?:\/\//i.test(url)) {
-        const u = new URL(url)
-        const marker = '/storage/v1/object/public/edms-docs/'
-        const idx = u.pathname.indexOf(marker)
-        if (idx >= 0) {
-          const path = u.pathname.substring(idx) // from /storage...
-          const search = u.search || ''
-          return `${supaBase}${path}${search}`
-        }
-        return url
-      }
-      // Relative URL
-      if (url.startsWith('/')) return `${supaBase}${url}`
-      if (url.startsWith('storage/')) return `${supaBase}/${url}`
-      const marker = '/storage/v1/object/public/edms-docs/'
-      const idx = url.indexOf(marker)
-      if (idx >= 0) {
-        const path = url.substring(idx)
-        return `${supaBase}${path}`
-      }
-    } catch {}
     return url
   }
 
@@ -433,27 +428,31 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     window.open(href, '_blank');
   };
 
-  const extractStoragePath = (publicUrl?: string): string | null => {
-    if (!publicUrl) return null
+  // Extract Google Drive file ID from URL
+  const extractFileId = (url?: string): string | null => {
+    if (!url) return null
     try {
-      const marker = '/storage/v1/object/public/edms-docs/'
-      if (/^https?:\/\//i.test(publicUrl)) {
-        const u = new URL(publicUrl)
-        const idx = u.pathname.indexOf(marker)
-        if (idx >= 0) return u.pathname.substring(idx + marker.length)
-        return null
+      // Handle various Google Drive URL formats
+      const patterns = [
+        /\/file\/d\/([a-zA-Z0-9_-]+)/,     // /file/d/{fileId}/view
+        /[?&]id=([a-zA-Z0-9_-]+)/,          // ?id={fileId}
+        /\/files\/([a-zA-Z0-9_-]+)/,        // /files/{fileId}
+      ]
+      for (const pattern of patterns) {
+        const match = url.match(pattern)
+        if (match?.[1]) return match[1]
       }
-      const idx = publicUrl.indexOf(marker)
-      if (idx >= 0) return publicUrl.substring(idx + marker.length)
-      return null
-    } catch { return null }
+      // If it looks like a raw file ID
+      if (/^[a-zA-Z0-9_-]+$/.test(url)) return url
+    } catch {}
+    return null
   }
 
   const deleteDocument = async (doc: Document) => {
-    const pathKey = extractStoragePath(doc.fileUrl)
+    const fileId = extractFileId(doc.fileUrl)
     try {
-      if (pathKey) {
-        await fetch('/api/storage/delete-object', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
+      if (fileId) {
+        await fetch('/api/storage/delete-object', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileId }) })
       }
     } catch {}
     try {
@@ -469,9 +468,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   }
 
   const deleteRequest = async (req: Request) => {
-    const prefix = `${req.unitUic || 'N-A'}/${req.id}`
+    const folderPath = `${req.unitUic || 'N-A'}/${req.id}`
     try {
-      await fetch('/api/storage/delete-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefix }) })
+      await fetch('/api/storage/delete-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folderPath, deleteFolder: true }) })
     } catch {}
     try {
       await deleteDocumentsByRequestId(req.id)
@@ -493,28 +492,47 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
     const now = Date.now();
     const sanitize2 = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
-    const supaUrl2 = (import.meta as any)?.env?.VITE_SUPABASE_URL as string || ''
-    const makePublicUrl2 = (pathKey: string) => {
-      try {
-        const sb = getSupabase()
-        if (sb && sb.storage && typeof sb.storage.from === 'function') {
-          const res = sb.storage.from('edms-docs').getPublicUrl(pathKey)
-          if (res?.data?.publicUrl) return String(res.data.publicUrl)
-        }
-      } catch {}
-      return `${supaUrl2}/storage/v1/object/public/edms-docs/${pathKey}`
+
+    // Google Drive upload for attachments
+    async function uploadAttachmentToGoogleDrive(file: File, folderPath: string, fileName: string): Promise<string> {
+      const initResp = await fetch('/api/storage/init-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, mimeType: file.type || 'application/octet-stream', fileSize: file.size, folderPath }),
+      })
+      const initJson = await initResp.json()
+      if (!initResp.ok || !initJson?.uploadUri) throw new Error(String(initJson?.error || 'init_upload_failed'))
+
+      const uploadResp = await fetch(initJson.uploadUri, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream', 'Content-Length': String(file.size) },
+        body: file,
+      })
+      if (!uploadResp.ok) throw new Error('upload_failed')
+
+      const uploadResult = await uploadResp.json()
+      const fileId = uploadResult?.id
+      if (!fileId) throw new Error('no_file_id_returned')
+
+      const finalizeResp = await fetch('/api/storage/finalize-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId }),
+      })
+      const finalizeJson = await finalizeResp.json()
+      if (!finalizeResp.ok || !finalizeJson?.publicUrl) throw new Error(String(finalizeJson?.error || 'finalize_failed'))
+
+      return finalizeJson.publicUrl
     }
+
     const uploaded2: string[] = []
     for (let i = 0; i < attachFiles.length; i++) {
       const f = attachFiles[i]
-      const pathKey = `${selectedRequest.unitUic || 'N-A'}/${selectedRequest.id}/${now}-${i}-${sanitize2(f.name)}`
+      const folderPath = `${selectedRequest.unitUic || 'N-A'}/${selectedRequest.id}`
+      const fileName = `${now}-${i}-${sanitize2(f.name)}`
       try {
-        const resp = await fetch('/api/storage/sign-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pathKey }) })
-        const json = await resp.json()
-        if (!resp.ok || !json?.signedUrl) throw new Error(String(json?.error || 'sign_url_failed'))
-        const putRes = await fetch(String(json.signedUrl), { method: 'PUT', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f })
-        if (!putRes.ok) throw new Error('upload_failed')
-        uploaded2.push(makePublicUrl2(pathKey))
+        const url = await uploadAttachmentToGoogleDrive(f, folderPath, fileName)
+        uploaded2.push(url)
       } catch (e: any) {
         setFeedback({ type: 'error', message: `Failed to upload ${f.name}: ${String(e?.message || e)}` })
         return

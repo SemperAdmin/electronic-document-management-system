@@ -10,6 +10,9 @@ import { normalizeString, hasReviewer } from '../lib/reviewers';
 import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly } from '@/lib/stage';
 import { logEvent } from '@/lib/logger';
 
+// Storage API URL - configurable for production deployment
+const STORAGE_API_URL = (import.meta as any)?.env?.VITE_STORAGE_API_URL || ''
+
 interface Document {
   id: string;
   name: string;
@@ -125,7 +128,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     // Google Drive resumable upload flow
     async function uploadToGoogleDrive(file: File, folderPath: string, fileName: string): Promise<string> {
       // Step 1: Initialize resumable upload session
-      const initResp = await fetch('/api/storage/init-upload', {
+      const initResp = await fetch(`${STORAGE_API_URL}/api/storage/init-upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,7 +167,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       }
 
       // Step 4: Finalize upload - make file public and get URL
-      const finalizeResp = await fetch('/api/storage/finalize-upload', {
+      const finalizeResp = await fetch(`${STORAGE_API_URL}/api/storage/finalize-upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileId }),
@@ -452,7 +455,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     const fileId = extractFileId(doc.fileUrl)
     try {
       if (fileId) {
-        await fetch('/api/storage/delete-object', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileId }) })
+        await fetch(`${STORAGE_API_URL}/api/storage/delete-object`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileId }) })
       }
     } catch {}
     try {
@@ -470,7 +473,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const deleteRequest = async (req: Request) => {
     const folderPath = `${req.unitUic || 'N-A'}/${req.id}`
     try {
-      await fetch('/api/storage/delete-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folderPath, deleteFolder: true }) })
+      await fetch(`${STORAGE_API_URL}/api/storage/delete-folder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folderPath, deleteFolder: true }) })
     } catch {}
     try {
       await deleteDocumentsByRequestId(req.id)
@@ -495,7 +498,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
     // Google Drive upload for attachments
     async function uploadAttachmentToGoogleDrive(file: File, folderPath: string, fileName: string): Promise<string> {
-      const initResp = await fetch('/api/storage/init-upload', {
+      const initResp = await fetch(`${STORAGE_API_URL}/api/storage/init-upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileName, mimeType: file.type || 'application/octet-stream', fileSize: file.size, folderPath }),
@@ -514,7 +517,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       const fileId = uploadResult?.id
       if (!fileId) throw new Error('no_file_id_returned')
 
-      const finalizeResp = await fetch('/api/storage/finalize-upload', {
+      const finalizeResp = await fetch(`${STORAGE_API_URL}/api/storage/finalize-upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileId }),

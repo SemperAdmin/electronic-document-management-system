@@ -9,10 +9,9 @@ import { Request, UserRecord } from '../types';
 import { normalizeString, hasReviewer } from '../lib/reviewers';
 import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly } from '@/lib/stage';
 import { logEvent } from '@/lib/logger';
+import { supabaseClient } from '../lib/supabase';
 
-// Storage API URL - configurable for production deployment
-// @ts-ignore - Vite replaces this at build time
-const STORAGE_API_URL = import.meta.env.VITE_STORAGE_API_URL || ''
+const STORAGE_BUCKET = 'documents';
 
 interface Document {
   id: string;
@@ -126,68 +125,30 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     let docs: Document[] = [];
     const sanitize = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
 
-    // Google Drive resumable upload flow
-    async function uploadToGoogleDrive(file: File, folderPath: string, fileName: string): Promise<string> {
-      // Step 1: Initialize resumable upload session
-      const initResp = await fetch(`${STORAGE_API_URL}/api/storage/init-upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName,
-          mimeType: file.type || 'application/octet-stream',
-          fileSize: file.size,
-          folderPath,
-        }),
-      })
-      const initJson = await initResp.json()
-      if (!initResp.ok || !initJson?.uploadUri) {
-        throw new Error(String(initJson?.error || 'init_upload_failed'))
-      }
+    // Supabase Storage upload
+    async function uploadToSupabase(file: File, storagePath: string): Promise<string> {
+      if (!supabaseClient) throw new Error('Supabase not configured')
 
-      // Step 2: Upload file directly to Google Drive using resumable URI
-      const uploadResp = await fetch(initJson.uploadUri, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type || 'application/octet-stream',
-          'Content-Length': String(file.size),
-        },
-        body: file,
-      })
+      const { error: uploadError } = await supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .upload(storagePath, file, { upsert: true })
 
-      if (!uploadResp.ok) {
-        let msg = 'upload_failed'
-        try { msg = await uploadResp.text() } catch {}
-        throw new Error(msg)
-      }
+      if (uploadError) throw new Error(uploadError.message)
 
-      // Step 3: Parse response to get file ID
-      const uploadResult = await uploadResp.json()
-      const fileId = uploadResult?.id
-      if (!fileId) {
-        throw new Error('no_file_id_returned')
-      }
+      const { data: urlData } = supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .getPublicUrl(storagePath)
 
-      // Step 4: Finalize upload - make file public and get URL
-      const finalizeResp = await fetch(`${STORAGE_API_URL}/api/storage/finalize-upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId }),
-      })
-      const finalizeJson = await finalizeResp.json()
-      if (!finalizeResp.ok || !finalizeJson?.publicUrl) {
-        throw new Error(String(finalizeJson?.error || 'finalize_failed'))
-      }
-
-      return finalizeJson.publicUrl
+      return urlData?.publicUrl || ''
     }
+
     if (selectedFiles && selectedFiles.length > 0) {
       const uploadedUrls: string[] = []
       for (let i = 0; i < selectedFiles.length; i++) {
         const f = selectedFiles[i]
-        const folderPath = `${targetUic}/${requestId}`
-        const fileName = `${now}-${i}-${sanitize(f.name)}`
+        const storagePath = `${targetUic}/${requestId}/${now}-${i}-${sanitize(f.name)}`
         try {
-          const url = await uploadToGoogleDrive(f, folderPath, fileName)
+          const url = await uploadToSupabase(f, storagePath)
           uploadedUrls.push(url)
         } catch (err: any) {
           setIsUploading(false)
@@ -420,7 +381,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
   const formatStage = (r: Request) => formatStageLabel(r)
 
-  // For Google Drive, URLs are already absolute - just return as-is
+  // For Supabase, URLs are already absolute - just return as-is
   const normalizeDocUrl = (url?: string): string | undefined => {
     if (!url) return undefined
     return url
@@ -432,31 +393,22 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     window.open(href, '_blank');
   };
 
-  // Extract Google Drive file ID from URL
-  const extractFileId = (url?: string): string | null => {
+  // Extract storage path from Supabase URL
+  const extractStoragePath = (url?: string): string | null => {
     if (!url) return null
     try {
-      // Handle various Google Drive URL formats
-      const patterns = [
-        /\/file\/d\/([a-zA-Z0-9_-]+)/,     // /file/d/{fileId}/view
-        /[?&]id=([a-zA-Z0-9_-]+)/,          // ?id={fileId}
-        /\/files\/([a-zA-Z0-9_-]+)/,        // /files/{fileId}
-      ]
-      for (const pattern of patterns) {
-        const match = url.match(pattern)
-        if (match?.[1]) return match[1]
-      }
-      // If it looks like a raw file ID
-      if (/^[a-zA-Z0-9_-]+$/.test(url)) return url
+      // Supabase storage URLs look like: https://xxx.supabase.co/storage/v1/object/public/bucket/path/to/file
+      const match = url.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/)
+      if (match?.[1]) return decodeURIComponent(match[1])
     } catch {}
     return null
   }
 
   const deleteDocument = async (doc: Document) => {
-    const fileId = extractFileId(doc.fileUrl)
+    const storagePath = extractStoragePath(doc.fileUrl)
     try {
-      if (fileId) {
-        await fetch(`${STORAGE_API_URL}/api/storage/delete-object`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileId }) })
+      if (storagePath && supabaseClient) {
+        await supabaseClient.storage.from(STORAGE_BUCKET).remove([storagePath])
       }
     } catch {}
     try {
@@ -472,9 +424,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   }
 
   const deleteRequest = async (req: Request) => {
-    const folderPath = `${req.unitUic || 'N-A'}/${req.id}`
+    const folderPrefix = `${req.unitUic || 'N-A'}/${req.id}/`
     try {
-      await fetch(`${STORAGE_API_URL}/api/storage/delete-folder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folderPath, deleteFolder: true }) })
+      if (supabaseClient) {
+        // List all files in the request folder and delete them
+        const { data: files } = await supabaseClient.storage.from(STORAGE_BUCKET).list(folderPrefix.slice(0, -1))
+        if (files && files.length > 0) {
+          const paths = files.map((f: any) => `${folderPrefix.slice(0, -1)}/${f.name}`)
+          await supabaseClient.storage.from(STORAGE_BUCKET).remove(paths)
+        }
+      }
     } catch {}
     try {
       await deleteDocumentsByRequestId(req.id)
@@ -497,45 +456,29 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     const now = Date.now();
     const sanitize2 = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
 
-    // Google Drive upload for attachments
-    async function uploadAttachmentToGoogleDrive(file: File, folderPath: string, fileName: string): Promise<string> {
-      const initResp = await fetch(`${STORAGE_API_URL}/api/storage/init-upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, mimeType: file.type || 'application/octet-stream', fileSize: file.size, folderPath }),
-      })
-      const initJson = await initResp.json()
-      if (!initResp.ok || !initJson?.uploadUri) throw new Error(String(initJson?.error || 'init_upload_failed'))
+    // Supabase Storage upload for attachments
+    async function uploadAttachmentToSupabase(file: File, storagePath: string): Promise<string> {
+      if (!supabaseClient) throw new Error('Supabase not configured')
 
-      const uploadResp = await fetch(initJson.uploadUri, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream', 'Content-Length': String(file.size) },
-        body: file,
-      })
-      if (!uploadResp.ok) throw new Error('upload_failed')
+      const { error: uploadError } = await supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .upload(storagePath, file, { upsert: true })
 
-      const uploadResult = await uploadResp.json()
-      const fileId = uploadResult?.id
-      if (!fileId) throw new Error('no_file_id_returned')
+      if (uploadError) throw new Error(uploadError.message)
 
-      const finalizeResp = await fetch(`${STORAGE_API_URL}/api/storage/finalize-upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId }),
-      })
-      const finalizeJson = await finalizeResp.json()
-      if (!finalizeResp.ok || !finalizeJson?.publicUrl) throw new Error(String(finalizeJson?.error || 'finalize_failed'))
+      const { data: urlData } = supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .getPublicUrl(storagePath)
 
-      return finalizeJson.publicUrl
+      return urlData?.publicUrl || ''
     }
 
     const uploaded2: string[] = []
     for (let i = 0; i < attachFiles.length; i++) {
       const f = attachFiles[i]
-      const folderPath = `${selectedRequest.unitUic || 'N-A'}/${selectedRequest.id}`
-      const fileName = `${now}-${i}-${sanitize2(f.name)}`
+      const storagePath = `${selectedRequest.unitUic || 'N-A'}/${selectedRequest.id}/${now}-${i}-${sanitize2(f.name)}`
       try {
-        const url = await uploadAttachmentToGoogleDrive(f, folderPath, fileName)
+        const url = await uploadAttachmentToSupabase(f, storagePath)
         uploaded2.push(url)
       } catch (e: any) {
         setFeedback({ type: 'error', message: `Failed to upload ${f.name}: ${String(e?.message || e)}` })

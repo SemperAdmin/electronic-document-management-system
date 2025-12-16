@@ -18,13 +18,13 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
   try {
     const ie = (import.meta as any)?.env || {}
     const viaEnv = {
-      url: (ie.VITE_SUPABASE_URL as string | undefined),
-      anonKey: (ie.VITE_SUPABASE_ANON_KEY as string | undefined),
+      url: ie.VITE_SUPABASE_URL || undefined,
+      anonKey: ie.VITE_SUPABASE_ANON_KEY || undefined,
     }
     const viaGlobals = (globalThis as any).__SUPABASE_CONFIG || {}
     const viaDecl = {
-      url: typeof __ENV_SUPABASE_URL !== 'undefined' ? __ENV_SUPABASE_URL : undefined,
-      anonKey: typeof __ENV_SUPABASE_ANON_KEY !== 'undefined' ? __ENV_SUPABASE_ANON_KEY : undefined,
+      url: typeof __ENV_SUPABASE_URL !== 'undefined' && __ENV_SUPABASE_URL ? __ENV_SUPABASE_URL : undefined,
+      anonKey: typeof __ENV_SUPABASE_ANON_KEY !== 'undefined' && __ENV_SUPABASE_ANON_KEY ? __ENV_SUPABASE_ANON_KEY : undefined,
     }
     let viaStorage: { url?: string; anonKey?: string } = {}
     let localStorageAvailable = true
@@ -42,10 +42,11 @@ function resolveSupabaseConfig(): { url?: string; anonKey?: string } {
       viaStorage = memoryCache
     }
     const sanitize = (v?: string) => {
-      if (!v) return v
+      if (!v) return undefined
       const trimmed = String(v).trim()
+      if (!trimmed) return undefined
       const noTicks = trimmed.replace(/^`+|`+$/g, '').replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
-      return noTicks
+      return noTicks || undefined
     }
     const url = sanitize(viaEnv.url || viaDecl.url || viaGlobals.url || viaStorage.url)
     const anonKey = sanitize(viaEnv.anonKey || viaDecl.anonKey || viaGlobals.anonKey || viaStorage.anonKey)

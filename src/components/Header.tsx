@@ -61,8 +61,8 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
               <h1 className="text-sm lg:text-3xl font-semibold leading-tight text-brand-cream">
                 <span className="hidden lg:inline text-3xl lg:text-4xl">Electronic Document Management System</span>
                 <span className="lg:hidden text-sm">EDMS</span>
-                <a className="text-xs lg:text-lg font-normal ml-1 lg:ml-3 text-red-500" href="https://linktr.ee/semperadmin">by Semper Admin</a>
               </h1>
+              <a className="text-xs lg:text-sm font-normal text-red-500 block" href="https://linktr.ee/semperadmin">by Semper Admin</a>
               <p className="text-xs md:text-sm font-light text-white/70 mt-0.5 hidden md:block">Marine Corps Unit Document Management</p>
             </div>
           </div>

@@ -487,7 +487,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || ''),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || ''),
-      'import.meta.env.VITE_STORAGE_API_URL': JSON.stringify(env.VITE_STORAGE_API_URL || 'https://electronic-document-management-system.onrender.com'),
+      'import.meta.env.VITE_STORAGE_API_URL': JSON.stringify(env.VITE_STORAGE_API_URL || 'https://edms-storage-api.onrender.com'),
       __ENV_SUPABASE_URL: JSON.stringify(env.VITE_SUPABASE_URL || ''),
       __ENV_SUPABASE_ANON_KEY: JSON.stringify(env.VITE_SUPABASE_ANON_KEY || ''),
     },

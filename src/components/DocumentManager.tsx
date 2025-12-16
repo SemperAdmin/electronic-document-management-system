@@ -11,7 +11,8 @@ import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly } from
 import { logEvent } from '@/lib/logger';
 
 // Storage API URL - configurable for production deployment
-const STORAGE_API_URL = (import.meta as any)?.env?.VITE_STORAGE_API_URL || ''
+// @ts-ignore - Vite replaces this at build time
+const STORAGE_API_URL = import.meta.env.VITE_STORAGE_API_URL || ''
 
 interface Document {
   id: string;

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNITS, Unit } from '../lib/units';
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure';
-import { listUsers, upsertUser, listCompaniesForUnit, listPlatoonsForCompany } from '@/lib/db';
+import { listUsersLegacy, upsertUser, listCompaniesForUnitLegacy, listPlatoonsForCompanyLegacy } from '@/lib/db';
 import { ProfileForm } from './ProfileForm';
 import { HierarchicalDropdown } from './HierarchicalDropdown';
 import { UserRecord } from '@/types';
@@ -101,7 +101,7 @@ export const AdminPanel: React.FC = () => {
       setUnitCommandSections(cmdMap);
       setPlatoonSectionMap(pMap);
     } catch {}
-    listUsers().then((remote) => {
+    listUsersLegacy().then((remote) => {
       setUsers(remote as any);
     }).catch(() => setUsers([]));
     try {
@@ -141,14 +141,14 @@ export const AdminPanel: React.FC = () => {
   useEffect(() => {
     const uic = editingUser?.unitUic || ''
     if (!uic) { setEditCompaniesDb([]); return }
-    listCompaniesForUnit(uic).then((vals) => setEditCompaniesDb(vals || [])).catch(() => setEditCompaniesDb([]))
+    listCompaniesForUnitLegacy(uic).then((vals) => setEditCompaniesDb(vals || [])).catch(() => setEditCompaniesDb([]))
   }, [editingUser])
 
   useEffect(() => {
     const uic = editingUser?.unitUic || ''
     const comp = editingRoleCompany || ''
     if (!uic || !comp) { setRolePlatoonsDb([]); return }
-    listPlatoonsForCompany(uic, comp).then((vals) => setRolePlatoonsDb(vals || [])).catch(() => setRolePlatoonsDb([]))
+    listPlatoonsForCompanyLegacy(uic, comp).then((vals) => setRolePlatoonsDb(vals || [])).catch(() => setRolePlatoonsDb([]))
   }, [editingUser, editingRoleCompany])
 
   const companies = useMemo(() => {

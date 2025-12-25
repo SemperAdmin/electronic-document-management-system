@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { UnitSelector } from './UnitSelector';
 import { UNITS, Unit } from '../lib/units';
 import { sha256Hex } from '@/lib/crypto';
-import { listUsers, upsertUser, getUserById, listCompaniesForUnit, listPlatoonsForCompany } from '@/lib/db';
+import { listUsersLegacy, upsertUser, getUserByIdLegacy, listCompaniesForUnitLegacy, listPlatoonsForCompanyLegacy } from '@/lib/db';
 import { UserRecord } from '@/types';
 import { signUp } from '@/lib/auth';
 
@@ -135,7 +135,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     ;(async () => {
       try {
         if (mode === 'edit' && initial.id) {
-          const u = await getUserById(String(initial.id))
+          const u = await getUserByIdLegacy(String(initial.id))
           if (u) {
             if (u.company && !company) setCompany(String(u.company))
             if ((u as any).platoon && !platoon) setPlatoon(String((u as any).platoon))
@@ -168,7 +168,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
   useEffect(() => {
     const uic = selectedUnit?.uic || ''
     if (!uic) { setCompanyOptionsDb([]); setRoleCompanyOptionsDb([]); return }
-    listCompaniesForUnit(uic).then((vals) => {
+    listCompaniesForUnitLegacy(uic).then((vals) => {
       setCompanyOptionsDb(vals || [])
       setRoleCompanyOptionsDb(vals || [])
     }).catch(() => { setCompanyOptionsDb([]); setRoleCompanyOptionsDb([]) })
@@ -178,18 +178,18 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
     const uic = selectedUnit?.uic || ''
     const comp = company || ''
     if (!uic || !comp) { setPlatoonOptionsDb([]); return }
-    listPlatoonsForCompany(uic, comp).then((vals) => setPlatoonOptionsDb(vals || [])).catch(() => setPlatoonOptionsDb([]))
+    listPlatoonsForCompanyLegacy(uic, comp).then((vals) => setPlatoonOptionsDb(vals || [])).catch(() => setPlatoonOptionsDb([]))
   }, [selectedUnit, company])
 
   useEffect(() => {
     const uic = selectedUnit?.uic || ''
     const comp = roleCompany || ''
     if (!uic || !comp) { setRolePlatoonOptionsDb([]); return }
-    listPlatoonsForCompany(uic, comp).then((vals) => setRolePlatoonOptionsDb(vals || [])).catch(() => setRolePlatoonOptionsDb([]))
+    listPlatoonsForCompanyLegacy(uic, comp).then((vals) => setRolePlatoonOptionsDb(vals || [])).catch(() => setRolePlatoonOptionsDb([]))
   }, [selectedUnit, roleCompany])
 
   useEffect(() => {
-    listUsers().then((users) => {
+    listUsersLegacy().then((users) => {
       setExistingUsers(users as any);
     }).catch(() => setExistingUsers([]));
   }, []);

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { listRequests, listDocuments, listUsers, upsertRequest, listHQMCSectionAssignments, listHQMCStructure } from '@/lib/db'
+import { listRequestsLegacy, listDocumentsLegacy, listUsersLegacy, upsertRequest, listHQMCSectionAssignmentsLegacy, listHQMCStructureLegacy } from '@/lib/db'
 import { UserRecord } from '@/types'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
@@ -61,17 +61,17 @@ export default function HQMCSectionDashboard() {
     }
   }, [openDocsId])
 
-  useEffect(() => { listRequests().then((remote) => setRequests(remote as any)).catch(() => setRequests([])) }, [])
-  useEffect(() => { listDocuments().then((remote) => setDocuments(remote as any)).catch(() => setDocuments([])) }, [])
+  useEffect(() => { listRequestsLegacy().then((remote) => setRequests(remote as any)).catch(() => setRequests([])) }, [])
+  useEffect(() => { listDocumentsLegacy().then((remote) => setDocuments(remote as any)).catch(() => setDocuments([])) }, [])
   useEffect(() => {
-    listUsers().then((remote) => {
+    listUsersLegacy().then((remote) => {
       const map: Record<string, any> = {}
       for (const u of (remote as any)) if (u?.id) map[u.id] = u
       setUsers(map)
     }).catch(() => setUsers({}))
   }, [])
-  useEffect(() => { listHQMCSectionAssignments().then(setAssignments).catch(() => setAssignments([])) }, [])
-  useEffect(() => { listHQMCStructure().then(setHqmcStructure).catch(() => setHqmcStructure([])) }, [])
+  useEffect(() => { listHQMCSectionAssignmentsLegacy().then(setAssignments).catch(() => setAssignments([])) }, [])
+  useEffect(() => { listHQMCStructureLegacy().then(setHqmcStructure).catch(() => setHqmcStructure([])) }, [])
 
   const myId = currentUser?.id || ''
   const myDivision = String(currentUser?.hqmcDivision || '')

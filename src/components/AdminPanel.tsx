@@ -5,6 +5,7 @@ import { listUsersLegacy, upsertUser, listCompaniesForUnitLegacy, listPlatoonsFo
 import { ProfileForm } from './ProfileForm';
 import { HierarchicalDropdown } from './HierarchicalDropdown';
 import { UserRecord } from '@/types';
+import { UserViewModal } from './admin/UserViewModal';
 
 const ROLES = ['MEMBER','PLATOON_REVIEWER','COMPANY_REVIEWER','COMMANDER'];
 
@@ -832,51 +833,7 @@ export const AdminPanel: React.FC = () => {
       )}
 
       {viewUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setViewUser(null)}>
-          <div className="bg-white rounded-lg shadow w-full max-w-xl p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Profile</h3>
-              <button className="text-gray-500" onClick={() => setViewUser(null)}>✕</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm text-gray-500">Name</div>
-                <div className="font-medium">{viewUser.rank} {viewUser.lastName}, {viewUser.firstName}{viewUser.mi ? ` ${viewUser.mi}` : ''}</div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500">Email</div>
-                <div className="font-medium">{viewUser.email}</div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500">Service</div>
-                <div className="font-medium">{viewUser.service}</div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500">Role</div>
-                <div className="font-medium">{viewUser.role}</div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500">Scope</div>
-                <div className="font-medium">{(() => {
-                  const base = UNITS.find(x => x.uic === viewUser.unitUic);
-                  const unitName = base ? base.unitName : viewUser.unit;
-                  if (viewUser.isUnitAdmin || viewUser.role === 'COMMANDER') return unitName || '—';
-                  if (viewUser.role === 'COMPANY_REVIEWER') return (viewUser.company && viewUser.company !== 'N/A') ? viewUser.company : '—';
-                  if (viewUser.role === 'PLATOON_REVIEWER') {
-                    const c = (viewUser.company && viewUser.company !== 'N/A') ? viewUser.company : '';
-                    const p = ((viewUser as any).platoon && (viewUser as any).platoon !== 'N/A') ? (viewUser as any).platoon : '';
-                    const parts = [c, p].filter(Boolean);
-                    return parts.length ? parts.join(' / ') : '—';
-                  }
-                  return '—';
-                })()}</div>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end">
-              <button className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50" onClick={() => setViewUser(null)}>Close</button>
-            </div>
-          </div>
-        </div>
+        <UserViewModal user={viewUser} onClose={() => setViewUser(null)} />
       )}
 
       {editingUser && (

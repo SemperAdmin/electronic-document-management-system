@@ -3,6 +3,7 @@ import { Unit } from '../lib/units';
 import { listDocumentsLegacy, upsertDocuments, listRequestsLegacy, upsertRequest, listUsersLegacy, DocumentRecord, RequestRecord } from '../lib/db';
 import { deleteDocumentById, deleteRequestById, deleteDocumentsByRequestId } from '@/lib/db';
 import { usePagination } from '@/hooks/usePagination';
+import { useDocumentStorage } from '@/hooks/useDocumentStorage';
 import { Pagination } from '@/components/Pagination';
 import RequestTable from './RequestTable';
 import { Request, UserRecord } from '../types';
@@ -10,34 +11,13 @@ import { normalizeString, hasReviewer } from '../lib/reviewers';
 import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly } from '@/lib/stage';
 import { logEvent } from '@/lib/logger';
 import { supabaseClient } from '../lib/supabase';
-import { validateFiles, validateFile, sanitizeFilename, MAX_FILE_SIZE, MAX_FILES_PER_UPLOAD, ALLOWED_FILE_TYPES, FILE_TYPE_LABELS } from '@/lib/validation';
+import { validateFiles, validateFile, sanitizeFilename, MAX_FILES_PER_UPLOAD } from '@/lib/validation';
+import { Document, ActionEntry, FeedbackMessage } from './documents/types';
+import { DocCard, formatFileSize } from './documents/DocCard';
+import { NewRequestForm } from './documents/NewRequestForm';
+import { RequestDetailsModal } from './documents/RequestDetailsModal';
 
 const STORAGE_BUCKET = 'edms-docs';
-
-interface Document {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  uploadedAt: Date;
-  category: string;
-  tags: string[];
-  unitUic: string;
-  subject: string;
-  dueDate?: string;
-  notes?: string;
-  uploadedById?: string;
-  currentStage?: string;
-  requestId?: string;
-  fileUrl?: string;
-}
-
-interface ActionEntry {
-  actor: string;
-  timestamp: string;
-  action: string;
-  comment?: string;
-}
 
 interface DocumentManagerProps {
   selectedUnit: Unit | null;
@@ -45,14 +25,15 @@ interface DocumentManagerProps {
 }
 
 export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, currentUser: cuProp }) => {
+  // State
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [subject, setSubject] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserRecord | null>(null);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
@@ -70,6 +51,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
   const [submitForUserId, setSubmitForUserId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'Pending' | 'Archived'>('Pending');
+
+  // Hooks
+  const storage = useDocumentStorage();
 
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -351,13 +335,6 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     return true;
   });
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
   const isReturnedReq = (r: Request) => {
     const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null;
     return !!a && /returned/i.test(String(a?.action || ''));
@@ -388,83 +365,13 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     });
   };
 
-  const DocCard: React.FC<{ doc: Document }> = ({ doc }) => (
-    <div
-      className="flex items-center justify-between p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)] hover:bg-brand-cream/50 transition-colors"
-      role="group"
-    >
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 bg-brand-cream rounded-lg flex items-center justify-center">
-          <svg className="w-5 h-5 text-brand-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </div>
-        <div>
-          <div className="font-medium text-[var(--text)]">{doc.subject}</div>
-          <div className="text-sm text-[var(--muted)]">{doc.name} • {formatFileSize(doc.size)} • {new Date(doc.uploadedAt).toLocaleDateString()}</div>
-          {doc.dueDate && <div className="text-xs text-[var(--muted)]">Due {new Date(doc.dueDate).toLocaleDateString()}</div>}
-          {doc.notes && <div className="text-xs text-[var(--muted)] mt-1">Notes: {doc.notes}</div>}
-        </div>
-      </div>
-      <div className="flex items-center space-x-2">
-        {doc.currentStage && (
-          <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatStage(doc as any)}</span>
-        )}
-        {doc.fileUrl && (
-          <a
-            href={normalizeDocUrl(doc.fileUrl)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
-          >
-            Open
-          </a>
-        )}
-        <button
-          className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
-          onClick={(e) => { e.stopPropagation(); openDoc(doc); }}
-        >
-          View/Edit
-        </button
-        >
-        <button
-          className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-          onClick={(e) => { e.stopPropagation(); deleteDocument(doc) }}
-        >
-          Delete
-        </button>
-        
-      </div>
-    </div>
+  // Helper to render a document card with callbacks
+  const renderDocCard = (doc: Document) => (
+    <DocCard key={doc.id} doc={doc} onView={openDoc} onDelete={deleteDocument} />
   );
 
-  const formatStage = (r: Request) => formatStageLabel(r)
-
-  // For Supabase, URLs are already absolute - just return as-is
-  const normalizeDocUrl = (url?: string): string | undefined => {
-    if (!url) return undefined
-    return url
-  }
-
-  const openInApp = (doc: Document) => {
-    const href = normalizeDocUrl(doc.fileUrl)
-    if (!href) return
-    window.open(href, '_blank');
-  };
-
-  // Extract storage path from Supabase URL
-  const extractStoragePath = (url?: string): string | null => {
-    if (!url) return null
-    try {
-      // Supabase storage URLs look like: https://xxx.supabase.co/storage/v1/object/public/bucket/path/to/file
-      const match = url.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/)
-      if (match?.[1]) return decodeURIComponent(match[1])
-    } catch {}
-    return null
-  }
-
   const deleteDocument = async (doc: Document) => {
-    const storagePath = extractStoragePath(doc.fileUrl)
+    const storagePath = storage.extractStoragePath(doc.fileUrl)
     try {
       if (storagePath && supabaseClient) {
         await supabaseClient.storage.from(STORAGE_BUCKET).remove([storagePath])
@@ -797,7 +704,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                     <div className="h-16 rounded bg-gray-100 animate-pulse" />
                   ) : (
                     documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
-                      <DocCard key={d.id} doc={d} />
+                      <DocCard key={d.id} doc={d} onView={openDoc} onDelete={deleteDocument} />
                     ))
                   )}
                   {!loadingDocuments && documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
@@ -943,7 +850,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                 </button>
                 <div id="docs-panel" className={docsExpanded ? 'mt-3 space-y-2' : 'hidden'}>
                   {documents.filter(d => d.requestId === selectedRequest.id && d.type !== 'request').map(d => (
-                    <DocCard key={d.id} doc={d} />
+                    <DocCard key={d.id} doc={d} onView={openDoc} onDelete={deleteDocument} />
                   ))}
                 </div>
                 {!originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && (

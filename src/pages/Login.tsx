@@ -4,6 +4,9 @@ import { Shield, LogIn } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useHQMCStore } from '../stores/hqmcStore'
 
+// Demo mode is only enabled when explicitly set via environment variable
+const DEMO_MODE_ENABLED = import.meta.env.VITE_DEMO_MODE === 'true'
+
 const Login: React.FC = () => {
   const navigate = useNavigate()
   const { setUser } = useHQMCStore()
@@ -36,16 +39,25 @@ const Login: React.FC = () => {
   }
 
   const handleDemoLogin = async () => {
+    if (!DEMO_MODE_ENABLED) {
+      setError('Demo mode is not enabled')
+      return
+    }
+
     setLoading(true)
     setError(null)
 
     try {
-      // For demo purposes, we'll create a demo user if it doesn't exist
-      const demoEmail = 'demo@hqmc.mil'
-      const demoPassword = 'demo123'
+      // Demo credentials are provided via environment variables
+      const demoEmail = import.meta.env.VITE_DEMO_EMAIL
+      const demoPassword = import.meta.env.VITE_DEMO_PASSWORD
+
+      if (!demoEmail || !demoPassword) {
+        throw new Error('Demo credentials not configured')
+      }
 
       // Try to sign in first
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData } = await supabase.auth.signInWithPassword({
         email: demoEmail,
         password: demoPassword,
       })
@@ -141,22 +153,26 @@ const Login: React.FC = () => {
                 <span>{loading ? 'Signing in...' : 'Sign In'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleDemoLogin}
-                disabled={loading}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Demo Login
-              </button>
+              {DEMO_MODE_ENABLED && (
+                <button
+                  type="button"
+                  onClick={handleDemoLogin}
+                  disabled={loading}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Demo Login
+                </button>
+              )}
             </div>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-xs text-gray-500">
-              For demo purposes, click "Demo Login" to access the system with a pre-configured account.
-            </p>
-          </div>
+          {DEMO_MODE_ENABLED && (
+            <div className="mt-6 text-center">
+              <p className="text-xs text-gray-500">
+                Demo mode is enabled. Click "Demo Login" to access the system with a pre-configured account.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -764,7 +764,7 @@ export const AdminPanel: React.FC = () => {
             <tbody>
               {users
                 .filter(u => {
-                  const textMatch = !filter || u.email.toLowerCase().includes(filter.toLowerCase()) || u.lastName.toLowerCase().includes(filter.toLowerCase());
+                  const textMatch = !filter || (u.email ?? '').toLowerCase().includes(filter.toLowerCase()) || (u.lastName ?? '').toLowerCase().includes(filter.toLowerCase());
                   const unitMatch = selectedUnit ? (u.unitUic === selectedUnit.uic || (u.unit && u.unit === selectedUnit.unitName)) : true;
                   // In the unit admin dashboard, only show accounts in the selected unit
                   return textMatch && unitMatch;
@@ -799,7 +799,7 @@ export const AdminPanel: React.FC = () => {
                         <button className="px-2 py-1 text-xs bg-purple-700 text-white rounded" onClick={() => {
                           setEditMode('admin');
                           setEditingUser(u);
-                          setEditingRole(u.role);
+                          setEditingRole(u.role ?? 'MEMBER');
                           setEditingCompany(u.company !== 'N/A' ? u.company : undefined);
                           setEditingUserCompany(u.company !== 'N/A' ? u.company : undefined);
                           setEditingPlatoon((u as any).platoon && (u as any).platoon !== 'N/A' ? (u as any).platoon : undefined);

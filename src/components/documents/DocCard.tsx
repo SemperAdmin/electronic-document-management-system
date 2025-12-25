@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Document } from './types';
 import { formatStageLabel } from '@/lib/stage';
 import { Request } from '@/types';
@@ -17,7 +17,8 @@ export function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-export const DocCard: React.FC<DocCardProps> = ({ doc, onView, onDelete }) => {
+// Memoized to prevent re-renders when parent state changes but doc props stay the same
+export const DocCard: React.FC<DocCardProps> = memo(function DocCard({ doc, onView, onDelete }) {
   const formatStage = (r: Partial<Request>) => formatStageLabel(r);
 
   return (
@@ -69,4 +70,4 @@ export const DocCard: React.FC<DocCardProps> = ({ doc, onView, onDelete }) => {
       </div>
     </div>
   );
-};
+});

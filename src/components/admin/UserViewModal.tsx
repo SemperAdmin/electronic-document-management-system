@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { UNITS } from '@/lib/units';
 import { UserRecord } from '@/types';
 
@@ -7,7 +7,8 @@ interface UserViewModalProps {
   onClose: () => void;
 }
 
-export const UserViewModal: React.FC<UserViewModalProps> = ({ user, onClose }) => {
+// Memoized to prevent unnecessary re-renders when parent state changes
+export const UserViewModal: React.FC<UserViewModalProps> = memo(function UserViewModal({ user, onClose }) {
   const getScope = () => {
     const base = UNITS.find(x => x.uic === user.unitUic);
     const unitName = base ? base.unitName : user.unit;
@@ -88,4 +89,4 @@ export const UserViewModal: React.FC<UserViewModalProps> = ({ user, onClose }) =
       </div>
     </div>
   );
-};
+});

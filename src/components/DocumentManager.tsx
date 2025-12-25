@@ -365,11 +365,6 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     });
   };
 
-  // Helper to render a document card with callbacks
-  const renderDocCard = (doc: Document) => (
-    <DocCard key={doc.id} doc={doc} onView={openDoc} onDelete={deleteDocument} />
-  );
-
   const deleteDocument = useCallback(async (doc: Document) => {
     const storagePath = storage.extractStoragePath(doc.fileUrl)
     try {
@@ -387,7 +382,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     } catch (e: any) {
       setFeedback({ type: 'error', message: `Failed to delete: ${String(e?.message || e)}` })
     }
-  }, [storage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const deleteRequest = useCallback(async (req: Request) => {
     const folderPrefix = `${req.unitUic || 'N-A'}/${req.id}/`

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Request, UserRecord } from '@/types';
 import { Document, FeedbackMessage } from './types';
 import { DocCard } from './DocCard';
 import { originatorArchiveOnly } from '@/lib/stage';
+import { validateFile, MAX_FILES_PER_UPLOAD } from '@/lib/validation';
 
 interface RequestDetailsModalProps {
   request: Request;
@@ -47,9 +48,48 @@ export const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
   onViewDoc,
   onDeleteDoc,
 }) => {
+  const [fileError, setFileError] = useState<string | null>(null);
   const isOwner = currentUser && currentUser.id === request.uploadedById;
   const showArchiveOnly = originatorArchiveOnly(request, String(currentUser?.id || ''));
   const requestDocs = documents.filter(d => d.requestId === request.id && d.type !== 'request');
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
+
+    // Check if adding these files would exceed the limit
+    if (attachFiles.length + files.length > MAX_FILES_PER_UPLOAD) {
+      setFileError(`Cannot add ${files.length} file(s). Maximum ${MAX_FILES_PER_UPLOAD} files allowed.`);
+      try { e.target.value = '' } catch {}
+      return;
+    }
+
+    // Validate each file
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+
+    for (const file of files) {
+      const result = validateFile(file);
+      if (result.valid) {
+        validFiles.push(file);
+      } else {
+        errors.push(...result.errors);
+      }
+    }
+
+    // Add valid files
+    if (validFiles.length > 0) {
+      setAttachFiles(prev => [...prev, ...validFiles]);
+      setFileError(null);
+    }
+
+    // Show errors if any files were rejected
+    if (errors.length > 0) {
+      setFileError(errors.slice(0, 2).join(' '));
+    }
+
+    try { e.target.value = '' } catch {}
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
@@ -146,16 +186,15 @@ export const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
                   <input
                     type="file"
                     multiple
-                    onChange={(e) => {
-                      const files = e.target.files ? Array.from(e.target.files) : [];
-                      setAttachFiles(prev => [...prev, ...files]);
-                      try { e.target.value = '' } catch {}
-                    }}
+                    onChange={handleFileChange}
                     className="hidden"
                     accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
                   />
                   Add Files
                 </label>
+                {fileError && (
+                  <p className="text-sm text-red-600 mt-1" role="alert">{fileError}</p>
+                )}
                 <div className="ml-2 flex flex-wrap gap-2 mt-2">
                   {attachFiles.length === 0 ? (
                     <span className="text-xs text-[var(--muted)]">No files selected</span>

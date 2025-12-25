@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { Document } from './types';
 import { formatStageLabel } from '@/lib/stage';
-import { Request } from '@/types';
 
 interface DocCardProps {
   doc: Document;
@@ -19,8 +18,6 @@ export function formatFileSize(bytes: number): string {
 
 // Memoized to prevent re-renders when parent state changes but doc props stay the same
 export const DocCard: React.FC<DocCardProps> = memo(function DocCard({ doc, onView, onDelete }) {
-  const formatStage = (r: Partial<Request>) => formatStageLabel(r);
-
   return (
     <article
       className="flex items-center justify-between p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)] hover:bg-brand-cream/50 transition-colors"
@@ -42,7 +39,7 @@ export const DocCard: React.FC<DocCardProps> = memo(function DocCard({ doc, onVi
       <div className="flex items-center space-x-2" role="group" aria-label="Document actions">
         {doc.currentStage && (
           <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">
-            {formatStage({ currentStage: doc.currentStage } as Request)}
+            {formatStageLabel({ currentStage: doc.currentStage })}
           </span>
         )}
         {doc.fileUrl && (

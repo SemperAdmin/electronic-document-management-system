@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Unit } from '../lib/units';
-import { listDocuments, upsertDocuments, listRequests, upsertRequest, listUsers, DocumentRecord, RequestRecord } from '../lib/db';
+import { listDocumentsLegacy, upsertDocuments, listRequestsLegacy, upsertRequest, listUsersLegacy, DocumentRecord, RequestRecord } from '../lib/db';
 import { deleteDocumentById, deleteRequestById, deleteDocumentsByRequestId } from '@/lib/db';
 import { usePagination } from '@/hooks/usePagination';
 import { Pagination } from '@/components/Pagination';
@@ -10,6 +10,7 @@ import { normalizeString, hasReviewer } from '../lib/reviewers';
 import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly } from '@/lib/stage';
 import { logEvent } from '@/lib/logger';
 import { supabaseClient } from '../lib/supabase';
+import { validateFiles, validateFile, sanitizeFilename, MAX_FILE_SIZE, MAX_FILES_PER_UPLOAD, ALLOWED_FILE_TYPES, FILE_TYPE_LABELS } from '@/lib/validation';
 
 const STORAGE_BUCKET = 'edms-docs';
 
@@ -73,7 +74,44 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : [];
-    setSelectedFiles((prev) => [...prev, ...files]);
+    if (files.length === 0) return;
+
+    // Check if adding these files would exceed the limit
+    if (selectedFiles.length + files.length > MAX_FILES_PER_UPLOAD) {
+      setFeedback({
+        type: 'error',
+        message: `Cannot add ${files.length} file(s). Maximum ${MAX_FILES_PER_UPLOAD} files allowed per request.`
+      });
+      try { event.target.value = '' } catch {}
+      return;
+    }
+
+    // Validate each file
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+
+    for (const file of files) {
+      const result = validateFile(file);
+      if (result.valid) {
+        validFiles.push(file);
+      } else {
+        errors.push(...result.errors);
+      }
+    }
+
+    // Add valid files
+    if (validFiles.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...validFiles]);
+    }
+
+    // Show errors if any files were rejected
+    if (errors.length > 0) {
+      setFeedback({
+        type: 'error',
+        message: errors.slice(0, 3).join(' ') + (errors.length > 3 ? ` (+${errors.length - 3} more errors)` : '')
+      });
+    }
+
     try { event.target.value = '' } catch {}
   };
 
@@ -106,13 +144,35 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     e.preventDefault();
     setFeedback(null);
 
-    if (!subject.trim()) {
+    // Validate subject
+    const trimmedSubject = subject.trim();
+    if (!trimmedSubject) {
       setFeedback({ type: 'error', message: 'Subject is required.' });
       return;
     }
+    if (trimmedSubject.length > 500) {
+      setFeedback({ type: 'error', message: 'Subject is too long (maximum 500 characters).' });
+      return;
+    }
+
+    // Validate notes length
+    if (notes.length > 5000) {
+      setFeedback({ type: 'error', message: 'Notes are too long (maximum 5000 characters).' });
+      return;
+    }
+
     if (!currentUser?.id) {
       setFeedback({ type: 'error', message: 'Create a profile before submitting.' });
       return;
+    }
+
+    // Final validation of all selected files before upload
+    if (selectedFiles.length > 0) {
+      const validation = validateFiles(selectedFiles);
+      if (!validation.valid) {
+        setFeedback({ type: 'error', message: validation.errors[0] });
+        return;
+      }
     }
 
     setIsUploading(true);
@@ -123,7 +183,6 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     const requestId = `req-${now}`;
 
     let docs: Document[] = [];
-    const sanitize = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '-')
 
     // Supabase Storage upload
     async function uploadToSupabase(file: File, storagePath: string): Promise<string> {
@@ -146,7 +205,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       const uploadedUrls: string[] = []
       for (let i = 0; i < selectedFiles.length; i++) {
         const f = selectedFiles[i]
-        const storagePath = `${targetUic}/${requestId}/${now}-${i}-${sanitize(f.name)}`
+        const storagePath = `${targetUic}/${requestId}/${now}-${i}-${sanitizeFilename(f.name)}`
         try {
           const url = await uploadToSupabase(f, storagePath)
           uploadedUrls.push(url)
@@ -548,7 +607,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [loadingDocuments, setLoadingDocuments] = useState<boolean>(true)
   const [loadingRequests, setLoadingRequests] = useState<boolean>(true)
   useEffect(() => {
-    listDocuments().then((remote) => {
+    listDocumentsLegacy().then((remote) => {
       setDocuments(remote as any);
     }).catch(() => setDocuments([])).finally(() => setLoadingDocuments(false));
   }, []);
@@ -565,7 +624,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   useEffect(() => {}, [documents]);
 
   useEffect(() => {
-    listRequests().then((remote) => {
+    listRequestsLegacy().then((remote) => {
       setUserRequests(remote as any);
     }).catch(() => setUserRequests([])).finally(() => setLoadingRequests(false));
   }, []);
@@ -573,7 +632,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   useEffect(() => { setCurrentUser(cuProp || null) }, [cuProp]);
 
   useEffect(() => {
-    listUsers().then((remote) => {
+    listUsersLegacy().then((remote) => {
       setUsers(remote as any);
     }).catch(() => setUsers([]));
   }, []);

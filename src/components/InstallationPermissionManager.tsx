@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listInstallations, listUsers, upsertInstallation } from '@/lib/db'
+import { listInstallationsLegacy, listUsersLegacy, upsertInstallation } from '@/lib/db'
 import { UserRecord } from '@/types'
 
 type Props = {
@@ -16,11 +16,11 @@ export const InstallationPermissionManager: React.FC<Props> = ({ currentUser, on
   const [error, setError] = useState('')
 
   useEffect(() => {
-    listInstallations().then((all) => {
+    listInstallationsLegacy().then((all) => {
       const target = (all as any[]).find(i => String(i.id) === String(currentUser.installationId || ''))
       setInstall(target || null)
     }).catch(() => setInstall(null))
-    listUsers().then((u) => setUsers(u as any)).catch(() => setUsers([]))
+    listUsersLegacy().then((u) => setUsers(u as any)).catch(() => setUsers([]))
   }, [])
 
   const sections: string[] = useMemo(() => (install?.sections || []), [install])

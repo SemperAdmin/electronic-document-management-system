@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { listRequests, listUsers, upsertRequest } from '../lib/db';
+import { listRequestsLegacy, listUsersLegacy, upsertRequest } from '../lib/db';
 import RequestTable from '../components/RequestTable';
 import { Request } from '../types';
 
@@ -35,7 +35,7 @@ export default function InstallationApp() {
 
   useEffect(() => {
     if (currentUser?.is_installation_admin && currentUser?.installationId) {
-      listRequests().then((remote) => {
+      listRequestsLegacy().then((remote) => {
         const installationRequests = (remote as Request[]).filter(
           (r) => r.installationId === currentUser.installationId && r.currentStage === 'INSTALLATION_REVIEW'
         );
@@ -45,7 +45,7 @@ export default function InstallationApp() {
   }, [currentUser]);
 
   useEffect(() => {
-    listUsers().then((remote) => {
+    listUsersLegacy().then((remote) => {
       const byId: Record<string, UserProfile> = {};
       for (const u of (remote as any)) byId[u.id] = u;
       setUsersById(byId);

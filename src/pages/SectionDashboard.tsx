@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { UNITS, Unit } from '../lib/units'
-import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments, listInstallations, listHQMCDivisions, listHQMCStructure } from '@/lib/db'
+import { listRequestsLegacy, listDocumentsLegacy, listUsersLegacy, upsertRequest, upsertDocuments, listInstallationsLegacy, listHQMCDivisionsLegacy, listHQMCStructureLegacy } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
 import { SearchableUnitSelector } from '../components/SearchableUnitSelector'
 import { Request, Installation, UserRecord } from '../types'
@@ -62,9 +62,9 @@ export default function SectionDashboard() {
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    listInstallations().then(data => setInstallations(data as Installation[]));
-    listHQMCDivisions().then(setHqmcDivisions).catch(() => setHqmcDivisions([]))
-    listHQMCStructure().then(setHqmcStructure).catch(() => setHqmcStructure([]))
+    listInstallationsLegacy().then(data => setInstallations(data as Installation[]));
+    listHQMCDivisionsLegacy().then(setHqmcDivisions).catch(() => setHqmcDivisions([]))
+    listHQMCStructureLegacy().then(setHqmcStructure).catch(() => setHqmcStructure([]))
   }, []);
 
   useEffect(() => {
@@ -106,19 +106,19 @@ export default function SectionDashboard() {
   }, [currentUser, platoonSectionMap])
 
   useEffect(() => {
-    listRequests().then((remote) => {
+    listRequestsLegacy().then((remote) => {
       setRequests(remote as any)
     }).catch(() => setRequests([]))
   }, [])
 
   useEffect(() => {
-    listDocuments().then((remote) => {
+    listDocumentsLegacy().then((remote) => {
       setDocuments(remote as any)
     }).catch(() => setDocuments([]))
   }, [])
 
   useEffect(() => {
-    listUsers().then((remote) => {
+    listUsersLegacy().then((remote) => {
       const byId: Record<string, UserRecord> = {}
       for (const u of (remote as any)) byId[u.id] = u
       setUsersById(byId)

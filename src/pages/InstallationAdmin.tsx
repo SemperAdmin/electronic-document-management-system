@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Unit, UNITS } from '../lib/units';
-import { listInstallations, upsertInstallation, listUsers, getUserByEdipi } from '../lib/db';
+import { listInstallationsLegacy, upsertInstallation, listUsersLegacy, getUserByEdipi } from '../lib/db';
 import { Installation } from '../types';
 import { Pagination } from '@/components/Pagination';
 
@@ -27,13 +27,13 @@ export default function InstallationAdmin() {
       if (savedUser) {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
-        listInstallations().then(data => {
+        listInstallationsLegacy().then(data => {
           const installation = (data as Installation[]).find(i => i.id === user.installationId);
           if (installation) {
             setSelectedInstallation(installation);
           }
         });
-        listUsers().then((remote) => setUsers(remote as any)).catch(() => setUsers([]));
+        listUsersLegacy().then((remote) => setUsers(remote as any)).catch(() => setUsers([]));
       }
     } catch (error) {
       console.error('Failed to load user from localStorage:', error);
@@ -55,7 +55,7 @@ export default function InstallationAdmin() {
       if (ok) {
         setFeedback({ type: 'success', message: 'Installation units updated successfully.' });
       } else {
-        setFeedback({ type: 'error', message: `Failed to update installation: ${error.message}` });
+        setFeedback({ type: 'error', message: `Failed to update installation: ${error}` });
       }
     }
   };

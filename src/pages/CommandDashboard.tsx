@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
-import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments, listInstallations } from '@/lib/db'
+import { listRequestsLegacy, listDocumentsLegacy, listUsersLegacy, upsertRequest, upsertDocuments, listInstallationsLegacy } from '@/lib/db'
 import RequestTable from '../components/RequestTable'
 import { Request, DocumentItem } from '../types'
 import { UNITS } from '../lib/units'
@@ -73,26 +73,26 @@ export default function CommandDashboard() {
 
   useEffect(() => {
     if (!currentUser?.installationId) return
-    listInstallations().then((all) => {
+    listInstallationsLegacy().then((all) => {
       const target = (all as any[]).find(i => i.id === currentUser.installationId)
       setInstallation(target || null)
     }).catch(() => setInstallation(null))
   }, [currentUser])
 
   useEffect(() => {
-    listRequests().then((remote) => {
+    listRequestsLegacy().then((remote) => {
       setRequests(remote as any)
     }).catch(() => setRequests([]))
   }, [])
 
   useEffect(() => {
-    listDocuments().then((remote) => {
+    listDocumentsLegacy().then((remote) => {
       setDocuments(remote as any)
     }).catch(() => setDocuments([]))
   }, [])
 
   useEffect(() => {
-    listUsers().then((remote) => {
+    listUsersLegacy().then((remote) => {
       const map: Record<string, any> = {}
       for (const u of (remote as any)) if (u?.id) map[u.id] = u
       setUsers(map)

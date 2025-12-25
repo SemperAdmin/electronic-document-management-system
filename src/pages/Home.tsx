@@ -19,8 +19,8 @@ import AppAdmin from './AppAdmin';
 import { Login } from '../components/Login';
 import { loadUnitStructureFromBundle } from '../lib/unitStructure';
 import { Header } from '../components/Header';
-import { getUserById } from '../lib/db';
-import { listInstallations } from '../lib/db';
+import { getUserByIdLegacy } from '../lib/db';
+import { listInstallationsLegacy } from '../lib/db';
 
 function HomeContent() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -82,7 +82,7 @@ function HomeContent() {
       try {
         const id = currentUser?.id || '';
         if (!id) return;
-        const fresh = await getUserById(id);
+        const fresh = await getUserByIdLegacy(id);
         if (fresh && !canceled) {
           setCurrentUser(fresh);
           localStorage.setItem('currentUser', JSON.stringify(fresh));
@@ -132,7 +132,7 @@ function HomeContent() {
       try {
         const iid = currentUser?.installationId || ''
         if (!iid) { setHasInstallationSectionDashboard(false); setHasInstallationCommandDashboard(false); return }
-        const installs = await listInstallations()
+        const installs = await listInstallationsLegacy()
         try { localStorage.setItem('installations_cache', JSON.stringify(installs)) } catch {}
         const target: any = (installs as any[])?.find((i: any) => i.id === iid)
         const meId = currentUser?.id || ''
@@ -153,8 +153,8 @@ function HomeContent() {
         const myDiv = String(currentUser?.hqmcDivision || '')
         const meId = String(currentUser?.id || '')
         if (!myDiv || !meId) { setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin); return }
-        const { listHQMCSectionAssignments } = await import('../lib/db')
-        const rows = await listHQMCSectionAssignments()
+        const { listHQMCSectionAssignmentsLegacy } = await import('../lib/db')
+        const rows = await listHQMCSectionAssignmentsLegacy()
         const any = rows.some(r => r.division_code === myDiv && ((r.reviewers || []).includes(meId) || (r.approvers || []).includes(meId)))
         setHasHQMCSectionDashboard(any || !!currentUser?.isHqmcAdmin)
         const isApprover = rows.some(r => r.division_code === myDiv && (r.approvers || []).includes(meId))

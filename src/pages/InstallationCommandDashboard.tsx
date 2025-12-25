@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listInstallations, listRequests, listUsers, listDocuments, upsertDocuments, upsertRequest, listHQMCDivisions, listHQMCStructure } from '@/lib/db'
+import { listInstallationsLegacy, listRequestsLegacy, listUsersLegacy, listDocumentsLegacy, upsertDocuments, upsertRequest, listHQMCDivisionsLegacy, listHQMCStructureLegacy } from '@/lib/db'
 import type { DocumentRecord } from '@/lib/db'
 import { SearchableUnitSelector } from '@/components/SearchableUnitSelector'
 import RequestTable from '@/components/RequestTable'
@@ -40,22 +40,22 @@ export default function InstallationCommandDashboard() {
   }, [])
 
   useEffect(() => {
-    listRequests().then((rs) => setRequests(rs as any)).catch(() => setRequests([]))
-    listDocuments().then((ds) => setDocuments(ds as any)).catch(() => setDocuments([]))
+    listRequestsLegacy().then((rs) => setRequests(rs as any)).catch(() => setRequests([]))
+    listDocumentsLegacy().then((ds) => setDocuments(ds as any)).catch(() => setDocuments([]))
   }, [])
 
   useEffect(() => {
     if (!currentUser?.installationId) return
-    listInstallations().then((all) => {
+    listInstallationsLegacy().then((all) => {
       const target = (all as any[]).find(i => i.id === currentUser.installationId)
       setInstall(target || null)
     }).catch(() => setInstall(null))
-    listUsers().then((u) => setUsers(u as any)).catch(() => setUsers([]))
+    listUsersLegacy().then((u) => setUsers(u as any)).catch(() => setUsers([]))
   }, [currentUser])
 
   useEffect(() => {
-    listHQMCDivisions().then(setHqmcDivisions).catch(() => setHqmcDivisions([]))
-    listHQMCStructure().then(setHqmcStructure).catch(() => setHqmcStructure([]))
+    listHQMCDivisionsLegacy().then(setHqmcDivisions).catch(() => setHqmcDivisions([]))
+    listHQMCStructureLegacy().then(setHqmcStructure).catch(() => setHqmcStructure([]))
   }, [])
 
   const usersById = useMemo(() => {

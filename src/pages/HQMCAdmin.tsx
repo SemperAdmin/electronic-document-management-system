@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listUsers, listHQMCDivisions, listHQMCSectionAssignments, upsertHQMCSectionAssignment, getUserByEdipi } from '../lib/db'
+import { listUsersLegacy, listHQMCDivisionsLegacy, listHQMCSectionAssignmentsLegacy, upsertHQMCSectionAssignment, getUserByEdipi } from '../lib/db'
 import { loadHQMCStructureFromBundle } from '@/lib/hqmcStructure'
 import { UserRecord } from '@/types'
 
@@ -21,14 +21,14 @@ export default function HQMCAdmin() {
       const savedUser = localStorage.getItem('currentUser')
       if (savedUser) setCurrentUser(JSON.parse(savedUser))
     } catch {}
-    listHQMCDivisions().then((rows: any[]) => {
+    listHQMCDivisionsLegacy().then((rows: any[]) => {
       try { setDivisions(rows.map((d: any) => ({ code: String(d.code || ''), name: String(d.name || '') }))) } catch { setDivisions([]) }
     })
     loadHQMCStructureFromBundle().then(rows => {
       setStructure(rows as any)
     })
-    listUsers().then((remote) => setUsers(remote as any)).catch(() => setUsers([]))
-    listHQMCSectionAssignments().then(rows => {
+    listUsersLegacy().then((remote) => setUsers(remote as any)).catch(() => setUsers([]))
+    listHQMCSectionAssignmentsLegacy().then(rows => {
       const map: Record<string, { reviewers: string[]; approvers: string[] }> = {}
       for (const r of rows) {
         const key = `${r.division_code}::${r.branch}`

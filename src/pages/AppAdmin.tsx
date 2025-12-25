@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { UNITS, Unit } from '../lib/units'
-import { upsertUser, listUsers, listRequests, listInstallations, listHQMCDivisions } from '../lib/db'
+import { upsertUser, listUsersLegacy, listRequestsLegacy, listInstallationsLegacy, listHQMCDivisionsLegacy } from '../lib/db'
 import { Installation, UserRecord } from '../types'
 import { Pagination } from '@/components/Pagination'
 
@@ -18,19 +18,19 @@ export default function AppAdmin() {
   const [selectedHqmcDivision, setSelectedHqmcDivision] = useState<string>('')
 
   const refreshUsers = () => {
-    listUsers().then((us) => setUsers(us as any)).catch(() => setUsers([]))
+    listUsersLegacy().then((us) => setUsers(us as any)).catch(() => setUsers([]))
   }
 
   const refreshRequests = () => {
-    listRequests().then((rs) => setRequests(rs as any)).catch(() => setRequests([]))
+    listRequestsLegacy().then((rs) => setRequests(rs as any)).catch(() => setRequests([]))
   }
 
   const refreshAll = () => { setFeedback(null); refreshUsers(); refreshRequests(); }
 
   useEffect(() => {
     refreshAll()
-    listInstallations().then(data => setInstallations(data as Installation[]));
-    listHQMCDivisions().then(data => setHqmcDivisions(data));
+    listInstallationsLegacy().then(data => setInstallations(data as Installation[]));
+    listHQMCDivisionsLegacy().then(data => setHqmcDivisions(data));
   }, [mainTab, subTab])
 
   const unitAdmins = useMemo(() => {

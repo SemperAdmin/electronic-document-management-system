@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Unit } from '../lib/units';
 import { listDocumentsLegacy, upsertDocuments, listRequestsLegacy, upsertRequest, listUsersLegacy, DocumentRecord, RequestRecord } from '../lib/db';
 import { deleteDocumentById, deleteRequestById, deleteDocumentsByRequestId } from '@/lib/db';
@@ -273,7 +273,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
   };
 
-  const openDoc = (doc: Document) => {
+  const openDoc = useCallback((doc: Document) => {
     setSelectedDoc(doc);
     setEditSubject(doc.subject || '');
     setEditDueDate(doc.dueDate || '');
@@ -292,7 +292,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     } catch {
       setRequestActivity([]);
     }
-  };
+  }, []);
 
   const getApiErrorMessage = (res: { error?: any }, fallbackMessage: string): string => {
     return String(res.error?.message || res.error || fallbackMessage);
@@ -370,7 +370,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     <DocCard key={doc.id} doc={doc} onView={openDoc} onDelete={deleteDocument} />
   );
 
-  const deleteDocument = async (doc: Document) => {
+  const deleteDocument = useCallback(async (doc: Document) => {
     const storagePath = storage.extractStoragePath(doc.fileUrl)
     try {
       if (storagePath && supabaseClient) {
@@ -387,9 +387,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     } catch (e: any) {
       setFeedback({ type: 'error', message: `Failed to delete: ${String(e?.message || e)}` })
     }
-  }
+  }, [storage]);
 
-  const deleteRequest = async (req: Request) => {
+  const deleteRequest = useCallback(async (req: Request) => {
     const folderPrefix = `${req.unitUic || 'N-A'}/${req.id}/`
     try {
       if (supabaseClient) {
@@ -411,7 +411,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     } catch (e: any) {
       setFeedback({ type: 'error', message: `Failed to delete request: ${String(e?.message || e)}` })
     }
-  }
+  }, []);
 
 
   const saveRequestEdits = async () => {

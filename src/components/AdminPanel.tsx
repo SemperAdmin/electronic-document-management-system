@@ -928,7 +928,7 @@ export const AdminPanel: React.FC = () => {
                         }
                       } catch {}
                     }} />
-                    <label htmlFor="admin-is-command" className="text-sm text-gray-700">Allow access to Command Sections Dashboard</label>
+                    <label htmlFor="admin-is-command" className="text-sm text-gray-700">Allow access to Unit Command Dashboard</label>
                   </div>
                 </div>
                 {adminErrors.length > 0 && (

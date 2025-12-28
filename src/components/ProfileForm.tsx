@@ -525,7 +525,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ onSaved, initial = {},
             <div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={(initial as any)?.isCommandStaff || role === 'COMMANDER'} disabled />
-                <span className="text-sm text-gray-700">Allow access to Command Sections Dashboard</span>
+                <span className="text-sm text-gray-700">Allow access to Unit Command Dashboard</span>
               </div>
             </div>
           </div>

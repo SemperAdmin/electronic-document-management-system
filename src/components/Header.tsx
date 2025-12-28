@@ -156,7 +156,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                     <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('section'); setDashOpen(false) }}>Battalion Section Dashboard</button>
                   )}
                   {(hasCommandDashboard) && (
-                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('command'); setDashOpen(false) }}>Command Sections Dashboard</button>
+                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('command'); setDashOpen(false) }}>Unit Command Dashboard</button>
                   )}
                   {(String(currentUser?.role || '').includes('REVIEW')) && (
                     <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('review'); setDashOpen(false) }}>Review Dashboard</button>

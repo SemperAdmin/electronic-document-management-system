@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { UserRecord } from '@/types';
 import { FeedbackMessage } from './types';
 import { MAX_FILES_PER_UPLOAD } from '@/lib/validation';
+import { FileDropzone } from '../common/FileDropzone';
+import { FeedbackAlert } from '../common/FeedbackAlert';
 
 interface NewRequestFormProps {
   subject: string;
@@ -19,7 +21,8 @@ interface NewRequestFormProps {
   isReviewer: boolean;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
-  onFileSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  /** @deprecated Use FileDropzone internally now */
+  onFileSelect?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   feedback: FeedbackMessage | null;
 }
 
@@ -41,6 +44,14 @@ export const NewRequestForm: React.FC<NewRequestFormProps> = ({
   onFileSelect,
   feedback,
 }) => {
+  const handleFilesAdded = useCallback((files: File[]) => {
+    setSelectedFiles(prev => [...prev, ...files]);
+  }, [setSelectedFiles]);
+
+  const handleFileRemoved = useCallback((index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  }, [setSelectedFiles]);
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -94,59 +105,35 @@ export const NewRequestForm: React.FC<NewRequestFormProps> = ({
         />
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center gap-3">
-        <label className="bg-brand-navy text-brand-cream px-4 py-2 rounded-lg hover:bg-brand-red-2 cursor-pointer transition-colors inline-block">
-          <input
-            type="file"
-            multiple
-            onChange={onFileSelect}
-            className="hidden"
-            accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-          />
-          Attach Files
-        </label>
-        <div className="flex-1">
-          {selectedFiles.length > 0 ? (
-            <div className="ml-2 flex flex-wrap gap-2">
-              {selectedFiles.map((f, idx) => (
-                <span key={idx} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded border border-brand-navy/20">
-                  <span className="max-w-[240px] truncate" title={f.name}>{f.name}</span>
-                  <button
-                    type="button"
-                    className="text-brand-red-2 hover:underline"
-                    onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
-                  >
-                    Delete
-                  </button>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span className="ml-2 text-xs text-[var(--muted)]">No files selected (max {MAX_FILES_PER_UPLOAD})</span>
-          )}
-        </div>
-        <div className="md:ml-auto flex gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors disabled:opacity-60"
-            disabled={!subject.trim()}
-          >
-            Submit
-          </button>
-        </div>
+      <FileDropzone
+        files={selectedFiles}
+        onFilesAdded={handleFilesAdded}
+        onFileRemoved={handleFileRemoved}
+        compact
+      />
+
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors disabled:opacity-60"
+          disabled={!subject.trim()}
+        >
+          Submit
+        </button>
       </div>
 
       {feedback && (
-        <div className={`p-3 rounded-lg border ${feedback.type === 'success' ? 'bg-brand-cream border-brand-gold text-brand-navy' : 'bg-brand-cream border-brand-red text-brand-red'}`}>
-          {feedback.message}
-        </div>
+        <FeedbackAlert
+          type={feedback.type}
+          message={feedback.message}
+        />
       )}
     </form>
   );

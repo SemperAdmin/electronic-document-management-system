@@ -7,6 +7,7 @@ import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/Pagination'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
+import { useToast } from '@/components/common'
 
 interface DocumentItem {
   id: string
@@ -41,6 +42,7 @@ const isUnitApproved = (r: Request) => hasActivity(r, /(approved by commander|co
 const isUnitEndorsed = (r: Request) => hasActivity(r, /(endorsed by commander|commander.*endorsed)/i) && !hasActivity(r, /installation commander/i)
 
 export default function ReviewDashboard() {
+  const toast = useToast()
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
     try {
       const raw = localStorage.getItem('currentUser');
@@ -266,7 +268,19 @@ export default function ReviewDashboard() {
     }
     try {
       await upsertRequest(updated as any)
-    } catch {}
+      // Show appropriate toast based on action
+      if (action.toLowerCase().includes('approved')) {
+        toast.success('Request approved', { message: `"${r.subject}" advanced to next stage` })
+      } else if (action.toLowerCase().includes('return')) {
+        toast.warning('Request returned', { message: `"${r.subject}" sent back for revision` })
+      } else if (action.toLowerCase().includes('archive')) {
+        toast.info('Request archived', { message: `"${r.subject}" has been archived` })
+      } else {
+        toast.success(action, { message: `Request "${r.subject}" updated` })
+      }
+    } catch (err) {
+      toast.error('Failed to update request', { message: String(err) })
+    }
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
@@ -298,7 +312,10 @@ export default function ReviewDashboard() {
     try {
       await upsertDocuments(newDocs as any)
       await upsertRequest(updated as any)
-    } catch {}
+      toast.success(`${newDocs.length} file${newDocs.length !== 1 ? 's' : ''} added`, { message: `Documents added to "${r.subject}"` })
+    } catch (err) {
+      toast.error('Failed to add files', { message: String(err) })
+    }
     setDocuments(prev => [...prev, ...newDocs])
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setAttach(prev => ({ ...prev, [r.id]: [] }))

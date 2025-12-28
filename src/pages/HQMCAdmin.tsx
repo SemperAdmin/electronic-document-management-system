@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listUsersLegacy, listHQMCDivisionsLegacy, listHQMCSectionAssignmentsLegacy, upsertHQMCSectionAssignment, getUserByEdipi } from '../lib/db'
-import { loadHQMCStructureFromBundle } from '@/lib/hqmcStructure'
+import { listUsersLegacy, listHQMCDivisionsLegacy, listHQMCSectionAssignmentsLegacy, upsertHQMCSectionAssignment, getUserByEdipi, listHQMCStructureLegacy } from '../lib/db'
 import { UserRecord } from '@/types'
 
 export default function HQMCAdmin() {
@@ -24,9 +23,9 @@ export default function HQMCAdmin() {
     listHQMCDivisionsLegacy().then((rows: any[]) => {
       try { setDivisions(rows.map((d: any) => ({ code: String(d.code || ''), name: String(d.name || '') }))) } catch { setDivisions([]) }
     })
-    loadHQMCStructureFromBundle().then(rows => {
+    listHQMCStructureLegacy().then(rows => {
       setStructure(rows as any)
-    })
+    }).catch(() => setStructure([]))
     listUsersLegacy().then((remote) => setUsers(remote as any)).catch(() => setUsers([]))
     listHQMCSectionAssignmentsLegacy().then(rows => {
       const map: Record<string, { reviewers: string[]; approvers: string[] }> = {}

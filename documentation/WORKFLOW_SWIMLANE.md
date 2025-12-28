@@ -62,9 +62,8 @@ This document describes the complete workflow for document requests in the Elect
 │              │              │              │              │  │Return │   │      │       │              │              │                │
 │              │              │              │  ◄───────────┼──┤  or   │   │  ┌───┴───┐   │              │              │                │
 │              │              │              │              │  │Approve│   │  │Approve│   │              │              │                │
-│              │              │              │              │  └───────┘   │  │Reject │   │              │              │                │
-│              │              │              │              │              │  │Endorse│   │              │              │                │
-│              │              │              │              │              │  │Archive│   │              │              │                │
+│              │              │              │              │  └───────┘   │  │Endorse│   │              │              │                │
+│              │              │              │              │              │  │Reject │   │              │              │                │
 │              │              │              │              │              │  │SendTo │   │              │              │                │
 │              │              │              │  ◄───────────┼──────────────┼──┤Section│   │              │              │                │
 │              │              │              │              │              │  └───┬───┘   │              │              │                │
@@ -167,12 +166,13 @@ This document describes the complete workflow for document requests in the Elect
 
 | Action | Result | Next Stage |
 |--------|--------|------------|
-| Approve | Approves request, routes to battalion | BATTALION_REVIEW |
-| Endorse | Endorses request, routes to battalion | BATTALION_REVIEW |
-| Reject | Rejects request, routes to battalion section | BATTALION_REVIEW |
-| Send to Command Section | Route to specific section for review | COMMANDER_REVIEW (routeSection=section) |
-| Archive | Complete request | ARCHIVED |
+| Approve | Approves request, routes back to battalion section | BATTALION_REVIEW |
+| Endorse | Endorses request, routes back to battalion section | BATTALION_REVIEW |
+| Reject | Rejects request, routes back to battalion section | BATTALION_REVIEW |
+| Send to Command Section | Route to specific command section for review | COMMANDER_REVIEW (routeSection=section) |
 | Add Comment/Files | Attach notes or documents | COMMANDER_REVIEW |
+
+**Note:** The Commander cannot return requests directly to the originator or archive them. All decisions (Approve/Endorse/Reject) route back to the battalion section that originally processed the request, where staff can then take further action (archive, return to company/originator, route externally, etc.).
 
 ### INSTALLATION_REVIEW (Section)
 

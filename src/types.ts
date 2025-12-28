@@ -1,3 +1,11 @@
+export interface ActionEntry {
+  actor: string;
+  actorRole?: string;
+  timestamp: string;
+  action: string;
+  comment?: string;
+}
+
 export interface Request {
   id: string;
   subject: string;
@@ -10,7 +18,7 @@ export interface Request {
   createdAt: string;
   currentStage?: string;
   routeSection?: string;
-  activity?: Array<{ actor: string; actorRole?: string; timestamp: string; action: string; comment?: string }>;
+  activity?: ActionEntry[];
   commanderApprovalDate?: string;
   externalPendingUnitUic?: string;
   externalPendingUnitName?: string;

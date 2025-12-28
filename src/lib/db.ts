@@ -36,7 +36,7 @@ interface RequestRow {
   document_ids: string[]
   created_at: string
   current_stage: string | null
-  activity: Array<{ actor: string; timestamp: string; action: string; comment?: string }>
+  activity: Array<{ actor: string; actorRole?: string; timestamp: string; action: string; comment?: string }>
   route_section: string | null
   commander_approval_date: string | null
   external_pending_unit_name: string | null
@@ -166,7 +166,7 @@ export type RequestRecord = {
   documentIds: string[]
   createdAt: string
   currentStage?: string
-  activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>
+  activity?: Array<{ actor: string; actorRole?: string; timestamp: string; action: string; comment?: string }>
   routeSection?: string
   commanderApprovalDate?: string
   externalPendingUnitName?: string

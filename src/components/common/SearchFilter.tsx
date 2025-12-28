@@ -363,7 +363,8 @@ export function useSearchFilter<T>(
   options: UseSearchFilterOptions<T>
 ): T[] {
   return useMemo(() => {
-    let result = options.items;
+    // Ensure items is always an array
+    let result = Array.isArray(options.items) ? options.items : [];
 
     // Full-text search
     if (filters.search) {

@@ -623,12 +623,19 @@ export async function getUserByEdipi(edipi: string): Promise<{ user: UserRecord 
       console.error('[DB] getUserByEdipi failed:', { edipi, error });
       return { user: null, error };
     }
-    const { data, error } = await sb.from('edms_users').select('*').eq('edipi', edipi).limit(1);
+    const trimmedEdipi = String(edipi || '').trim()
+    if (!trimmedEdipi) {
+      return { user: null, error: 'EDIPI is empty' };
+    }
+    const { data, error } = await sb.from('edms_users').select('*').eq('edipi', trimmedEdipi).limit(1);
     if (error) {
-      console.error('[DB] getUserByEdipi query failed:', { edipi, error: error.message });
+      console.error('[DB] getUserByEdipi query failed:', { edipi: trimmedEdipi, error: error.message });
       return { user: null, error: error.message };
     }
     const row = ((data ?? []) as UserRow[])[0];
+    if (!row) {
+      console.warn('[DB] getUserByEdipi no match:', { edipi: trimmedEdipi, dataLength: (data ?? []).length });
+    }
     return { user: row ? fromUserRow(row) : null, error: null };
   } catch (e) {
     const msg = getErrorMessage(e)

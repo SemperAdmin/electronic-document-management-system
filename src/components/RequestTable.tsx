@@ -163,14 +163,14 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
       const originator = originatorFor(r)
       const c = originator?.company && originator.company !== 'N/A' ? originator.company : ''
       const p = originator?.platoon && originator.platoon !== 'N/A' ? originator.platoon : ''
-      if (c && p) return `${c}-${p}`
-      if (c) return c
-      return 'Platoon'
+      if (c && p) return `Platoon (${c}-${p})`
+      if (c) return `Platoon (${c})`
+      return 'Platoon Review'
     }
     if (stage === 'COMPANY_REVIEW') {
       const originator = originatorFor(r)
       const c = originator?.company && originator.company !== 'N/A' ? originator.company : ''
-      return c ? `Company ${c}` : 'Company'
+      return c ? `Company (${c})` : 'Company Review'
     }
     if (stage === 'BATTALION_REVIEW') {
       const section = battalionSectionFor(r)

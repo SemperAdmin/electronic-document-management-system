@@ -58,8 +58,8 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Ensure status is always an array to prevent runtime errors
-  const statusArray = Array.isArray(filters.status) ? filters.status : [];
+  // Ensure status is always an array to prevent runtime errors (memoized to avoid re-renders)
+  const statusArray = useMemo(() => Array.isArray(filters.status) ? filters.status : [], [filters.status]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;

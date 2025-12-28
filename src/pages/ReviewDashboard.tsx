@@ -7,7 +7,7 @@ import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/Pagination'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
-import { useToast, SearchFilter, useSearchFilter, ExportButton, dateFormatter } from '@/components/common'
+import { useToast, SearchFilter, useSearchFilter, ExportButton, dateFormatter, DocumentPreview, canPreview, FileTypeIcon } from '@/components/common'
 import type { FilterState, FilterOption, ExportColumn } from '@/components/common'
 
 interface DocumentItem {
@@ -113,6 +113,7 @@ export default function ReviewDashboard() {
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [activeTab, setActiveTab] = useState<'Pending' | 'In Scope'>('Pending');
   const [filters, setFilters] = useState<FilterState>(defaultFilters)
+  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null)
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -220,43 +221,20 @@ export default function ReviewDashboard() {
     // Pre-compute reviewer's company (used by PLATOON and COMPANY roles)
     const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
 
-    // Debug logging - remove after fixing
-    console.log('isRequestInScope check:', {
-      subject: r.subject,
-      requestUic,
-      cuic,
-      role,
-      originatorLoaded: !!o,
-      originatorId: r.uploadedById,
-      usersMapSize: Object.keys(users).length,
-    });
-
     if (role.includes('PLATOON')) {
       // Reviewer must have a unitUic and it must match the request's unit
-      if (!cuic || requestUic !== cuic) {
-        console.log('  -> FAIL: UIC mismatch or missing', { cuic, requestUic });
-        return false;
-      }
+      if (!cuic || requestUic !== cuic) return false;
       // Get originator's company/platoon from user record or return early if not available
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
       const op = o ? getValidUnitPart(o.platoon).toUpperCase() : '';
       // Use rolePlatoon if set, otherwise fall back to user's own platoon
       const cp = (getValidUnitPart(currentUser?.rolePlatoon) || getValidUnitPart(currentUser?.platoon)).toUpperCase();
-      console.log('  PLATOON scope check:', { oc, op, cc, cp, oCompany: o?.company, oPlatoon: o?.platoon });
       // If reviewer has no company/platoon assigned, they can't review platoon-level requests
-      if (!cc || !cp) {
-        console.log('  -> FAIL: Reviewer missing company/platoon');
-        return false;
-      }
+      if (!cc || !cp) return false;
       // If originator data not loaded yet, can't determine scope
-      if (!oc || !op) {
-        console.log('  -> FAIL: Originator company/platoon empty');
-        return false;
-      }
+      if (!oc || !op) return false;
       // Check company and platoon match (case-insensitive)
-      const match = oc === cc && op === cp;
-      console.log('  -> Result:', match ? 'PASS' : 'FAIL (mismatch)');
-      return match;
+      return oc === cc && op === cp;
     }
     if (role.includes('COMPANY')) {
       // Reviewer must have a unitUic and it must match the request's unit
@@ -529,15 +507,26 @@ export default function ReviewDashboard() {
                   >
                     {docsFor(r.id).map(d => (
                       <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                        <div className="text-sm text-[var(--muted)]">
-                          <div className="font-medium text-[var(--text)]">{d.name}</div>
-                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                        <div className="flex items-center gap-3">
+                          <FileTypeIcon type={d.type} fileName={d.name} size="md" />
+                          <div className="text-sm text-[var(--muted)]">
+                            <div className="font-medium text-[var(--text)]">{d.name}</div>
+                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            { (d as any).fileUrl ? (
+                          {(d as any).fileUrl && canPreview(d.type, d.name) && (
+                            <button
+                              onClick={() => setPreviewDoc(d)}
+                              className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            >
+                              Preview
+                            </button>
+                          )}
+                          {(d as any).fileUrl ? (
                             <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
                           ) : (
-                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                            <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
                           )}
                         </div>
                       </div>
@@ -713,15 +702,26 @@ export default function ReviewDashboard() {
                   >
                     {docsFor(r.id).map(d => (
                       <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                        <div className="text-sm text-[var(--muted)]">
-                          <div className="font-medium text-[var(--text)]">{d.name}</div>
-                          <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                        <div className="flex items-center gap-3">
+                          <FileTypeIcon type={d.type} fileName={d.name} size="md" />
+                          <div className="text-sm text-[var(--muted)]">
+                            <div className="font-medium text-[var(--text)]">{d.name}</div>
+                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            { (d as any).fileUrl ? (
+                          {(d as any).fileUrl && canPreview(d.type, d.name) && (
+                            <button
+                              onClick={() => setPreviewDoc(d)}
+                              className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                            >
+                              Preview
+                            </button>
+                          )}
+                          {(d as any).fileUrl ? (
                             <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
                           ) : (
-                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
+                            <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
                           )}
                         </div>
                       </div>
@@ -760,6 +760,17 @@ export default function ReviewDashboard() {
       </div>
       {permOpen && currentUser && (
         <PermissionManager currentUser={currentUser} onClose={() => setPermOpen(false)} />
+      )}
+      {/* Document Preview Modal */}
+      {previewDoc && (previewDoc as any).fileUrl && (
+        <DocumentPreview
+          url={(previewDoc as any).fileUrl}
+          fileName={previewDoc.name}
+          mimeType={previewDoc.type}
+          fileSize={previewDoc.size}
+          isOpen={!!previewDoc}
+          onClose={() => setPreviewDoc(null)}
+        />
       )}
     </div>
   )

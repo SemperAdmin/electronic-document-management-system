@@ -176,26 +176,36 @@ function HomeContent() {
     })();
   }, []);
 
+  // Compute dashboard permissions - preserve cached values, only update when we have positive results
   useEffect(() => {
+    if (!currentUser) return;
+
+    // Section dashboard - based on unit structure platoon-section mapping
     try {
       const rawUS = localStorage.getItem('unit_structure')
-      if (!currentUser || !rawUS) { setHasSectionDashboard(false); return }
-      const us = JSON.parse(rawUS)
-      const uic = currentUser?.unitUic || ''
-      const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-      const p = (currentUser?.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
-      const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || ''
-      setHasSectionDashboard(!!linked)
+      if (rawUS) {
+        const us = JSON.parse(rawUS)
+        const uic = currentUser?.unitUic || ''
+        const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+        const p = (currentUser?.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
+        const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || ''
+        // Only set true - don't overwrite cached value with false
+        if (linked) setHasSectionDashboard(true)
+      }
     } catch (e) {
       console.error('Failed to parse unit structure for section dashboard check', e)
-      setHasSectionDashboard(false)
     }
-    const isCmd = currentUser?.isCommandStaff;
-    setHasCommandDashboard(!!isCmd);
-    (async () => {
+
+    // Command dashboard - based on command staff flag
+    if (currentUser?.isCommandStaff) {
+      setHasCommandDashboard(true)
+    }
+
+    // Installation dashboards - async fetch
+    ;(async () => {
       try {
         const iid = currentUser?.installationId || ''
-        if (!iid) { setHasInstallationSectionDashboard(false); setHasInstallationCommandDashboard(false); return }
+        if (!iid) return // Keep cached values
         const installs = await listInstallationsLegacy()
         try { localStorage.setItem('installations_cache', JSON.stringify(installs)) } catch {}
         const target: any = (installs as any[])?.find((i: any) => i.id === iid)
@@ -205,25 +215,32 @@ function HomeContent() {
           (target.commandSectionAssignments && Object.values(target.commandSectionAssignments).some((arr: any) => Array.isArray(arr) && arr.includes(meId))) ||
           (target.commanderUserId && String(target.commanderUserId) === meId)
         ))
-        setHasInstallationSectionDashboard(hasInstSection)
-        setHasInstallationCommandDashboard(hasInstCommand)
+        // Only update to true - preserve cached values otherwise
+        if (hasInstSection) setHasInstallationSectionDashboard(true)
+        if (hasInstCommand) setHasInstallationCommandDashboard(true)
       } catch {
-        setHasInstallationSectionDashboard(false)
-        setHasInstallationCommandDashboard(false)
+        // On error, keep cached values
       }
     })()
+
+    // HQMC dashboards - async fetch
     ;(async () => {
       try {
         const myDiv = String(currentUser?.hqmcDivision || '')
         const meId = String(currentUser?.id || '')
-        if (!myDiv || !meId) { setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin); return }
+        // If user is HQMC admin, ensure they have section access
+        if (currentUser?.isHqmcAdmin) setHasHQMCSectionDashboard(true)
+        if (!myDiv || !meId) return // Keep cached values
         const { listHQMCSectionAssignmentsLegacy } = await import('../lib/db')
         const rows = await listHQMCSectionAssignmentsLegacy()
-        const any = rows.some(r => r.division_code === myDiv && ((r.reviewers || []).includes(meId) || (r.approvers || []).includes(meId)))
-        setHasHQMCSectionDashboard(any || !!currentUser?.isHqmcAdmin)
+        const hasSection = rows.some(r => r.division_code === myDiv && ((r.reviewers || []).includes(meId) || (r.approvers || []).includes(meId)))
         const isApprover = rows.some(r => r.division_code === myDiv && (r.approvers || []).includes(meId))
-        setHasHQMCApproverDashboard(isApprover)
-      } catch { setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin) }
+        if (hasSection) setHasHQMCSectionDashboard(true)
+        if (isApprover) setHasHQMCApproverDashboard(true)
+      } catch {
+        // On error, preserve HQMC admin access if applicable
+        if (currentUser?.isHqmcAdmin) setHasHQMCSectionDashboard(true)
+      }
     })()
   }, [currentUser]);
 

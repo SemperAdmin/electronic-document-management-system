@@ -16,6 +16,7 @@ import { Document, ActionEntry, FeedbackMessage } from './documents/types';
 import { DocCard, formatFileSize } from './documents/DocCard';
 import { NewRequestForm } from './documents/NewRequestForm';
 import { RequestDetailsModal } from './documents/RequestDetailsModal';
+import { loadUnitStructureFromBundle } from '@/lib/unitStructure';
 
 const STORAGE_BUCKET = 'edms-docs';
 
@@ -51,6 +52,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
   const [submitForUserId, setSubmitForUserId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'Pending' | 'Archived'>('Pending');
+  const [unitSections, setUnitSections] = useState<Record<string, string[]>>({});
+  const [selectedBattalionSection, setSelectedBattalionSection] = useState<string>('');
 
   // Hooks
   const storage = useDocumentStorage();
@@ -274,6 +277,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
       const hasPlatoonReviewer = hasReviewer(users, 'PLATOON_REVIEWER', { company: originCompany, platoon: originPlatoon, uic: originUnitUic });
       const hasCompanyReviewer = hasReviewer(users, 'COMPANY_REVIEWER', { company: originCompany, uic: originUnitUic });
+      const goesDirectlyToBattalion = !hasPlatoonReviewer && !hasCompanyReviewer;
 
     const requestPayload = {
       id: requestId,
@@ -286,6 +290,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       documentIds: docs.map(d => d.id),
       createdAt: new Date().toISOString(),
       currentStage: hasPlatoonReviewer ? Stage.PLATOON_REVIEW : hasCompanyReviewer ? Stage.COMPANY_REVIEW : Stage.BATTALION_REVIEW,
+      routeSection: goesDirectlyToBattalion && selectedBattalionSection ? selectedBattalionSection : undefined,
       activity: [
         { actor, actorRole, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
       ]
@@ -308,6 +313,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       setIsUploading(false);
       setFeedback({ type: 'success', message: 'Submission successful.' });
       setShowForm(false);
+      setSelectedBattalionSection('');
       } catch {
       setIsUploading(false);
       try { logEvent('request_persist_failed', { requestId }, 'error') } catch {}
@@ -585,6 +591,33 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }).catch(() => setUsers([]));
   }, []);
 
+  // Load unit sections for battalion section selector
+  useEffect(() => {
+    try {
+      const rawUs = localStorage.getItem('unit_structure');
+      const secMap: Record<string, string[]> = {};
+      if (rawUs) {
+        const parsed = JSON.parse(rawUs);
+        for (const uic of Object.keys(parsed || {})) {
+          const v = parsed[uic];
+          if (v && Array.isArray(v._sections)) secMap[uic] = v._sections;
+        }
+        setUnitSections(secMap);
+      } else {
+        (async () => {
+          try {
+            const merged = await loadUnitStructureFromBundle();
+            for (const uic of Object.keys(merged || {})) {
+              const v = (merged as any)[uic];
+              if (v && Array.isArray(v._sections)) secMap[uic] = v._sections;
+            }
+            setUnitSections(secMap);
+          } catch {}
+        })();
+      }
+    } catch {}
+  }, []);
+
   // Filter user's requests
   const myRequests = useMemo(() => {
     if (!currentUser?.id) return [];
@@ -599,6 +632,30 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const requestsPagination = usePagination(myRequests, { pageSize: 10 });
 
   const usersByIdMap = useMemo(() => users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {}), [users]);
+
+  // Check if originator needs to select a battalion section (no platoon/company reviewers)
+  const needsBattalionSection = useMemo(() => {
+    const targetUserId = submitForUserId || currentUser?.id;
+    const targetUser = users.find(u => u.id === targetUserId);
+    const targetUic = selectedUnit ? selectedUnit.uic : (targetUser?.unitUic || '');
+    const originCompany = normalizeString(targetUser?.company);
+    const originPlatoon = normalizeString(targetUser?.platoon);
+
+    if (!targetUic) return false;
+
+    const hasPlatoonReviewer = hasReviewer(users, 'PLATOON_REVIEWER', { company: originCompany, platoon: originPlatoon, uic: targetUic });
+    const hasCompanyReviewer = hasReviewer(users, 'COMPANY_REVIEWER', { company: originCompany, uic: targetUic });
+
+    return !hasPlatoonReviewer && !hasCompanyReviewer;
+  }, [users, currentUser, submitForUserId, selectedUnit]);
+
+  // Get available sections for the current unit
+  const availableSections = useMemo(() => {
+    const targetUserId = submitForUserId || currentUser?.id;
+    const targetUser = users.find(u => u.id === targetUserId);
+    const targetUic = selectedUnit ? selectedUnit.uic : (targetUser?.unitUic || '');
+    return unitSections[targetUic] || [];
+  }, [unitSections, users, currentUser, submitForUserId, selectedUnit]);
 
   // Get friendly status label for a request
   const getStatusLabel = useCallback((r: Request): { level: string; scope: string } => {
@@ -680,6 +737,25 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
             </div>
           )}
 
+          {needsBattalionSection && availableSections.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-[var(--text)] mb-1">Battalion Section</label>
+                <select
+                  value={selectedBattalionSection}
+                  onChange={(e) => setSelectedBattalionSection(e.target.value)}
+                  className={`w-full px-3 py-2 border ${selectedBattalionSection ? 'border-brand-navy/30' : 'border-brand-gold'} rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold`}
+                >
+                  <option value="">Select section</option>
+                  {availableSections.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-[var(--muted)] mt-1">No platoon/company reviewer available. Select a section for routing.</p>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-[var(--text)] mb-1">Notes (optional)</label>
             <textarea
@@ -723,7 +799,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
               )}
             </div>
             <div className="md:ml-auto flex gap-2">
-              <button type="button" onClick={() => { setShowForm(false); setSelectedFiles([]); setSubject(''); setDueDate(''); setNotes(''); setFeedback(null); }} className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream">Cancel</button>
+              <button type="button" onClick={() => { setShowForm(false); setSelectedFiles([]); setSubject(''); setDueDate(''); setNotes(''); setSelectedBattalionSection(''); setFeedback(null); }} className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream">Cancel</button>
               <button type="submit" className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors disabled:opacity-60" disabled={!subject.trim()}>Submit</button>
             </div>
           </div>

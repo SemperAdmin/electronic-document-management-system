@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNITS, Unit } from '../lib/units';
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure';
-import { listUsersLegacy, upsertUser, listCompaniesForUnitLegacy, listPlatoonsForCompanyLegacy } from '@/lib/db';
+import { listUsers, upsertUser, listCompaniesForUnitLegacy, listPlatoonsForCompanyLegacy } from '@/lib/db';
 import { ProfileForm } from './ProfileForm';
 import { HierarchicalDropdown } from './HierarchicalDropdown';
 import { UserRecord } from '@/types';
@@ -43,6 +43,9 @@ export const AdminPanel: React.FC = () => {
   const [editingIsUnitAdmin, setEditingIsUnitAdmin] = useState<boolean>(false);
   const [editingIsCommandStaff, setEditingIsCommandStaff] = useState<boolean>(false);
   const [editMode, setEditMode] = useState<'profile' | 'admin'>('admin');
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [totalFetchedUsers, setTotalFetchedUsers] = useState(0);
 
   const editingInitRef = useRef<boolean>(false)
   useEffect(() => {
@@ -102,9 +105,30 @@ export const AdminPanel: React.FC = () => {
       setUnitCommandSections(cmdMap);
       setPlatoonSectionMap(pMap);
     } catch {}
-    listUsersLegacy().then((remote) => {
-      setUsers(remote as any);
-    }).catch(() => setUsers([]));
+    setUsersLoading(true);
+    setUsersError(null);
+    listUsers().then((result) => {
+      setUsersLoading(false);
+      if (result.error) {
+        console.error('[AdminPanel] Failed to fetch users:', result.error);
+        setUsersError(result.error);
+        setUsers([]);
+        setTotalFetchedUsers(0);
+      } else {
+        setUsers(result.data as any);
+        setTotalFetchedUsers(result.data.length);
+        if (result.data.length > 0) {
+          console.log('[AdminPanel] Fetched', result.data.length, 'users from database');
+        }
+      }
+    }).catch((e) => {
+      setUsersLoading(false);
+      const msg = e?.message || 'Unknown error fetching users';
+      console.error('[AdminPanel] Exception fetching users:', msg);
+      setUsersError(msg);
+      setUsers([]);
+      setTotalFetchedUsers(0);
+    });
     try {
       const rawCurrent = localStorage.getItem('currentUser');
       if (rawCurrent) {
@@ -748,6 +772,36 @@ export const AdminPanel: React.FC = () => {
       {adminTab === 'users' && (
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">User Administration</h2>
+
+        {/* Error message */}
+        {usersError && (
+          <div className="mb-4 p-3 border border-red-200 bg-red-50 text-red-800 rounded">
+            <strong>Error loading users:</strong> {usersError}
+          </div>
+        )}
+
+        {/* Loading state */}
+        {usersLoading && (
+          <div className="mb-4 p-3 border border-blue-200 bg-blue-50 text-blue-800 rounded">
+            Loading users...
+          </div>
+        )}
+
+        {/* Debug info - show if users fetched but none displayed */}
+        {!usersLoading && !usersError && totalFetchedUsers > 0 && users.filter(u => {
+          const userUic = String(u.unitUic || '').trim().toUpperCase();
+          const selectedUic = String(selectedUnit?.uic || '').trim().toUpperCase();
+          const userUnitName = String(u.unit || '').trim().toLowerCase();
+          const selectedUnitName = String(selectedUnit?.unitName || '').trim().toLowerCase();
+          return selectedUnit ? ((userUic && userUic === selectedUic) || (userUnitName && userUnitName === selectedUnitName)) : true;
+        }).length === 0 && (
+          <div className="mb-4 p-3 border border-yellow-200 bg-yellow-50 text-yellow-800 rounded">
+            <strong>Note:</strong> {totalFetchedUsers} user(s) found in database, but none match your unit ({selectedUnit?.unitName || 'No unit selected'}, UIC: {selectedUnit?.uic || 'N/A'}).
+            <br />
+            <span className="text-sm">Users may be assigned to different units.</span>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -826,8 +880,10 @@ export const AdminPanel: React.FC = () => {
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && (
-                <tr><td colSpan={8} className="py-3 px-3 text-gray-500">No users</td></tr>
+              {users.length === 0 && !usersLoading && (
+                <tr><td colSpan={8} className="py-3 px-3 text-gray-500">
+                  {usersError ? 'Failed to load users - check console for details' : 'No users found in database'}
+                </td></tr>
               )}
             </tbody>
           </table>

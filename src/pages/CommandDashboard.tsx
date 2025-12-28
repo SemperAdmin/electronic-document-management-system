@@ -187,7 +187,41 @@ export default function CommandDashboard() {
   }
 
   const battalionSectionFor = (r: Request) => {
-    if (r.routeSection) return r.routeSection
+    // When at COMMANDER_REVIEW, routeSection is the command section, not the battalion section
+    // We need to look at activity log to find the battalion section that last processed this request
+    const normCommandSections = commandSections.map(s => String(s || '').trim().toUpperCase())
+
+    // Check activity log for the last battalion section (before command review)
+    if (r.activity && r.activity.length) {
+      // Look backwards through activity for a fromSection that was a battalion section
+      for (let i = r.activity.length - 1; i >= 0; i--) {
+        const entry = r.activity[i]
+        const fromSec = String(entry.fromSection || '').trim()
+        const normFromSec = fromSec.toUpperCase()
+
+        // If fromSection is not a command section and not "Commander", it's likely the battalion section
+        if (fromSec && !normCommandSections.includes(normFromSec) && normFromSec !== 'COMMANDER') {
+          return fromSec
+        }
+
+        // Also check toSection for when it went TO battalion
+        const toSec = String(entry.toSection || '').trim()
+        const normToSec = toSec.toUpperCase()
+        if (toSec && !normCommandSections.includes(normToSec) && normToSec !== 'COMMANDER' && /battalion|section/i.test(String(entry.action || ''))) {
+          return toSec
+        }
+      }
+    }
+
+    // Fallback: If current routeSection is NOT a command section, use it
+    if (r.routeSection) {
+      const normRouteSec = String(r.routeSection || '').trim().toUpperCase()
+      if (!normCommandSections.includes(normRouteSec)) {
+        return r.routeSection
+      }
+    }
+
+    // Last fallback: use platoon-section mapping
     const ouic = r.unitUic || ''
     const o = originatorFor(r)
     const oc = (o?.company && o.company !== 'N/A') ? o.company : ''

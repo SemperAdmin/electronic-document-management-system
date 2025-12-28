@@ -564,16 +564,6 @@ export default function ReviewDashboard() {
                     >
                       Save Files
                     </button>
-                    {isReturned(r) && (
-                      <div className="ml-auto flex items-center gap-2">
-                        <button
-                          className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                          onClick={() => updateRequest(r, (r.currentStage === 'PLATOON_REVIEW' ? ORIGINATOR_STAGE : prevStage(r.currentStage)), 'Returned to previous stage')}
-                        >
-                          Return to Previous
-                        </button>
-                      </div>
-                    )}
                   </div>
                   <div className="mt-3 flex items-center justify-end gap-2">
                     {String(currentUser?.role || '').includes('COMPANY') && (

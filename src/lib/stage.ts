@@ -109,13 +109,13 @@ export function canDeleteRequest(
   const owner = String(r.uploadedById || '') === String(requesterId || '')
   if (!owner) return false
 
-  // Cannot delete once unit commander has approved or endorsed
-  if (isUnitApproved(r) || isUnitEndorsed(r)) {
-    return false
-  }
-
-  // Cannot delete if installation commander has approved or endorsed
-  if (isInstallationApproved(r) || isInstallationEndorsed(r)) {
+  // Cannot delete once any commander has approved or endorsed
+  if (
+    isUnitApproved(r) ||
+    isUnitEndorsed(r) ||
+    isInstallationApproved(r) ||
+    isInstallationEndorsed(r)
+  ) {
     return false
   }
 

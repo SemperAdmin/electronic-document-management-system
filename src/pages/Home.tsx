@@ -22,6 +22,25 @@ import { Header } from '../components/Header';
 import { getUserByIdLegacy } from '../lib/db';
 import { listInstallationsLegacy } from '../lib/db';
 
+// Permission storage keys
+const PERMISSION_KEYS = {
+  SECTION: 'perm_section',
+  COMMAND: 'perm_command',
+  INST_SECTION: 'perm_inst_section',
+  INST_COMMAND: 'perm_inst_command',
+  HQMC_SECTION: 'perm_hqmc_section',
+  HQMC_APPROVER: 'perm_hqmc_approver',
+} as const;
+
+const getCachedPermission = (key: string): boolean => {
+  try {
+    return localStorage.getItem(key) === 'true';
+  } catch (error) {
+    console.error(`Failed to read from localStorage for key "${key}":`, error);
+    return false;
+  }
+};
+
 function HomeContent() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [view, setView] = useState<'dashboard' | 'profile' | 'admin' | 'login' | 'appadmin' | 'hqmc-admin' | 'hqmc-section' | 'hqmc-approver' | 'review' | 'section' | 'command' | 'installation' | 'installation-section' | 'installation-command' | 'documents' | 'document-viewer' | 'upload'>('login');
@@ -37,24 +56,12 @@ function HomeContent() {
   const [profileMode, setProfileMode] = useState<'create' | 'edit'>('create');
   const [dashOpen, setDashOpen] = useState(false);
   // Load cached dashboard permissions from localStorage to prevent permission loss on refresh
-  const [hasSectionDashboard, setHasSectionDashboard] = useState(() => {
-    try { return localStorage.getItem('perm_section') === 'true' } catch { return false }
-  });
-  const [hasCommandDashboard, setHasCommandDashboard] = useState(() => {
-    try { return localStorage.getItem('perm_command') === 'true' } catch { return false }
-  });
-  const [hasInstallationSectionDashboard, setHasInstallationSectionDashboard] = useState(() => {
-    try { return localStorage.getItem('perm_inst_section') === 'true' } catch { return false }
-  });
-  const [hasInstallationCommandDashboard, setHasInstallationCommandDashboard] = useState(() => {
-    try { return localStorage.getItem('perm_inst_command') === 'true' } catch { return false }
-  });
-  const [hasHQMCSectionDashboard, setHasHQMCSectionDashboard] = useState(() => {
-    try { return localStorage.getItem('perm_hqmc_section') === 'true' } catch { return false }
-  });
-  const [hasHQMCApproverDashboard, setHasHQMCApproverDashboard] = useState(() => {
-    try { return localStorage.getItem('perm_hqmc_approver') === 'true' } catch { return false }
-  });
+  const [hasSectionDashboard, setHasSectionDashboard] = useState(() => getCachedPermission(PERMISSION_KEYS.SECTION));
+  const [hasCommandDashboard, setHasCommandDashboard] = useState(() => getCachedPermission(PERMISSION_KEYS.COMMAND));
+  const [hasInstallationSectionDashboard, setHasInstallationSectionDashboard] = useState(() => getCachedPermission(PERMISSION_KEYS.INST_SECTION));
+  const [hasInstallationCommandDashboard, setHasInstallationCommandDashboard] = useState(() => getCachedPermission(PERMISSION_KEYS.INST_COMMAND));
+  const [hasHQMCSectionDashboard, setHasHQMCSectionDashboard] = useState(() => getCachedPermission(PERMISSION_KEYS.HQMC_SECTION));
+  const [hasHQMCApproverDashboard, setHasHQMCApproverDashboard] = useState(() => getCachedPermission(PERMISSION_KEYS.HQMC_APPROVER));
   const navigate = useNavigate();
 
   // Load view from URL params or localStorage
@@ -86,26 +93,36 @@ function HomeContent() {
       localStorage.removeItem('currentUser');
       localStorage.removeItem('currentView');
       // Clear cached permissions on logout
-      localStorage.removeItem('perm_section');
-      localStorage.removeItem('perm_command');
-      localStorage.removeItem('perm_inst_section');
-      localStorage.removeItem('perm_inst_command');
-      localStorage.removeItem('perm_hqmc_section');
-      localStorage.removeItem('perm_hqmc_approver');
+      Object.values(PERMISSION_KEYS).forEach(key => {
+        try {
+          localStorage.removeItem(key);
+        } catch (error) {
+          console.error(`Failed to remove item from localStorage for key "${key}":`, error);
+        }
+      });
     }
   }, [currentUser]);
 
   // Cache dashboard permissions to localStorage to persist across refreshes
   useEffect(() => {
     if (!currentUser) return;
-    try {
-      localStorage.setItem('perm_section', String(hasSectionDashboard));
-      localStorage.setItem('perm_command', String(hasCommandDashboard));
-      localStorage.setItem('perm_inst_section', String(hasInstallationSectionDashboard));
-      localStorage.setItem('perm_inst_command', String(hasInstallationCommandDashboard));
-      localStorage.setItem('perm_hqmc_section', String(hasHQMCSectionDashboard));
-      localStorage.setItem('perm_hqmc_approver', String(hasHQMCApproverDashboard));
-    } catch {}
+
+    const permissionsToCache: Record<string, boolean> = {
+      [PERMISSION_KEYS.SECTION]: hasSectionDashboard,
+      [PERMISSION_KEYS.COMMAND]: hasCommandDashboard,
+      [PERMISSION_KEYS.INST_SECTION]: hasInstallationSectionDashboard,
+      [PERMISSION_KEYS.INST_COMMAND]: hasInstallationCommandDashboard,
+      [PERMISSION_KEYS.HQMC_SECTION]: hasHQMCSectionDashboard,
+      [PERMISSION_KEYS.HQMC_APPROVER]: hasHQMCApproverDashboard,
+    };
+
+    for (const [key, value] of Object.entries(permissionsToCache)) {
+      try {
+        localStorage.setItem(key, String(value));
+      } catch (error) {
+        console.error(`Failed to set item in localStorage for key "${key}":`, error);
+      }
+    }
   }, [currentUser, hasSectionDashboard, hasCommandDashboard, hasInstallationSectionDashboard, hasInstallationCommandDashboard, hasHQMCSectionDashboard, hasHQMCApproverDashboard]);
 
   // Refresh currentUser from Supabase to pick up new privileges (e.g., installation admin)

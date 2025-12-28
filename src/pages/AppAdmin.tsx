@@ -43,6 +43,16 @@ export default function AppAdmin() {
     return byUic
   }, [users])
 
+  // Deduplicate UNITS by UIC (source data may have duplicates with different RUCs)
+  const uniqueUnits = useMemo(() => {
+    const seen = new Set<string>()
+    return UNITS.filter(u => {
+      if (seen.has(u.uic)) return false
+      seen.add(u.uic)
+      return true
+    })
+  }, [])
+
   const installationAdminsById = useMemo(() => {
     const map: Record<string, UserRecord[]> = {}
     for (const u of users) {
@@ -118,9 +128,9 @@ export default function AppAdmin() {
     setFeedback({ type: 'success', message: `Assigned ${updated.rank} ${updated.lastName} as installation admin.` })
   }
 
-  const unitsWithAdmin = useMemo(() => UNITS.filter(u => !!unitAdmins[u.uic]), [unitAdmins])
+  const unitsWithAdmin = useMemo(() => uniqueUnits.filter(u => !!unitAdmins[u.uic]), [uniqueUnits, unitAdmins])
   const hqmcAdmins = useMemo(() => (Array.isArray(users) ? users : []).filter(u => !!u.isHqmcAdmin), [users])
-  const unitsWithoutAdmin = useMemo(() => UNITS.filter(u => !unitAdmins[u.uic]), [unitAdmins])
+  const unitsWithoutAdmin = useMemo(() => uniqueUnits.filter(u => !unitAdmins[u.uic]), [uniqueUnits, unitAdmins])
   const installationsWithAdmin = useMemo(() => (Array.isArray(installations) ? installations : []).filter(i => (installationAdminsById as any)[i.id]?.length), [installations, installationAdminsById])
   const installationsWithoutAdmin = useMemo(() => (Array.isArray(installations) ? installations : []).filter(i => !((installationAdminsById as any)[i.id]?.length)), [installations, installationAdminsById])
   const hqmcAdminsByDivision = useMemo(() => {

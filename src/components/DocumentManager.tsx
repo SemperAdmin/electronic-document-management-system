@@ -378,26 +378,22 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     return true;
   });
 
-  // Check if request needs resubmission - returned and not yet resubmitted
+  // Check if request needs resubmission by originator
+  // Only true if returned TO THE ORIGINATOR (not just returned to any level)
   const needsResubmit = (r: Request) => {
     if (!r.activity || !r.activity.length) return false;
 
-    // Find the index of the last return and last submit/resubmit
-    let lastReturnIdx = -1;
-    let lastSubmitIdx = -1;
+    // Check if current stage is ORIGINATOR_REVIEW (explicitly returned to originator)
+    if (r.currentStage === 'ORIGINATOR_REVIEW') return true;
 
-    for (let i = 0; i < r.activity.length; i++) {
-      const action = String(r.activity[i]?.action || '').toLowerCase();
-      if (/returned/i.test(action)) {
-        lastReturnIdx = i;
-      }
-      if (/resubmitted|submitted request/i.test(action)) {
-        lastSubmitIdx = i;
-      }
-    }
+    // Check if the last action was a return TO THE ORIGINATOR specifically
+    const lastAction = r.activity[r.activity.length - 1];
+    const actionText = String(lastAction?.action || '').toLowerCase();
 
-    // Needs resubmit if there was a return after the last submit
-    return lastReturnIdx > lastSubmitIdx;
+    // Only allow resubmit if returned to originator, not to other review levels
+    if (/returned to originator/i.test(actionText)) return true;
+
+    return false;
   };
 
   const isReviewer = () => String(currentUser?.role || '').includes('REVIEW');

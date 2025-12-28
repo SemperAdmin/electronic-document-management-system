@@ -530,7 +530,8 @@ export default function CommandDashboard() {
             </div>
           </div>
 
-          {Object.keys(byCommandSection).filter(name => (byCommandSection[name] || []).length > 0).map((name) => {
+          {/* Show all command sections, even if they have no items */}
+          {commandSections.map((name) => {
             const pending = (byCommandSection[name] || []).filter(r => r.currentStage !== 'ARCHIVED');
             const archived = (byCommandSection[name] || []).filter(r => r.currentStage === 'ARCHIVED');
 
@@ -540,32 +541,31 @@ export default function CommandDashboard() {
                   <h3 className="text-lg font-semibold text-[var(--text)]">{name}</h3>
                   <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={() => exportSection(name)}>Export {name}</button>
                 </div>
-                {pending.length > 0 && (
-                  <div className="mt-4">
-                    <RequestTable
-                      title="Pending"
-                      requests={pending}
-                      users={users}
-                      onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                      expandedRows={expandedCard}
-                      platoonSectionMap={platoonSectionMap}
-                    >
-                      {(r: Request) => (
-                        <CommandSectionRequestDetails
-                          r={r}
-                          docsFor={docsFor}
-                          comments={comments}
-                          setComments={setComments}
-                          attach={attach}
-                          setAttach={setAttach}
-                          addFilesToRequest={addFilesToRequest}
-                          approveToCommander={approveToCommander}
-                          commandSectionReturn={commandSectionReturn}
-                        />
-                      )}
-                    </RequestTable>
-                  </div>
-                )}
+                {/* Always show Pending section, even if empty */}
+                <div className="mt-4">
+                  <RequestTable
+                    title="Pending"
+                    requests={pending}
+                    users={users}
+                    onRowClick={(r) => setExpandedCard(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                    expandedRows={expandedCard}
+                    platoonSectionMap={platoonSectionMap}
+                  >
+                    {(r: Request) => (
+                      <CommandSectionRequestDetails
+                        r={r}
+                        docsFor={docsFor}
+                        comments={comments}
+                        setComments={setComments}
+                        attach={attach}
+                        setAttach={setAttach}
+                        addFilesToRequest={addFilesToRequest}
+                        approveToCommander={approveToCommander}
+                        commandSectionReturn={commandSectionReturn}
+                      />
+                    )}
+                  </RequestTable>
+                </div>
                 {archived.length > 0 && (
                   <div className="mt-4">
                     <RequestTable

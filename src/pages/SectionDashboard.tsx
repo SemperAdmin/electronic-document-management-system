@@ -6,6 +6,7 @@ import RequestTable from '../components/RequestTable'
 import { SearchableUnitSelector } from '../components/SearchableUnitSelector'
 import { Request, Installation, UserRecord } from '../types'
 import { normalizeString, hasReviewer } from '../lib/reviewers';
+import { DocumentList } from '@/components/common';
 
 const DEFAULT_EXTERNAL_STAGE = 'REVIEW';
 
@@ -692,24 +693,9 @@ export default function SectionDashboard() {
                       ref={expandedDocs[r.id] ? docsRef : undefined}
                       className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                     >
-                      {docsFor(r.id).map(d => (
-                        <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                          <div className="text-sm text-[var(--muted)]">
-                            <div className="font-medium text-[var(--text)]">{d.name}</div>
-                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {(d as any).fileUrl ? (
-                              <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                            ) : (
-                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {docsFor(r.id).length === 0 && (
-                        <div className="text-sm text-[var(--muted)]">No documents</div>
-                      )}
+                      <DocumentList
+                        documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                      />
                     </div>
                     <div className="mt-3">
                       <button
@@ -975,24 +961,9 @@ export default function SectionDashboard() {
                       ref={expandedDocs[r.id] ? docsRef : undefined}
                       className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                     >
-                      {docsFor(r.id).map(d => (
-                        <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                          <div className="text-sm text-[var(--muted)]">
-                            <div className="font-medium text-[var(--text)]">{d.name}</div>
-                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {(d as any).fileUrl ? (
-                              <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                            ) : (
-                              <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {docsFor(r.id).length === 0 && (
-                        <div className="text-sm text-[var(--muted)]">No documents</div>
-                      )}
+                      <DocumentList
+                        documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                      />
                     </div>
                   </div>
                 )}

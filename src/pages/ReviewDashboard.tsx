@@ -7,7 +7,7 @@ import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/Pagination'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
-import { useToast, SearchFilter, useSearchFilter, ExportButton, dateFormatter, DocumentPreview, canPreview, FileTypeIcon } from '@/components/common'
+import { useToast, SearchFilter, useSearchFilter, ExportButton, dateFormatter, DocumentPreview, DocumentList } from '@/components/common'
 import type { FilterState, FilterOption, ExportColumn } from '@/components/common'
 
 interface DocumentItem {
@@ -507,35 +507,11 @@ export default function ReviewDashboard() {
                     ref={expandedDocs[r.id] ? docsRef : undefined}
                     className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                   >
-                    {docsFor(r.id).map(d => (
-                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                        <div className="flex items-center gap-3">
-                          <FileTypeIcon type={d.type} fileName={d.name} size="md" />
-                          <div className="text-sm text-[var(--muted)]">
-                            <div className="font-medium text-[var(--text)]">{d.name}</div>
-                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(d as any).fileUrl && canPreview(d.type, d.name) && (
-                            <button
-                              onClick={() => setPreviewDoc(d)}
-                              className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            >
-                              Preview
-                            </button>
-                          )}
-                          {(d as any).fileUrl ? (
-                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                          ) : (
-                            <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {docsFor(r.id).length === 0 && (
-                      <div className="text-sm text-[var(--muted)]">No documents</div>
-                    )}
+                    <DocumentList
+                      documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                      showIcons
+                      onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) || null)}
+                    />
                   </div>
                   <div className="mt-3">
                     <button
@@ -702,35 +678,11 @@ export default function ReviewDashboard() {
                     ref={expandedDocs[r.id] ? docsRef : undefined}
                     className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                   >
-                    {docsFor(r.id).map(d => (
-                      <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                        <div className="flex items-center gap-3">
-                          <FileTypeIcon type={d.type} fileName={d.name} size="md" />
-                          <div className="text-sm text-[var(--muted)]">
-                            <div className="font-medium text-[var(--text)]">{d.name}</div>
-                            <div>{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(d as any).fileUrl && canPreview(d.type, d.name) && (
-                            <button
-                              onClick={() => setPreviewDoc(d)}
-                              className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            >
-                              Preview
-                            </button>
-                          )}
-                          {(d as any).fileUrl ? (
-                            <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold">Open</a>
-                          ) : (
-                            <span className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded opacity-60" aria-disabled="true">Open</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {docsFor(r.id).length === 0 && (
-                      <div className="text-sm text-[var(--muted)]">No documents</div>
-                    )}
+                    <DocumentList
+                      documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                      showIcons
+                      onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) || null)}
+                    />
                   </div>
                   <div className="mt-3">
                     <button

@@ -14,3 +14,5 @@ export { SearchFilter, useSearchFilter, defaultFilters } from './SearchFilter';
 export type { FilterState, FilterOption, SearchFilterProps } from './SearchFilter';
 export { ExportButton, generateCsv, generateJson, downloadFile, dateFormatter, dateTimeFormatter, booleanFormatter, arrayFormatter } from './ExportButton';
 export type { ExportColumn, ExportButtonProps } from './ExportButton';
+export { DocumentListItem, DocumentList } from './DocumentListItem';
+export type { DocumentListItemProps, DocumentListProps } from './DocumentListItem';

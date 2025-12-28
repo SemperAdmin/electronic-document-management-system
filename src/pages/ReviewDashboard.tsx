@@ -184,7 +184,7 @@ export default function ReviewDashboard() {
 
   const originatorFor = (r: Request) => users[r.uploadedById] || null
 
-  const getValidUnitPart = (part?: string) => (part && part !== 'N/A' ? part : '');
+  const getValidUnitPart = (part?: string) => (part && part !== 'N/A' ? part.trim() : '');
 
   const isRequestInScope = (r: Request) => {
     const o = originatorFor(r);
@@ -196,22 +196,22 @@ export default function ReviewDashboard() {
 
     if (role.includes('PLATOON')) {
       // Get originator's company/platoon from user record or return early if not available
-      const oc = o ? getValidUnitPart(o.company) : '';
-      const op = o ? getValidUnitPart(o.platoon) : '';
+      const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
+      const op = o ? getValidUnitPart(o.platoon).toUpperCase() : '';
       // Use roleCompany/rolePlatoon if set, otherwise fall back to user's own company/platoon
-      const cc = getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company);
-      const cp = getValidUnitPart(currentUser?.rolePlatoon) || getValidUnitPart(currentUser?.platoon);
+      const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
+      const cp = (getValidUnitPart(currentUser?.rolePlatoon) || getValidUnitPart(currentUser?.platoon)).toUpperCase();
       // If reviewer has no company/platoon assigned, they can't review platoon-level requests
       if (!cc || !cp) return false;
       // If originator data not loaded yet, can't determine scope
       if (!oc || !op) return false;
-      // Check company/platoon match, and unit match if specified
+      // Check company/platoon match (case-insensitive), and unit match if specified
       return oc === cc && op === cp && (!cuic || requestUic === cuic);
     }
     if (role.includes('COMPANY')) {
-      const oc = o ? getValidUnitPart(o.company) : '';
+      const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
       // Use roleCompany if set, otherwise fall back to user's own company
-      const cc = getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company);
+      const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
       if (!cc) return false;
       if (!oc) return false;
       return oc === cc && (!cuic || requestUic === cuic);

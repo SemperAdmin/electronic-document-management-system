@@ -559,33 +559,32 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
   // Get friendly status label for a request
   const getStatusLabel = useCallback((r: Request): { level: string; scope: string } => {
-    const stage = r.currentStage || 'PLATOON_REVIEW';
+    const stage = normalizeString(r.currentStage || 'PLATOON_REVIEW');
     const originator = users.find(u => u.id === r.uploadedById);
 
-    if (stage === 'ORIGINATOR_REVIEW') {
-      return { level: 'Member', scope: '' };
+    switch (stage) {
+      case 'ORIGINATOR_REVIEW':
+        return { level: 'Member', scope: '' };
+      case 'PLATOON_REVIEW': {
+        const c = originator?.company && originator.company !== 'N/A' ? originator.company : '';
+        const p = originator?.platoon && originator.platoon !== 'N/A' ? originator.platoon : '';
+        if (c && p) return { level: 'Platoon', scope: `(${c}-${p})` };
+        if (c) return { level: 'Platoon', scope: `(${c})` };
+        return { level: 'Platoon', scope: '' };
+      }
+      case 'COMPANY_REVIEW': {
+        const c = originator?.company && originator.company !== 'N/A' ? originator.company : '';
+        return { level: 'Company', scope: c ? `(${c})` : '' };
+      }
+      case 'BATTALION_REVIEW':
+        return { level: 'Battalion', scope: r.routeSection ? `(${r.routeSection})` : '' };
+      case 'COMMANDER_REVIEW':
+        return { level: 'Commander', scope: r.routeSection ? `(${r.routeSection})` : '' };
+      case 'ARCHIVED':
+        return { level: 'Archived', scope: '' };
+      default:
+        return { level: formatStageLabel(r), scope: '' };
     }
-    if (stage === 'PLATOON_REVIEW') {
-      const c = originator?.company && originator.company !== 'N/A' ? originator.company : '';
-      const p = originator?.platoon && originator.platoon !== 'N/A' ? originator.platoon : '';
-      if (c && p) return { level: 'Platoon', scope: `(${c}-${p})` };
-      if (c) return { level: 'Platoon', scope: `(${c})` };
-      return { level: 'Platoon', scope: '' };
-    }
-    if (stage === 'COMPANY_REVIEW') {
-      const c = originator?.company && originator.company !== 'N/A' ? originator.company : '';
-      return { level: 'Company', scope: c ? `(${c})` : '' };
-    }
-    if (stage === 'BATTALION_REVIEW') {
-      return { level: 'Battalion', scope: r.routeSection ? `(${r.routeSection})` : '' };
-    }
-    if (stage === 'COMMANDER_REVIEW') {
-      return { level: 'Commander', scope: r.routeSection ? `(${r.routeSection})` : '' };
-    }
-    if (stage === 'ARCHIVED') {
-      return { level: 'Archived', scope: '' };
-    }
-    return { level: formatStageLabel(r), scope: '' };
   }, [users]);
 
   return (

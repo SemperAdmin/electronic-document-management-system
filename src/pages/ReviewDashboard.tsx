@@ -7,7 +7,8 @@ import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/Pagination'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
-import { useToast } from '@/components/common'
+import { useToast, SearchFilter, useSearchFilter, ExportButton, dateFormatter } from '@/components/common'
+import type { FilterState, FilterOption, ExportColumn } from '@/components/common'
 
 interface DocumentItem {
   id: string
@@ -21,6 +22,24 @@ interface DocumentItem {
 
 const ORIGINATOR_STAGE = 'ORIGINATOR_REVIEW'
 const STAGES = ['PLATOON_REVIEW', 'COMPANY_REVIEW', 'BATTALION_REVIEW', 'COMMANDER_REVIEW', 'ARCHIVED']
+
+// Status filter options for review dashboard
+const STATUS_OPTIONS: FilterOption[] = [
+  { value: 'PLATOON_REVIEW', label: 'Platoon Review' },
+  { value: 'COMPANY_REVIEW', label: 'Company Review' },
+  { value: 'BATTALION_REVIEW', label: 'Battalion Review' },
+  { value: 'COMMANDER_REVIEW', label: 'Commander Review' },
+  { value: 'ARCHIVED', label: 'Archived' },
+]
+
+// Default filter state
+const defaultFilters: FilterState = {
+  search: '',
+  status: [],
+  dateFrom: '',
+  dateTo: '',
+  originatorId: '',
+}
 
 const nextStage = (stage?: string) => {
   const i = STAGES.indexOf(stage || STAGES[0])
@@ -71,6 +90,7 @@ export default function ReviewDashboard() {
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [activeTab, setActiveTab] = useState<'Pending' | 'In Scope'>('Pending');
+  const [filters, setFilters] = useState<FilterState>(defaultFilters)
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -202,9 +222,31 @@ export default function ReviewDashboard() {
 
   const inScope = useMemo(() => requests.filter(isRequestInScope), [requests, currentUser, users, platoonSectionMap]);
 
-  const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage), [inScope, myStage]);
+  // Generate originator options from users
+  const originatorOptions: FilterOption[] = useMemo(() => {
+    const uniqueOriginators = new Map<string, FilterOption>()
+    for (const r of inScope) {
+      const o = originatorFor(r)
+      if (o && o.id && !uniqueOriginators.has(o.id)) {
+        const name = `${o.rank || ''} ${o.lastName || ''}, ${o.firstName || ''}`.trim()
+        uniqueOriginators.set(o.id, { value: o.id, label: name || o.id })
+      }
+    }
+    return Array.from(uniqueOriginators.values()).sort((a, b) => a.label.localeCompare(b.label))
+  }, [inScope, users])
 
-  const inScopeOther = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [inScope, myStage])
+  // Apply filters to in-scope requests
+  const filteredInScope = useSearchFilter<Request>(filters, {
+    items: inScope,
+    getSearchText: (r) => `${r.subject || ''} ${r.id || ''} ${r.routeSection || ''}`,
+    getStatus: (r) => r.currentStage || 'PLATOON_REVIEW',
+    getDate: (r) => r.createdAt,
+    getOriginatorId: (r) => r.uploadedById,
+  })
+
+  const pending = useMemo(() => filteredInScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage), [filteredInScope, myStage]);
+
+  const inScopeOther = useMemo(() => filteredInScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [filteredInScope, myStage])
 
   // Pagination for pending requests
   const pendingPagination = usePagination(pending, { pageSize: 25 })
@@ -256,6 +298,22 @@ export default function ReviewDashboard() {
   const exportPending = () => downloadCsv('review_pending.csv', buildRows(pending))
   const exportInScope = () => downloadCsv('review_in_scope.csv', buildRows(inScopeOther))
   const exportAll = () => downloadCsv('review_all.csv', buildRows([...pending, ...inScopeOther]))
+
+  // Export columns for the new ExportButton component
+  const exportColumns: ExportColumn<Request>[] = useMemo(() => [
+    { header: 'Request ID', getValue: (r) => r.id },
+    { header: 'Subject', getValue: (r) => r.subject },
+    { header: 'Stage', getValue: (r) => r.currentStage || '' },
+    { header: 'Route Section', getValue: (r) => r.routeSection || '' },
+    { header: 'Originator', getValue: (r) => {
+      const o = originatorFor(r)
+      return o ? `${o.rank || ''} ${o.lastName || ''}, ${o.firstName || ''}${o.mi ? ` ${o.mi}` : ''}`.trim() : ''
+    }},
+    { header: 'Unit UIC', getValue: (r) => r.unitUic || '' },
+    { header: 'Created At', getValue: (r) => r.createdAt, format: dateFormatter },
+    { header: 'Due Date', getValue: (r) => r.dueDate || '', format: dateFormatter },
+    { header: 'Documents', getValue: (r) => docsFor(r.id).map(d => d.name).join(' | ') },
+  ], [users, documents])
 
   const updateRequest = async (r: Request, newStage: string, action: string) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
@@ -330,7 +388,13 @@ export default function ReviewDashboard() {
             <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
             <div className="mt-2 flex items-center gap-2">
               <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{String(currentUser?.role || 'MEMBER')}</span>
-              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportAll}>Export All</button>
+              <ExportButton
+                items={[...pending, ...inScopeOther]}
+                columns={exportColumns}
+                filename="review_requests"
+                label="Export"
+                className="hidden md:inline-flex"
+              />
             </div>
           </div>
           {currentUser && String(currentUser.role || '') !== 'MEMBER' && (
@@ -344,6 +408,15 @@ export default function ReviewDashboard() {
             </div>
           )}
         </div>
+        {/* Search and Filter Section */}
+        <SearchFilter
+          filters={filters}
+          onFiltersChange={setFilters}
+          statusOptions={STATUS_OPTIONS}
+          originatorOptions={originatorOptions}
+          searchPlaceholder="Search requests by subject, ID, or section..."
+          className="mb-4"
+        />
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             <button

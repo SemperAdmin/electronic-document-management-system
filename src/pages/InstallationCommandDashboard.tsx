@@ -129,7 +129,7 @@ export default function InstallationCommandDashboard() {
   const sendToInstallationCommander = async (r: Request) => {
     const actor = formatActorName(currentUser, 'Installation Command Section')
     const entry = { actor, timestamp: new Date().toISOString(), action: 'Sent to Installation Commander', comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, routeSection: '', activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, routeSection: '', activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -150,7 +150,7 @@ export default function InstallationCommandDashboard() {
       if (m) prevSec = m[1]
     }
     const entry = { actor, timestamp: new Date().toISOString(), action: `Returned to installation section${prevSec ? `: ${prevSec}` : ''}`, comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, routeSection: prevSec, activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, routeSection: prevSec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -166,7 +166,7 @@ export default function InstallationCommandDashboard() {
     if (!sec.trim()) return
     const actor = formatActorName(currentUser, 'Installation Commander')
     const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}`, comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, currentStage: 'INSTALLATION_REVIEW', routeSection: sec, activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, currentStage: 'INSTALLATION_REVIEW', routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -183,7 +183,7 @@ export default function InstallationCommandDashboard() {
     if (!sec.trim()) return
     const actor = formatActorName(currentUser, 'Installation Commander')
     const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to installation command section: ${sec}`, comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -204,7 +204,7 @@ export default function InstallationCommandDashboard() {
     // Find the installation section that originally routed this request
     const prevInstSec = getPreviousInstallationSection(r)
 
-    let updated: any = { ...r }
+    let updated: Request = { ...r }
     const decisionEntry = { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
 
     if (type === 'Rejected') {
@@ -252,7 +252,7 @@ export default function InstallationCommandDashboard() {
     const actor = formatActorName(currentUser, 'Installation Command Section')
     const prevSec = r.routeSection || ''
     const entry = { actor, actorRole: 'Installation Command Section', timestamp: new Date().toISOString(), action: `Reassigned to command section: ${sec}${prevSec ? ` (from ${prevSec})` : ''}`, comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -333,7 +333,7 @@ export default function InstallationCommandDashboard() {
     const actor = formatActorName(currentUser, 'Installation Commander')
     const targetSec = (sec || '').trim() || getPreviousInstallSection(r)
     const entry = { actor, timestamp: new Date().toISOString(), action: `Restored to installation section${targetSec ? `: ${targetSec}` : ''}` }
-    const updated: any = {
+    const updated: Request = {
       ...r,
       currentStage: 'INSTALLATION_REVIEW',
       finalStatus: undefined,

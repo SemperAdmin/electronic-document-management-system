@@ -385,11 +385,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   });
 
   // Check if request needs resubmission by originator
-  // Only true if returned TO THE ORIGINATOR (stage is ORIGINATOR_REVIEW)
-  const needsResubmit = (r: Request) => {
-    if (!r.activity || !r.activity.length) return false;
-    return r.currentStage === 'ORIGINATOR_REVIEW';
-  };
+  const needsResubmit = (r: Request) => r.currentStage === 'ORIGINATOR_REVIEW';
 
   const isReviewer = () => String(currentUser?.role || '').includes('REVIEW');
   const eligibleUsers = () => {

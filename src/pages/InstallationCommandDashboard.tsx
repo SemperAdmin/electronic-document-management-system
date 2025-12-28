@@ -201,36 +201,38 @@ export default function InstallationCommandDashboard() {
       : type === 'Endorsed' ? 'Endorsed by Installation Commander'
       : 'Rejected by Installation Commander — requires action'
 
+    // Find the command section that submitted this request to commander
+    const prevCmdSec = getPreviousCommandSection(r)
+
     let updated: any = { ...r }
-    const decisionEntry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+    const decisionEntry = { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
 
     if (type === 'Rejected') {
-      const prevSec = getPreviousInstallSection(r)
+      // Return to the command section that submitted it
       updated = {
         ...r,
         currentStage: 'INSTALLATION_REVIEW',
         finalStatus: undefined,
-        routeSection: prevSec,
-        activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: prevSec ? `Returned to installation section: ${prevSec}` : 'Returned to installation commander' }]
+        routeSection: prevCmdSec,
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: prevCmdSec ? `Returned to command section: ${prevCmdSec}` : 'Returned for review' }]
+      }
+    } else if (type === 'Approved') {
+      // Approved - route to the selected command section for further action
+      const sec = selectedCmdCommander[r.id] || prevCmdSec
+      if (!sec.trim()) { alert('Select a command section to send to'); return }
+      updated = {
+        ...r,
+        currentStage: 'INSTALLATION_REVIEW',
+        routeSection: sec,
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: `Sent to command section: ${sec}` }]
       }
     } else {
-      if (type === 'Approved') {
-        const sec = selectedCmdCommander[r.id] || ''
-        if (!sec.trim()) { alert('Select a command section to send to'); return }
-        updated = {
-          ...r,
-          currentStage: 'INSTALLATION_REVIEW',
-          routeSection: sec,
-          activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}` }]
-        }
-      } else {
-        const prevSec = getPreviousInstallSection(r)
-        updated = {
-          ...r,
-          currentStage: 'INSTALLATION_REVIEW',
-          routeSection: prevSec,
-          activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: prevSec ? `Sent to installation section: ${prevSec}` : 'Returned to installation commander' }]
-        }
+      // Endorsed - return to the command section that submitted it for further routing
+      updated = {
+        ...r,
+        currentStage: 'INSTALLATION_REVIEW',
+        routeSection: prevCmdSec,
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: prevCmdSec ? `Sent to command section: ${prevCmdSec}` : 'Sent for further routing' }]
       }
     }
 
@@ -238,6 +240,7 @@ export default function InstallationCommandDashboard() {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
       setComments(prev => ({ ...prev, [r.id]: '' }))
+      setSelectedCmdCommander(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to record installation commander decision:', e)
       alert('Failed to record decision')
@@ -292,6 +295,42 @@ export default function InstallationCommandDashboard() {
       const s = String(a.action || '')
       const m = s.match(/Sent to installation section:\s*(.+)/i) || s.match(/Restored to installation section:\s*(.+)/i) || s.match(/Returned to installation section:\s*(.+)/i)
       if (m) return m[1].trim()
+    }
+    return ''
+  }
+
+  // Find the command section that sent the request to the commander
+  const getPreviousCommandSection = (r: Request) => {
+    const acts = (r.activity || []).slice().reverse()
+    let foundSentToCommander = false
+    for (const a of acts) {
+      const s = String(a.action || '')
+      // Find "Sent to Installation Commander", then look for the command section before it
+      if (/Sent to Installation Commander/i.test(s)) {
+        foundSentToCommander = true
+        continue
+      }
+      if (foundSentToCommander) {
+        // Look for "Approved and routed to Installation Command: S-1 (from SSEC)"
+        const m1 = s.match(/Approved and routed to Installation Command:\s*([^\(]+)/i)
+        if (m1) return m1[1].trim()
+        // Or "Sent to installation command section: S-1"
+        const m2 = s.match(/Sent to installation command section:\s*(.+)/i)
+        if (m2) return m2[1].trim()
+        // Or "Reassigned to command section: S-1 (from XO)"
+        const m3 = s.match(/Reassigned to command section:\s*([^\(]+)/i)
+        if (m3) return m3[1].trim()
+      }
+    }
+    // Fallback: look for any command section pattern if not found after "Sent to Commander"
+    for (const a of acts) {
+      const s = String(a.action || '')
+      const m1 = s.match(/Approved and routed to Installation Command:\s*([^\(]+)/i)
+      if (m1) return m1[1].trim()
+      const m2 = s.match(/Sent to installation command section:\s*(.+)/i)
+      if (m2) return m2[1].trim()
+      const m3 = s.match(/Reassigned to command section:\s*([^\(]+)/i)
+      if (m3) return m3[1].trim()
     }
     return ''
   }

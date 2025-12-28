@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { listInstallationsLegacy, listRequestsLegacy, listUsersLegacy, listDocumentsLegacy, upsertDocuments, upsertRequest } from '@/lib/db'
 import type { DocumentRecord } from '@/lib/db'
 import RequestTable from '@/components/RequestTable'
-import { Request, DocumentItem } from '@/types'
+import { Request } from '@/types'
 import { DocumentList, DocumentPreview } from '@/components/common'
 import { formatActorName } from '@/lib/utils'
 
@@ -23,7 +23,7 @@ export default function InstallationCommandDashboard() {
   const [selectedCmdCommander, setSelectedCmdCommander] = useState<Record<string, string>>({})
   const [nextInstSection, setNextInstSection] = useState<Record<string, string>>({})
   const [reassignCmdSection, setReassignCmdSection] = useState<Record<string, string>>({})
-  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null)
 
   useEffect(() => {
     try {
@@ -370,9 +370,9 @@ export default function InstallationCommandDashboard() {
                       className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                     >
                       <DocumentList
-                        documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                        documents={docsFor(r.id)}
                         showIcons
-                        onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) as any || null)}
+                        onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) || null)}
                       />
                     </div>
                     <div className="mt-2">
@@ -641,9 +641,9 @@ export default function InstallationCommandDashboard() {
       {previewDoc && (
         <DocumentPreview
           fileName={previewDoc.name}
-          url={(previewDoc as any).fileUrl || ''}
-          mimeType={(previewDoc as any).type || ''}
-          fileSize={(previewDoc as any).size || 0}
+          url={previewDoc.fileUrl || ''}
+          mimeType={previewDoc.type || ''}
+          fileSize={previewDoc.size || 0}
           isOpen={!!previewDoc}
           onClose={() => setPreviewDoc(null)}
         />

@@ -196,13 +196,18 @@ export default function ReviewDashboard() {
     if (role.includes('PLATOON')) {
       const oc = getValidUnitPart(o.company);
       const op = getValidUnitPart(o.platoon);
-      const cc = getValidUnitPart(currentUser?.roleCompany);
-      const cp = getValidUnitPart(currentUser?.rolePlatoon);
+      // Use roleCompany/rolePlatoon if set, otherwise fall back to user's own company/platoon
+      const cc = getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company);
+      const cp = getValidUnitPart(currentUser?.rolePlatoon) || getValidUnitPart(currentUser?.platoon);
+      // If reviewer has no company/platoon assigned, they can't review platoon-level requests
+      if (!cc || !cp) return false;
       return oc === cc && op === cp && (!cuic || o.unitUic === cuic);
     }
     if (role.includes('COMPANY')) {
       const oc = getValidUnitPart(o.company);
-      const cc = getValidUnitPart(currentUser?.roleCompany);
+      // Use roleCompany if set, otherwise fall back to user's own company
+      const cc = getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company);
+      if (!cc) return false;
       return oc === cc && (!cuic || o.unitUic === cuic);
     }
     if (role.includes('BATTALION')) {

@@ -534,7 +534,7 @@ export default function InstallationSectionDashboard() {
                   >
                     Return to Battalion
                   </button>
-                  <p className="text-xs text-[var(--muted)] mt-1">Request will be returned to the originating unit's Battalion Section Dashboard</p>
+                  <p className="text-xs text-[var(--muted)] mt-1">Request will be returned to the originating unit's Unit Section Dashboard</p>
                 </div>
               </div>
 

@@ -195,6 +195,10 @@ export default function ReviewDashboard() {
     const cuic = currentUser?.unitUic || '';
 
     if (role.includes('PLATOON')) {
+      // Reviewer must have unitUic set - security requirement
+      if (!cuic) return false;
+      // Request must be from the same unit
+      if (requestUic !== cuic) return false;
       // Get originator's company/platoon from user record or return early if not available
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
       const op = o ? getValidUnitPart(o.platoon).toUpperCase() : '';
@@ -205,28 +209,40 @@ export default function ReviewDashboard() {
       if (!cc || !cp) return false;
       // If originator data not loaded yet, can't determine scope
       if (!oc || !op) return false;
-      // Check company/platoon match (case-insensitive), and unit match if specified
-      return oc === cc && op === cp && (!cuic || requestUic === cuic);
+      // Check company and platoon match (case-insensitive)
+      return oc === cc && op === cp;
     }
     if (role.includes('COMPANY')) {
+      // Reviewer must have unitUic set - security requirement
+      if (!cuic) return false;
+      // Request must be from the same unit
+      if (requestUic !== cuic) return false;
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
       // Use roleCompany if set, otherwise fall back to user's own company
       const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
       if (!cc) return false;
       if (!oc) return false;
-      return oc === cc && (!cuic || requestUic === cuic);
+      // Check company match (case-insensitive)
+      return oc === cc;
     }
     if (role.includes('BATTALION')) {
+      // Reviewer must have unitUic set - security requirement
+      if (!cuic) return false;
+      // Request must be from the same unit
+      if (requestUic !== cuic) return false;
       const cc = getValidUnitPart(currentUser?.company);
       const cp = getValidUnitPart(currentUser?.platoon);
       const linked = platoonSectionMap[cuic]?.[cc]?.[cp] || '';
       if (r.routeSection) {
         return linked ? (r.routeSection === linked) : true;
       }
-      return cuic ? (o.unitUic === cuic) : true;
+      return true;
     }
     if (role.includes('COMMANDER')) {
-      return cuic ? (o.unitUic === cuic) : true;
+      // Reviewer must have unitUic set - security requirement
+      if (!cuic) return false;
+      // Request must be from the same unit
+      return requestUic === cuic;
     }
     return true;
   };

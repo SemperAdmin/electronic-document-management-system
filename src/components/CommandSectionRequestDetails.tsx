@@ -12,6 +12,10 @@ interface CommandSectionRequestDetailsProps {
   addFilesToRequest: (r: Request) => void;
   approveToCommander: (r: Request) => void;
   commandSectionReturn: (r: Request) => void;
+  commandSections: string[];
+  selectedCommandSection: Record<string, string>;
+  setSelectedCommandSection: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  routeToCommandSection: (r: Request, targetSection: string) => void;
 }
 
 const CommandSectionRequestDetails: React.FC<CommandSectionRequestDetailsProps> = ({
@@ -24,6 +28,10 @@ const CommandSectionRequestDetails: React.FC<CommandSectionRequestDetailsProps> 
   addFilesToRequest,
   approveToCommander,
   commandSectionReturn,
+  commandSections,
+  selectedCommandSection,
+  setSelectedCommandSection,
+  routeToCommandSection,
 }) => {
   const [expandedDocs, setExpandedDocs] = useState(false);
   const [expandedLogs, setExpandedLogs] = useState(false);
@@ -117,6 +125,35 @@ const CommandSectionRequestDetails: React.FC<CommandSectionRequestDetailsProps> 
           )}
         </div>
       </div>
+
+      {/* Route to Another Command Section */}
+      {commandSections.length > 1 && (
+        <div className="pt-2 border-t border-brand-navy/10">
+          <label className="block text-sm font-medium text-[var(--text)] mb-1">Route to Another Section</label>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedCommandSection[r.id] || ''}
+              onChange={(e) => setSelectedCommandSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+              className="flex-1 px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold text-sm"
+            >
+              <option value="">Select section...</option>
+              {commandSections
+                .filter(sec => sec !== r.routeSection)
+                .map(sec => (
+                  <option key={sec} value={sec}>{sec}</option>
+                ))
+              }
+            </select>
+            <button
+              className="px-4 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => routeToCommandSection(r, selectedCommandSection[r.id] || '')}
+              disabled={!selectedCommandSection[r.id]}
+            >
+              Route
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="pt-2 border-t border-brand-navy/10 flex items-center justify-end gap-2">

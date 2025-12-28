@@ -441,6 +441,32 @@ export default function CommandDashboard() {
     }
   }
 
+  const routeToCommandSection = async (r: Request, targetSection: string) => {
+    if (!targetSection) return
+    const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Command Section'
+    const prevSec = r.routeSection || ''
+    const actionText = `Routed to ${targetSection} by ${prevSec || 'Command Section'}`
+    const entry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: targetSection }
+
+    const updated: Request = {
+      ...r,
+      currentStage: 'COMMANDER_REVIEW',
+      routeSection: targetSection,
+      activity: [...(r.activity || []), entry]
+    }
+
+    try {
+      await upsertRequest(updated as any)
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
+      toast.success(`Routed to ${targetSection}`)
+    } catch (error) {
+      console.error('Failed to route to command section:', error)
+      toast.error('Failed to route to command section')
+    }
+  }
+
   const addFilesToRequest = async (r: Request) => {
     const files = attach[r.id] || []
     if (!files.length || !currentUser?.id) return
@@ -562,6 +588,10 @@ export default function CommandDashboard() {
                         addFilesToRequest={addFilesToRequest}
                         approveToCommander={approveToCommander}
                         commandSectionReturn={commandSectionReturn}
+                        commandSections={commandSections}
+                        selectedCommandSection={selectedCommandSection}
+                        setSelectedCommandSection={setSelectedCommandSection}
+                        routeToCommandSection={routeToCommandSection}
                       />
                     )}
                   </RequestTable>

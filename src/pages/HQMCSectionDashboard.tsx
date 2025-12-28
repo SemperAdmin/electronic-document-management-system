@@ -87,9 +87,9 @@ export default function HQMCSectionDashboard() {
     return scopeBranches.includes(branch)
   }
 
-  const inScope = useMemo(() => requests.filter(isInMyScope), [requests, scopeBranches])
-  const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== 'ARCHIVED'), [inScope])
-  const inScopeOther = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED'), [inScope])
+  const inScope = useMemo(() => (Array.isArray(requests) ? requests : []).filter(isInMyScope), [requests, scopeBranches])
+  const pending = useMemo(() => (Array.isArray(inScope) ? inScope : []).filter(r => (r.currentStage || 'PLATOON_REVIEW') !== 'ARCHIVED'), [inScope])
+  const inScopeOther = useMemo(() => (Array.isArray(inScope) ? inScope : []).filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED'), [inScope])
 
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
 

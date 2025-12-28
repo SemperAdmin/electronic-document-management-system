@@ -82,9 +82,9 @@ export default function HQMCApproverDashboard() {
     return approverBranches.includes(branch)
   }
 
-  const inScope = useMemo(() => requests.filter(isInMyScope), [requests, approverBranches])
-  const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== 'ARCHIVED'), [inScope])
-  const approved = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED'), [inScope])
+  const inScope = useMemo(() => (Array.isArray(requests) ? requests : []).filter(isInMyScope), [requests, approverBranches])
+  const pending = useMemo(() => (Array.isArray(inScope) ? inScope : []).filter(r => (r.currentStage || 'PLATOON_REVIEW') !== 'ARCHIVED'), [inScope])
+  const approved = useMemo(() => (Array.isArray(inScope) ? inScope : []).filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED'), [inScope])
 
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
 

@@ -67,17 +67,17 @@ const formatRoleBadge = (user: UserRecord | null): string => {
   const company = (user.roleCompany || user.company || '').trim()
   const platoon = (user.rolePlatoon || user.platoon || '').trim()
 
-  if (role === 'PLATOON_REVIEWER' && company && platoon) {
-    return `Platoon (${company}-${platoon})`
-  }
-  if (role === 'COMPANY_REVIEWER' && company) {
-    return `Company (${company})`
-  }
-  if (role === 'BATTALION_REVIEWER') {
-    return 'Battalion'
-  }
-  if (role === 'COMMANDER_REVIEWER') {
-    return 'Commander'
+  switch (role) {
+    case 'PLATOON_REVIEWER':
+      if (company && platoon) return `Platoon (${company}-${platoon})`
+      break
+    case 'COMPANY_REVIEWER':
+      if (company) return `Company (${company})`
+      break
+    case 'BATTALION_REVIEWER':
+      return 'Battalion'
+    case 'COMMANDER_REVIEWER':
+      return 'Commander'
   }
   return role
 }
@@ -220,10 +220,8 @@ export default function ReviewDashboard() {
     const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
 
     if (role.includes('PLATOON')) {
-      // Reviewer must have unitUic set - security requirement
-      if (!cuic) return false;
-      // Request must be from the same unit
-      if (requestUic !== cuic) return false;
+      // Reviewer must have a unitUic and it must match the request's unit
+      if (!cuic || requestUic !== cuic) return false;
       // Get originator's company/platoon from user record or return early if not available
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
       const op = o ? getValidUnitPart(o.platoon).toUpperCase() : '';
@@ -237,34 +235,27 @@ export default function ReviewDashboard() {
       return oc === cc && op === cp;
     }
     if (role.includes('COMPANY')) {
-      // Reviewer must have unitUic set - security requirement
-      if (!cuic) return false;
-      // Request must be from the same unit
-      if (requestUic !== cuic) return false;
+      // Reviewer must have a unitUic and it must match the request's unit
+      if (!cuic || requestUic !== cuic) return false;
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
-      if (!cc) return false;
-      if (!oc) return false;
+      if (!cc || !oc) return false;
       // Check company match (case-insensitive)
       return oc === cc;
     }
     if (role.includes('BATTALION')) {
-      // Reviewer must have unitUic set - security requirement
-      if (!cuic) return false;
-      // Request must be from the same unit
-      if (requestUic !== cuic) return false;
-      const cc = getValidUnitPart(currentUser?.company);
-      const cp = getValidUnitPart(currentUser?.platoon);
-      const linked = platoonSectionMap[cuic]?.[cc]?.[cp] || '';
+      // Reviewer must have a unitUic and it must match the request's unit
+      if (!cuic || requestUic !== cuic) return false;
+      const batCo = getValidUnitPart(currentUser?.company);
+      const batPl = getValidUnitPart(currentUser?.platoon);
+      const linked = platoonSectionMap[cuic]?.[batCo]?.[batPl] || '';
       if (r.routeSection) {
         return linked ? (r.routeSection === linked) : true;
       }
       return true;
     }
     if (role.includes('COMMANDER')) {
-      // Reviewer must have unitUic set - security requirement
-      if (!cuic) return false;
-      // Request must be from the same unit
-      return requestUic === cuic;
+      // Commander must have a unitUic, and it must match the request's unit
+      return !!cuic && requestUic === cuic;
     }
     return true;
   };

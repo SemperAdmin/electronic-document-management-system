@@ -157,6 +157,28 @@ export default function HQMCApproverDashboard() {
                     <DocumentList documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))} />
                   </div>
                   <div className="mt-3">
+                    <button
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                      aria-expanded={!!expandedLogs[r.id]}
+                      aria-controls={`logs-hqa-${r.id}`}
+                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                    >
+                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                    </button>
+                    <div id={`logs-hqa-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                      {r.activity && r.activity.length ? (
+                        r.activity.map((a, idx) => (
+                          <div key={idx} className="text-xs text-gray-700">
+                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                            {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-gray-500">No activity</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3">
                     <label className="block text-sm font-medium text-[var(--text)] mb-1">HQMC Comment</label>
                     <textarea rows={2} value={comments[r.id] || ''} onChange={(e) => setComments(prev => ({ ...prev, [r.id]: e.target.value }))} className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg" placeholder="Optional notes" />
                   </div>
@@ -187,6 +209,28 @@ export default function HQMCApproverDashboard() {
                   </div>
                   <div id={`docs-hqa-${r.id}`} ref={expandedDocs[r.id] ? docsRef : undefined} className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}>
                     <DocumentList documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))} />
+                  </div>
+                  <div className="mt-3">
+                    <button
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
+                      aria-expanded={!!expandedLogs[r.id]}
+                      aria-controls={`logs-hqaa-${r.id}`}
+                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                    >
+                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                    </button>
+                    <div id={`logs-hqaa-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                      {r.activity && r.activity.length ? (
+                        r.activity.map((a, idx) => (
+                          <div key={idx} className="text-xs text-gray-700">
+                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                            {a.comment && <div className="text-gray-600">{a.comment}</div>}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-gray-500">No activity</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

@@ -58,25 +58,28 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Ensure status is always an array to prevent runtime errors
+  const statusArray = Array.isArray(filters.status) ? filters.status : [];
+
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (filters.status.length > 0) count++;
+    if (statusArray.length > 0) count++;
     if (filters.dateFrom) count++;
     if (filters.dateTo) count++;
     if (filters.originatorId) count++;
     return count;
-  }, [filters]);
+  }, [statusArray, filters.dateFrom, filters.dateTo, filters.originatorId]);
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     onFiltersChange({ ...filters, search: e.target.value });
   }, [filters, onFiltersChange]);
 
   const handleStatusChange = useCallback((status: string) => {
-    const newStatuses = filters.status.includes(status)
-      ? filters.status.filter(s => s !== status)
-      : [...filters.status, status];
+    const newStatuses = statusArray.includes(status)
+      ? statusArray.filter(s => s !== status)
+      : [...statusArray, status];
     onFiltersChange({ ...filters, status: newStatuses });
-  }, [filters, onFiltersChange]);
+  }, [filters, statusArray, onFiltersChange]);
 
   const handleDateFromChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     onFiltersChange({ ...filters, dateFrom: e.target.value });
@@ -207,7 +210,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
                     >
                       <input
                         type="checkbox"
-                        checked={filters.status.includes(option.value)}
+                        checked={statusArray.includes(option.value)}
                         onChange={() => handleStatusChange(option.value)}
                         className="h-4 w-4 text-brand-navy border-gray-300 rounded focus:ring-brand-gold"
                       />
@@ -271,7 +274,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
           {activeFilterCount > 0 && (
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-brand-navy/10">
               <span className="text-sm text-[var(--muted)]">Active filters:</span>
-              {filters.status.map(status => {
+              {statusArray.map(status => {
                 const option = statusOptions.find(o => o.value === status);
                 return (
                   <span
@@ -365,6 +368,8 @@ export function useSearchFilter<T>(
   return useMemo(() => {
     // Ensure items is always an array
     let result = Array.isArray(options.items) ? options.items : [];
+    // Ensure status is always an array
+    const statusArray = Array.isArray(filters.status) ? filters.status : [];
 
     // Full-text search
     if (filters.search) {
@@ -375,9 +380,9 @@ export function useSearchFilter<T>(
     }
 
     // Status filter
-    if (filters.status.length > 0 && options.getStatus) {
+    if (statusArray.length > 0 && options.getStatus) {
       result = result.filter(item =>
-        filters.status.includes(options.getStatus!(item))
+        statusArray.includes(options.getStatus!(item))
       );
     }
 

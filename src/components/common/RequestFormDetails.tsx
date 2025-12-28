@@ -66,7 +66,7 @@ export const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({
       document.removeEventListener('mousedown', handleOutside);
       document.removeEventListener('keydown', handleKey);
     };
-  }, []);
+  }, [expandedDocs]);
 
   const handleToggleDocs = () => {
     setExpandedDocs(!expandedDocs);

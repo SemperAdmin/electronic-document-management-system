@@ -392,10 +392,11 @@ export default function CommandDashboard() {
       : type === 'Endorsed' ? 'Endorsed by Commander'
       : 'Rejected by Commander — requires action'
 
+    // All commander decisions route back to BATTALION_REVIEW
+    // Battalion staff then handles next steps: archive, return to company, send externally, etc.
     const updated: Request = {
       ...r,
-      currentStage: type === 'Rejected' ? 'ARCHIVED' : 'BATTALION_REVIEW',
-      finalStatus: type === 'Rejected' ? 'Rejected' : r.finalStatus,
+      currentStage: 'BATTALION_REVIEW',
       routeSection: dest || r.routeSection || '',
       commanderApprovalDate: type === 'Approved' ? new Date().toISOString() : r.commanderApprovalDate,
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]

@@ -77,9 +77,16 @@ export default function HQMCApproverDashboard() {
     return approverBranches.includes(branch)
   }
 
+  // Check if request was approved by HQMC Approver
+  const isApproverApproved = (r: Request) => {
+    return (r.activity || []).some(a => /HQMC Approver Approved/i.test(String(a.action || '')))
+  }
+
   const inScope = useMemo(() => (Array.isArray(requests) ? requests : []).filter(isInMyScope), [requests, approverBranches])
-  const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== 'ARCHIVED'), [inScope])
-  const approved = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED'), [inScope])
+  // Pending: at HQMC_REVIEW and NOT yet approved by HQMC Approver
+  const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'HQMC_REVIEW' && !isApproverApproved(r)), [inScope])
+  // Approved: has been approved by HQMC Approver (history view - includes those still at HQMC_REVIEW awaiting section action, and archived)
+  const approved = useMemo(() => inScope.filter(r => isApproverApproved(r)), [inScope])
 
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
 
@@ -102,8 +109,9 @@ export default function HQMCApproverDashboard() {
 
   const approveRequest = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Approver'
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'HQMC Approver Approved', comment: (comments[r.id] || '').trim() }
-    const updated: Request = { ...r, currentStage: 'ARCHIVED', activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
+    const entry = { actor, timestamp: new Date().toISOString(), action: 'HQMC Approver Approved - Pending HQMC Section Action', comment: (comments[r.id] || '').trim() }
+    // Stay at HQMC_REVIEW so HQMC Section can take further action (return or reassign)
+    const updated: Request = { ...r, currentStage: 'HQMC_REVIEW', activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
     try { await upsertRequest(updated as any) } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))

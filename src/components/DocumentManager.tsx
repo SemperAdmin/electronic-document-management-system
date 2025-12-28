@@ -555,6 +555,37 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
   const usersByIdMap = useMemo(() => users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {}), [users]);
 
+  // Get friendly status label for a request
+  const getStatusLabel = useCallback((r: Request): { level: string; scope: string } => {
+    const stage = r.currentStage || 'PLATOON_REVIEW';
+    const originator = users.find(u => u.id === r.uploadedById);
+
+    if (stage === 'ORIGINATOR_REVIEW') {
+      return { level: 'Member', scope: '' };
+    }
+    if (stage === 'PLATOON_REVIEW') {
+      const c = originator?.company && originator.company !== 'N/A' ? originator.company : '';
+      const p = originator?.platoon && originator.platoon !== 'N/A' ? originator.platoon : '';
+      if (c && p) return { level: 'Platoon', scope: `(${c}-${p})` };
+      if (c) return { level: 'Platoon', scope: `(${c})` };
+      return { level: 'Platoon', scope: '' };
+    }
+    if (stage === 'COMPANY_REVIEW') {
+      const c = originator?.company && originator.company !== 'N/A' ? originator.company : '';
+      return { level: 'Company', scope: c ? `(${c})` : '' };
+    }
+    if (stage === 'BATTALION_REVIEW') {
+      return { level: 'Battalion', scope: r.routeSection ? `(${r.routeSection})` : '' };
+    }
+    if (stage === 'COMMANDER_REVIEW') {
+      return { level: 'Commander', scope: r.routeSection ? `(${r.routeSection})` : '' };
+    }
+    if (stage === 'ARCHIVED') {
+      return { level: 'Archived', scope: '' };
+    }
+    return { level: formatStageLabel(r), scope: '' };
+  }, [users]);
+
   return (
     <div className="bg-[var(--surface)] rounded-lg shadow">
       <div className="p-6 border-b border-gray-200">
@@ -812,9 +843,15 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                   <input type="date" value={editRequestDueDate} onChange={(e) => setEditRequestDueDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
-              {selectedRequest.currentStage && (
-                <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{selectedRequest.currentStage}</span>
-              )}
+              {selectedRequest.currentStage && (() => {
+                const { level, scope } = getStatusLabel(selectedRequest);
+                return (
+                  <span className="inline-flex flex-col items-center px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-lg border border-brand-navy/30 leading-tight">
+                    <span>{level}</span>
+                    {scope && <span className="text-[10px]">{scope}</span>}
+                  </span>
+                );
+              })()}
               <div>
                 <label className="block text-sm font-medium text-[var(--text)] mb-1">Notes</label>
                 <textarea rows={3} value={editRequestNotes} onChange={(e) => setEditRequestNotes(e.target.value)} className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold" />

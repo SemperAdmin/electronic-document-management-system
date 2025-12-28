@@ -355,7 +355,19 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                       {isSkeleton ? <span className="inline-block w-40 h-4 bg-gray-100 animate-pulse rounded" /> : r.subject}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
-                      {isSkeleton ? <span className="inline-block w-24 h-5 bg-gray-100 animate-pulse rounded" /> : <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{getStatusLabel(r)}</span>}
+                      {isSkeleton ? <span className="inline-block w-24 h-5 bg-gray-100 animate-pulse rounded" /> : (() => {
+                        const label = getStatusLabel(r);
+                        const match = label.match(/^(.+?)\s*(\([^)]+\))$/);
+                        if (match) {
+                          return (
+                            <span className="inline-flex flex-col items-center px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-lg border border-brand-navy/30 leading-tight">
+                              <span>{match[1]}</span>
+                              <span className="text-[10px]">{match[2]}</span>
+                            </span>
+                          );
+                        }
+                        return <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{label}</span>;
+                      })()}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
                       {isSkeleton ? <span className="inline-block w-28 h-4 bg-gray-100 animate-pulse rounded" /> : (isInstallation ? getUnitWithName(r) : getCurrentUnit(r))}

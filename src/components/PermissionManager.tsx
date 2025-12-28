@@ -27,6 +27,7 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
   }, [currentUser])
 
   const eligibleUsers = useMemo(() => {
+    if (!Array.isArray(users)) return []
     const scopeFilter = (u: UserRecord) => {
       const cuic = currentUser.unitUic || ''
       const role = String(currentUser.role || '')
@@ -51,6 +52,7 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
   }, [users, currentUser])
 
   const currentAccess = useMemo(() => {
+    if (!Array.isArray(users)) return []
     const role = String(currentUser.role || '')
     const scopeFilter = (u: UserRecord) => {
       const cuic = currentUser.unitUic || ''
@@ -78,7 +80,7 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
     try {
       setBusy(true)
       setError('')
-      const target = users.find(u => u.id === selectedUserId)
+      const target = Array.isArray(users) ? users.find(u => u.id === selectedUserId) : undefined
     if (!canManage || !target) { setBusy(false); return }
     const role = String(currentUser.role || '')
     const next: UserRecord = { ...target }
@@ -147,7 +149,7 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
     try {
       setBusy(true)
       setError('')
-      const target = users.find(u => u.id === targetId)
+      const target = Array.isArray(users) ? users.find(u => u.id === targetId) : undefined
       if (!target) { setBusy(false); return }
       const role = String(currentUser.role || '')
       // ensure scope

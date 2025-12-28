@@ -60,6 +60,28 @@ const hasActivity = (r: Request, pattern: RegExp) => r.activity?.some(a => patte
 const isUnitApproved = (r: Request) => hasActivity(r, /(approved by commander|commander.*approved)/i) && !hasActivity(r, /installation commander/i)
 const isUnitEndorsed = (r: Request) => hasActivity(r, /(endorsed by commander|commander.*endorsed)/i) && !hasActivity(r, /installation commander/i)
 
+// Format role badge label with company/platoon context
+const formatRoleBadge = (user: UserRecord | null): string => {
+  if (!user) return 'MEMBER'
+  const role = String(user.role || 'MEMBER')
+  const company = (user.roleCompany || user.company || '').trim()
+  const platoon = (user.rolePlatoon || user.platoon || '').trim()
+
+  if (role === 'PLATOON_REVIEWER' && company && platoon) {
+    return `Platoon (${company}-${platoon})`
+  }
+  if (role === 'COMPANY_REVIEWER' && company) {
+    return `Company (${company})`
+  }
+  if (role === 'BATTALION_REVIEWER') {
+    return 'Battalion'
+  }
+  if (role === 'COMMANDER_REVIEWER') {
+    return 'Commander'
+  }
+  return role
+}
+
 export default function ReviewDashboard() {
   const toast = useToast()
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
@@ -415,7 +437,7 @@ export default function ReviewDashboard() {
           <div>
             <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
             <div className="mt-2 flex items-center gap-2">
-              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{String(currentUser?.role || 'MEMBER')}</span>
+              <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatRoleBadge(currentUser)}</span>
               <ExportButton
                 items={[...pending, ...inScopeOther]}
                 columns={exportColumns}

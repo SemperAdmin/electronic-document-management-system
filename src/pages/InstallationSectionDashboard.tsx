@@ -314,10 +314,16 @@ export default function InstallationSectionDashboard() {
     const actor = formatActorName(currentUser, 'Installation Section')
     const div = hqmcDivisionSel[r.id] || ''
     const branch = hqmcBranchSel[r.id] || ''
-    if (!div || !branch) { toast.warning('Select HQMC division and section'); return }
+    if (!div) { toast.warning('Select HQMC division'); return }
+    // Check if this division has any sections defined
+    const divisionHasSections = hqmcStructure.some(s => String(s.division_code || '') === div)
+    // If division has sections but none selected, require selection
+    if (divisionHasSections && !branch) { toast.warning('Select HQMC section'); return }
     const prevSec = r.routeSection || ''
-    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Submitted to HQMC: ${div} - ${branch}`, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: branch }
-    const updated: Request = { ...r, currentStage: 'HQMC_REVIEW', routeSection: branch, activity: [...(r.activity || []), entry] }
+    const targetSection = branch || div // Use division code as section if no branch
+    const actionText = branch ? `Submitted to HQMC: ${div} - ${branch}` : `Submitted to HQMC: ${div}`
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: targetSection }
+    const updated: Request = { ...r, currentStage: 'HQMC_REVIEW', routeSection: targetSection, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated as RequestRecord)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -569,27 +575,47 @@ export default function InstallationSectionDashboard() {
                     {/* Submit to HQMC Option */}
                     <div>
                       <label className="block text-sm font-medium text-[var(--muted)] mb-2">Submit to HQMC</label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm" value={hqmcDivisionSel[r.id] || ''} onChange={(e) => { setHqmcDivisionSel(prev => ({ ...prev, [r.id]: e.target.value })); setHqmcBranchSel(prev => ({ ...prev, [r.id]: '' })) }}>
-                          <option value="">Select HQMC Division</option>
-                          {hqmcDivisions.map(d => (<option key={d.code} value={d.code}>{d.code} — {d.name}</option>))}
-                        </select>
-                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed" value={hqmcBranchSel[r.id] || ''} onChange={(e) => setHqmcBranchSel(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!hqmcDivisionSel[r.id]}>
-                          <option value="">Select HQMC Section</option>
-                          {hqmcStructure.filter(s => String(s.division_code || '') === String(hqmcDivisionSel[r.id] || '')).map(s => (
-                            <option key={s.branch} value={s.branch}>{s.branch}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="mt-2">
-                        <button
-                          className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                          onClick={() => submitToHQMCFromInstSection(r)}
-                          disabled={!(hqmcDivisionSel[r.id] && hqmcBranchSel[r.id])}
-                        >
-                          Submit to HQMC
-                        </button>
-                      </div>
+                      {(() => {
+                        const selectedDiv = hqmcDivisionSel[r.id] || ''
+                        const divisionSections = hqmcStructure.filter(s => String(s.division_code || '') === selectedDiv)
+                        const hasSections = divisionSections.length > 0
+                        const canSubmit = selectedDiv && (hasSections ? !!hqmcBranchSel[r.id] : true)
+                        return (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm" value={selectedDiv} onChange={(e) => { setHqmcDivisionSel(prev => ({ ...prev, [r.id]: e.target.value })); setHqmcBranchSel(prev => ({ ...prev, [r.id]: '' })) }}>
+                                <option value="">Select HQMC Division</option>
+                                {hqmcDivisions.map(d => (<option key={d.code} value={d.code}>{d.code} — {d.name}</option>))}
+                              </select>
+                              {hasSections ? (
+                                <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed" value={hqmcBranchSel[r.id] || ''} onChange={(e) => setHqmcBranchSel(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!selectedDiv}>
+                                  <option value="">Select HQMC Section</option>
+                                  {divisionSections.map(s => (
+                                    <option key={s.branch} value={s.branch}>{s.branch}</option>
+                                  ))}
+                                </select>
+                              ) : selectedDiv ? (
+                                <div className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm bg-gray-100 text-gray-600 flex items-center">
+                                  No sections defined — submit to division
+                                </div>
+                              ) : (
+                                <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                  <option value="">Select HQMC Section</option>
+                                </select>
+                              )}
+                            </div>
+                            <div className="mt-2">
+                              <button
+                                className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                                onClick={() => submitToHQMCFromInstSection(r)}
+                                disabled={!canSubmit}
+                              >
+                                Submit to HQMC
+                              </button>
+                            </div>
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
                 </div>

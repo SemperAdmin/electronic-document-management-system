@@ -156,9 +156,6 @@ export default function SectionDashboard() {
       setPlatoonSectionMap(pMap)
       setUnitSections(secMap)
       setCommandSections(cmdMap)
-      console.log('SectionDashboard - loaded commandSections:', cmdMap)
-      console.log('SectionDashboard - current user UIC:', currentUser?.unitUic)
-      console.log('SectionDashboard - command sections for current user:', cmdMap[currentUser?.unitUic || ''])
     } catch {}
   }, [])
 
@@ -370,6 +367,12 @@ export default function SectionDashboard() {
     });
   }
 
+  // Check if request has been approved or endorsed by commander
+  const hasCommanderApproval = (r: Request): boolean => {
+    const lastCommanderAction = (r.activity || []).slice().reverse().find(a => /Commander/i.test(String(a.action || '')))
+    return !!lastCommanderAction && /(Approved|Endorsed)/i.test(String(lastCommanderAction.action || ''))
+  }
+
   const approveRequest = async (r: Request) => {
     const dest = selectedCmdSection[r.id] || 'COMMANDER'
     const actor = getActorDisplayName(currentUser) || 'Battalion'
@@ -382,7 +385,6 @@ export default function SectionDashboard() {
       routeSection: dest === 'COMMANDER' ? '' : dest,
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
     }
-    console.log('Approving request:', { id: r.id, dest, routeSection: updated.routeSection, currentStage: updated.currentStage })
     try {
       await upsertRequest({ ...updated, unitUic: r.unitUic || '' } as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
@@ -750,59 +752,40 @@ export default function SectionDashboard() {
                       </button>
                     </div>
 
-                    {(() => {
-                      const stage = r.currentStage || ''
-                      const isBattalion = stage === 'BATTALION_REVIEW'
-                      const lastCommanderAction = (r.activity || []).slice().reverse().find(a => /Commander/i.test(String(a.action || '')))
-                      const isApprovedOrEndorsed = !!lastCommanderAction && (/(Approved|Endorsed)/i.test(String(lastCommanderAction.action || '')))
-
-                      // Before commander approval: Show Approve and Return buttons
-                      if (isBattalion && !isApprovedOrEndorsed) {
-                        return (
-                          <div className="mt-3 flex items-center justify-end gap-2">
-                            <select
-                              value={selectedCmdSection[r.id] || 'COMMANDER'}
-                              onChange={e => {
-                                console.log('SectionDashboard - Command section selected:', e.target.value, 'for request:', r.id)
-                                setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))
-                              }}
-                              className="px-3 py-2 border border-brand-navy/30 rounded-lg"
-                            >
-                              <option value="COMMANDER">Commander</option>
-                              {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                            <button
-                              className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                              onClick={() => approveRequest(r)}
-                            >
-                              Approve
-                            </button>
-                            <button
-                              className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                              onClick={() => rejectRequest(r)}
-                            >
-                              Return
-                            </button>
-                          </div>
-                        )
-                      }
-
-                      // After commander approval: Show Archive button
-                      if (isBattalion && isApprovedOrEndorsed) {
-                        return (
-                          <div className="mt-3 flex items-center justify-end gap-2">
-                            <button
-                              className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                              onClick={() => archiveRequest(r)}
-                            >
-                              Archive
-                            </button>
-                          </div>
-                        )
-                      }
-
-                      return null
-                    })()}
+                    {r.currentStage === 'BATTALION_REVIEW' && !hasCommanderApproval(r) && (
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <select
+                          value={selectedCmdSection[r.id] || 'COMMANDER'}
+                          onChange={e => setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))}
+                          className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                        >
+                          <option value="COMMANDER">Commander</option>
+                          {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <button
+                          className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => approveRequest(r)}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => rejectRequest(r)}
+                        >
+                          Return
+                        </button>
+                      </div>
+                    )}
+                    {r.currentStage === 'BATTALION_REVIEW' && hasCommanderApproval(r) && (
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <button
+                          className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => archiveRequest(r)}
+                        >
+                          Archive
+                        </button>
+                      </div>
+                    )}
                     {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
                     <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
                       <label className="block text-sm font-medium text-[var(--text)] mb-2">Send Options</label>

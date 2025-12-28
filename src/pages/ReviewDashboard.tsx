@@ -430,7 +430,7 @@ export default function ReviewDashboard() {
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-semibold text-[var(--text)]">Review Dashboard</h2>
+            <h2 className="text-xl font-semibold text-[var(--text)]">Unit Review Dashboard</h2>
             <div className="mt-2 flex items-center gap-2">
               <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{formatRoleBadge(currentUser)}</span>
               <ExportButton

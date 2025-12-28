@@ -159,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                     <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('command'); setDashOpen(false) }}>Unit Command Dashboard</button>
                   )}
                   {(String(currentUser?.role || '').includes('REVIEW')) && (
-                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('review'); setDashOpen(false) }}>Review Dashboard</button>
+                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('review'); setDashOpen(false) }}>Unit Review Dashboard</button>
                   )}
                 </div>
                 <div className="my-2 border-t border-brand-navy/20" />

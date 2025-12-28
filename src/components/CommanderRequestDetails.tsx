@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Request, DocumentItem } from '../types';
-import { DocumentList } from '@/components/common';
+import { DocumentList, DocumentPreview } from '@/components/common';
 
 interface CommanderRequestDetailsProps {
   r: Request;
@@ -43,7 +43,9 @@ const CommanderRequestDetails: React.FC<CommanderRequestDetailsProps> = ({
   expandedLogs,
   setExpandedLogs,
 }) => {
+  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const isCommandSectionSelected = selectedCommandSection[r.id] && selectedCommandSection[r.id] !== 'NONE';
+  const requestDocs = docsFor(r.id);
 
   const handleToggleDocs = () => {
     const isExpanded = !!expandedDocs[r.id];
@@ -70,7 +72,11 @@ const CommanderRequestDetails: React.FC<CommanderRequestDetailsProps> = ({
         ref={expandedDocs[r.id] ? docsRef : undefined}
         className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
       >
-        <DocumentList documents={docsFor(r.id)} />
+        <DocumentList
+          documents={requestDocs.map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+          showIcons
+          onPreview={(doc) => setPreviewDoc(requestDocs.find(d => d.id === doc.id) || null)}
+        />
       </div>
       <div className="mt-3">
         <label className="block text-sm font-medium text-[var(--text)] mb-1">Reviewer Comment</label>
@@ -177,6 +183,18 @@ const CommanderRequestDetails: React.FC<CommanderRequestDetailsProps> = ({
           )}
         </div>
       </div>
+
+      {/* Document Preview Modal */}
+      {previewDoc && (
+        <DocumentPreview
+          fileName={previewDoc.name}
+          url={(previewDoc as any).fileUrl || ''}
+          mimeType={(previewDoc as any).type || ''}
+          fileSize={(previewDoc as any).size || 0}
+          isOpen={!!previewDoc}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
     </div>
   );
 };

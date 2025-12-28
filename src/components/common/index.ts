@@ -16,3 +16,5 @@ export { ExportButton, generateCsv, generateJson, downloadFile, dateFormatter, d
 export type { ExportColumn, ExportButtonProps } from './ExportButton';
 export { DocumentListItem, DocumentList } from './DocumentListItem';
 export type { DocumentListItemProps, DocumentListProps, DocumentListItemData } from './DocumentListItem';
+export { RequestFormDetails, RequestFormCompact } from './RequestFormDetails';
+export type { RequestFormDetailsProps, RequestFormCompactProps } from './RequestFormDetails';

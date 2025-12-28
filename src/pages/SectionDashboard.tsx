@@ -8,6 +8,7 @@ import { Request, Installation, UserRecord } from '../types'
 import { normalizeString, hasReviewer } from '../lib/reviewers';
 import { DocumentList } from '@/components/common';
 import { formatActorName } from '@/lib/utils';
+import { canArchiveAtLevel, isUnitApproved, isUnitEndorsed } from '@/lib/stage';
 
 const DEFAULT_EXTERNAL_STAGE = 'REVIEW';
 
@@ -771,7 +772,7 @@ export default function SectionDashboard() {
                         </button>
                       </div>
                     )}
-                    {r.currentStage === 'BATTALION_REVIEW' && hasCommanderApproval(r) && (
+                    {canArchiveAtLevel(r, { userLevel: 'unit', userUnitUic: currentUser?.unitUic }) && (
                       <div className="mt-3 flex items-center justify-end gap-2">
                         <button
                           className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"

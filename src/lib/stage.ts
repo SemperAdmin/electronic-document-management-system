@@ -61,3 +61,117 @@ export function originatorArchiveOnly(r: { currentStage?: string; uploadedById?:
   const s = String(r.currentStage || '')
   return s === Stage.ORIGINATOR_REVIEW && (isUnitApproved(r) || isUnitEndorsed(r))
 }
+
+// Check if installation commander approved
+export function isInstallationApproved(r: { activity?: Array<{ action: string; timestamp?: string }> }): boolean {
+  return hasActivity(r, /installation commander.*approved/i)
+}
+
+// Check if installation commander endorsed
+export function isInstallationEndorsed(r: { activity?: Array<{ action: string; timestamp?: string }> }): boolean {
+  return hasActivity(r, /installation commander.*endorsed/i)
+}
+
+// Check if HQMC approved
+export function isHQMCApproved(r: { activity?: Array<{ action: string; timestamp?: string }> }): boolean {
+  return hasActivity(r, /(hqmc.*approved|approved.*hqmc)/i)
+}
+
+// Check if battalion has taken action after unit commander approval
+export function hasBattalionActionPostApproval(r: { activity?: Array<{ action: string; timestamp?: string }> }): boolean {
+  const activities = r.activity || []
+  let foundCommanderApproval = false
+
+  for (const a of activities) {
+    const action = String(a.action || '').toLowerCase()
+
+    // Check for commander approval/endorsement (unit level)
+    if (/(approved|endorsed) by commander/i.test(action) && !/installation commander/i.test(action)) {
+      foundCommanderApproval = true
+    }
+
+    // After commander approval, check if battalion took any action
+    if (foundCommanderApproval) {
+      if (/battalion/i.test(action) && /(archived|sent|routed|assigned)/i.test(action)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+// Determine if delete is allowed - only before battalion takes action post-approval
+export function canDeleteRequest(
+  r: { currentStage?: string; uploadedById?: string; activity?: Array<{ action: string; timestamp?: string }> },
+  requesterId: string
+): boolean {
+  const owner = String(r.uploadedById || '') === String(requesterId || '')
+  if (!owner) return false
+
+  // Cannot delete if unit commander has approved and battalion has taken action
+  if ((isUnitApproved(r) || isUnitEndorsed(r)) && hasBattalionActionPostApproval(r)) {
+    return false
+  }
+
+  // Cannot delete if archived
+  const s = String(r.currentStage || '')
+  if (s === Stage.ARCHIVED) return false
+
+  return true
+}
+
+// Determine who can archive based on approval level scope
+export interface ArchiveContext {
+  userLevel: 'originator' | 'unit' | 'installation' | 'hqmc' | 'external';
+  userUnitUic?: string;
+  userInstallationId?: string;
+}
+
+export function canArchiveAtLevel(
+  r: {
+    currentStage?: string;
+    uploadedById?: string;
+    unitUic?: string;
+    installationId?: string;
+    activity?: Array<{ action: string; timestamp?: string }>;
+  },
+  context: ArchiveContext
+): boolean {
+  const stage = String(r.currentStage || '')
+
+  // Already archived
+  if (stage === Stage.ARCHIVED) return false
+
+  switch (context.userLevel) {
+    case 'originator':
+      // Originator can archive when in ORIGINATOR_REVIEW and approved/endorsed
+      return stage === Stage.ORIGINATOR_REVIEW && (isUnitApproved(r) || isUnitEndorsed(r))
+
+    case 'unit':
+      // Unit command (battalion) can archive after unit commander approval
+      // Must be in BATTALION_REVIEW and commander approved/endorsed
+      if (stage !== Stage.BATTALION_REVIEW) return false
+      if (!isUnitApproved(r) && !isUnitEndorsed(r)) return false
+      // Check unit scope
+      return context.userUnitUic === r.unitUic
+
+    case 'installation':
+      // Installation can archive after installation commander approval
+      if (!isInstallationApproved(r) && !isInstallationEndorsed(r)) return false
+      // Check installation scope
+      return context.userInstallationId === r.installationId
+
+    case 'hqmc':
+      // HQMC can archive after HQMC approval
+      return isHQMCApproved(r)
+
+    case 'external':
+      // External unit cannot archive until their command approves
+      // This would need the external unit's commander to approve
+      return false
+
+    default:
+      return false
+  }
+}

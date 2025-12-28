@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Request, UserRecord } from '@/types';
 import { Document, FeedbackMessage } from './types';
 import { DocCard } from './DocCard';
-import { originatorArchiveOnly } from '@/lib/stage';
+import { originatorArchiveOnly, canDeleteRequest } from '@/lib/stage';
 import { validateFile, MAX_FILES_PER_UPLOAD } from '@/lib/validation';
 
 interface RequestDetailsModalProps {
@@ -244,7 +244,7 @@ export const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
             </button>
           )}
 
-          {isOwner && (
+          {canDeleteRequest(request, String(currentUser?.id || '')) && (
             <button
               className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
               onClick={onDelete}

@@ -542,8 +542,12 @@ export default function CommandDashboard() {
                       {(r: Request) => (
                         <CommandSectionRequestDetails
                           r={r}
+                          docsFor={docsFor}
                           comments={comments}
                           setComments={setComments}
+                          attach={attach}
+                          setAttach={setAttach}
+                          addFilesToRequest={addFilesToRequest}
                           approveToCommander={approveToCommander}
                           commandSectionReturn={commandSectionReturn}
                         />

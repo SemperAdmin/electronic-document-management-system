@@ -124,6 +124,47 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
   };
 
+  const resubmitRequest = async () => {
+    if (!selectedRequest || !currentUser?.id || selectedRequest.uploadedById !== currentUser.id) return;
+
+    // Determine which stage to route to based on available reviewers
+    const originator = users.find(u => u.id === selectedRequest.uploadedById);
+    const originUnitUic = selectedRequest.unitUic || originator?.unitUic || '';
+    const originCompany = normalizeString(originator?.company);
+    const originPlatoon = normalizeString(originator?.platoon);
+
+    const hasPlatoonReviewer = hasReviewer(users, 'PLATOON_REVIEWER', { company: originCompany, platoon: originPlatoon, uic: originUnitUic });
+    const hasCompanyReviewer = hasReviewer(users, 'COMPANY_REVIEWER', { company: originCompany, uic: originUnitUic });
+
+    const targetStage = hasPlatoonReviewer ? Stage.PLATOON_REVIEW : hasCompanyReviewer ? Stage.COMPANY_REVIEW : Stage.BATTALION_REVIEW;
+
+    const entry = {
+      actor: `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`,
+      actorRole: 'Member',
+      timestamp: new Date().toISOString(),
+      action: 'Resubmitted request',
+      comment: (editRequestNotes || '').trim()
+    };
+
+    const updated: Request = {
+      ...selectedRequest,
+      currentStage: targetStage,
+      routeSection: '', // Clear any routing section
+      activity: [...(selectedRequest.activity || []), entry]
+    };
+
+    try {
+      const resReq = await upsertRequest(updated as unknown as RequestRecord);
+      if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
+      setUserRequests(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+      setSelectedRequest(updated);
+      setEditRequestNotes('');
+      setFeedback({ type: 'success', message: 'Request resubmitted for review.' });
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: `Failed to resubmit: ${String(e?.message || e)}` });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
@@ -921,6 +962,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                 <button className="px-4 py-2 rounded-lg bg-brand-gold text-brand-charcoal hover:brightness-110" onClick={archiveByOriginator}>Archive</button>
               ) : (
                 <button className="px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits} disabled={!currentUser || currentUser.id !== (selectedRequest?.uploadedById || '')}>Save Changes</button>
+              )}
+              {currentUser && isReturnedReq(selectedRequest) && currentUser.id === selectedRequest.uploadedById && (
+                <button className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700" onClick={resubmitRequest}>Resubmit</button>
               )}
               {currentUser && canDeleteRequest(selectedRequest as any, String(currentUser?.id || '')) && (
                 <button className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700" onClick={() => deleteRequest(selectedRequest!)}>Delete Request</button>

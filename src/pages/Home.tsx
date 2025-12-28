@@ -125,8 +125,9 @@ function HomeContent() {
     }
   }, [currentUser, hasSectionDashboard, hasCommandDashboard, hasInstallationSectionDashboard, hasInstallationCommandDashboard, hasHQMCSectionDashboard, hasHQMCApproverDashboard]);
 
-  // Refresh currentUser from Supabase to pick up new privileges (e.g., installation admin)
-  // Preserve local admin flags if server returns null/false (prevents data loss if DB is cleared)
+  // Refresh currentUser from Supabase to pick up new privileges or revocations
+  // Only preserve local values if server returns null/undefined (database issue)
+  // If server explicitly returns false, trust it (intentional revocation)
   useEffect(() => {
     let canceled = false;
     (async () => {
@@ -135,18 +136,29 @@ function HomeContent() {
         if (!id) return;
         const fresh = await getUserByIdLegacy(id);
         if (fresh && !canceled) {
-          // Merge: prefer server values, but preserve local admin flags if server returns falsy
+          // Helper: use server value if defined, otherwise fall back to local
+          const mergeFlag = (serverVal: boolean | undefined | null, localVal: boolean | undefined): boolean => {
+            // If server explicitly returns true or false, trust it
+            if (serverVal === true || serverVal === false) return serverVal;
+            // If server returns null/undefined, preserve local value (possible DB issue)
+            return localVal || false;
+          };
+          const mergeId = (serverVal: string | undefined | null, localVal: string | undefined): string | undefined => {
+            // If server has a value (even empty string means intentionally cleared), use it
+            if (serverVal !== undefined && serverVal !== null) return serverVal || undefined;
+            // If server returns null/undefined, preserve local value
+            return localVal;
+          };
+
           const merged: UserRecord = {
             ...fresh,
-            // Preserve admin flags if local has them but server doesn't
-            isAppAdmin: fresh.isAppAdmin || currentUser?.isAppAdmin || false,
-            isUnitAdmin: fresh.isUnitAdmin || currentUser?.isUnitAdmin || false,
-            isInstallationAdmin: fresh.isInstallationAdmin || currentUser?.isInstallationAdmin || false,
-            isHqmcAdmin: fresh.isHqmcAdmin || currentUser?.isHqmcAdmin || false,
-            isCommandStaff: fresh.isCommandStaff || currentUser?.isCommandStaff || false,
-            // Preserve IDs if local has them but server doesn't
-            installationId: fresh.installationId || currentUser?.installationId,
-            hqmcDivision: fresh.hqmcDivision || currentUser?.hqmcDivision,
+            isAppAdmin: mergeFlag(fresh.isAppAdmin, currentUser?.isAppAdmin),
+            isUnitAdmin: mergeFlag(fresh.isUnitAdmin, currentUser?.isUnitAdmin),
+            isInstallationAdmin: mergeFlag(fresh.isInstallationAdmin, currentUser?.isInstallationAdmin),
+            isHqmcAdmin: mergeFlag(fresh.isHqmcAdmin, currentUser?.isHqmcAdmin),
+            isCommandStaff: mergeFlag(fresh.isCommandStaff, currentUser?.isCommandStaff),
+            installationId: mergeId(fresh.installationId, currentUser?.installationId),
+            hqmcDivision: mergeId(fresh.hqmcDivision, currentUser?.hqmcDivision),
           };
           setCurrentUser(merged);
           localStorage.setItem('currentUser', JSON.stringify(merged));
@@ -176,26 +188,39 @@ function HomeContent() {
     })();
   }, []);
 
+  // Compute dashboard permissions - update based on actual access, preserve cache only on fetch errors
   useEffect(() => {
+    if (!currentUser) return;
+
+    // Section dashboard - based on unit structure platoon-section mapping
     try {
       const rawUS = localStorage.getItem('unit_structure')
-      if (!currentUser || !rawUS) { setHasSectionDashboard(false); return }
-      const us = JSON.parse(rawUS)
-      const uic = currentUser?.unitUic || ''
-      const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
-      const p = (currentUser?.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
-      const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || ''
-      setHasSectionDashboard(!!linked)
+      if (rawUS) {
+        const us = JSON.parse(rawUS)
+        const uic = currentUser?.unitUic || ''
+        const c = (currentUser?.company && currentUser.company !== 'N/A') ? currentUser.company : ''
+        const p = (currentUser?.platoon && currentUser.platoon !== 'N/A') ? currentUser.platoon : ''
+        const linked = us?.[uic]?._platoonSectionMap?.[c]?.[p] || ''
+        setHasSectionDashboard(!!linked)
+      }
     } catch (e) {
       console.error('Failed to parse unit structure for section dashboard check', e)
-      setHasSectionDashboard(false)
+      // On error, keep cached value
     }
-    const isCmd = currentUser?.isCommandStaff;
-    setHasCommandDashboard(!!isCmd);
-    (async () => {
+
+    // Command dashboard - based on command staff flag
+    setHasCommandDashboard(!!currentUser?.isCommandStaff)
+
+    // Installation dashboards - async fetch
+    ;(async () => {
       try {
         const iid = currentUser?.installationId || ''
-        if (!iid) { setHasInstallationSectionDashboard(false); setHasInstallationCommandDashboard(false); return }
+        if (!iid) {
+          // No installation ID = no installation dashboard access
+          setHasInstallationSectionDashboard(false)
+          setHasInstallationCommandDashboard(false)
+          return
+        }
         const installs = await listInstallationsLegacy()
         try { localStorage.setItem('installations_cache', JSON.stringify(installs)) } catch {}
         const target: any = (installs as any[])?.find((i: any) => i.id === iid)
@@ -205,25 +230,36 @@ function HomeContent() {
           (target.commandSectionAssignments && Object.values(target.commandSectionAssignments).some((arr: any) => Array.isArray(arr) && arr.includes(meId))) ||
           (target.commanderUserId && String(target.commanderUserId) === meId)
         ))
+        // Update based on actual access (handles both grant and revocation)
         setHasInstallationSectionDashboard(hasInstSection)
         setHasInstallationCommandDashboard(hasInstCommand)
       } catch {
-        setHasInstallationSectionDashboard(false)
-        setHasInstallationCommandDashboard(false)
+        // On network/fetch error, keep cached values
       }
     })()
+
+    // HQMC dashboards - async fetch
     ;(async () => {
       try {
         const myDiv = String(currentUser?.hqmcDivision || '')
         const meId = String(currentUser?.id || '')
-        if (!myDiv || !meId) { setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin); return }
+        if (!myDiv || !meId) {
+          // No division = only HQMC admin has access
+          setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin)
+          setHasHQMCApproverDashboard(false)
+          return
+        }
         const { listHQMCSectionAssignmentsLegacy } = await import('../lib/db')
         const rows = await listHQMCSectionAssignmentsLegacy()
-        const any = rows.some(r => r.division_code === myDiv && ((r.reviewers || []).includes(meId) || (r.approvers || []).includes(meId)))
-        setHasHQMCSectionDashboard(any || !!currentUser?.isHqmcAdmin)
+        const hasSection = rows.some(r => r.division_code === myDiv && ((r.reviewers || []).includes(meId) || (r.approvers || []).includes(meId)))
         const isApprover = rows.some(r => r.division_code === myDiv && (r.approvers || []).includes(meId))
+        // Update based on actual access (HQMC admin always has section access)
+        setHasHQMCSectionDashboard(hasSection || !!currentUser?.isHqmcAdmin)
         setHasHQMCApproverDashboard(isApprover)
-      } catch { setHasHQMCSectionDashboard(!!currentUser?.isHqmcAdmin) }
+      } catch {
+        // On network/fetch error, preserve HQMC admin access if applicable
+        if (currentUser?.isHqmcAdmin) setHasHQMCSectionDashboard(true)
+      }
     })()
   }, [currentUser]);
 

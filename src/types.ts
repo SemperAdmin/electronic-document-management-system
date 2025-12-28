@@ -4,6 +4,10 @@ export interface ActionEntry {
   timestamp: string;
   action: string;
   comment?: string;
+  /** The section this action was routed from */
+  fromSection?: string;
+  /** The section this action is routing to */
+  toSection?: string;
 }
 
 export interface Request {

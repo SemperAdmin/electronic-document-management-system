@@ -3,6 +3,7 @@ import { loadUnitStructureFromBundle } from '@/lib/unitStructure'
 import { PermissionManager } from '../components/PermissionManager'
 import { listRequests, listDocuments, listUsers, upsertRequest, upsertDocuments } from '@/lib/db'
 import { UserRecord } from '@/types'
+import { normalizeString, hasReviewer } from '@/lib/reviewers'
 import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/Pagination'
 import RequestTable from '../components/RequestTable'
@@ -194,6 +195,25 @@ export default function ReviewDashboard() {
     if (role.includes('COMMANDER')) return 'COMMANDER_REVIEW'
     return 'PLATOON_REVIEW'
   }, [currentUser])
+
+  // Convert users map to array for hasReviewer checks
+  const usersArray = useMemo(() => Object.values(users) as UserRecord[], [users])
+
+  // Check if a company reviewer exists for a given request's originator
+  const hasCompanyReviewerFor = (r: Request): boolean => {
+    const o = users[r.uploadedById]
+    if (!o) return false
+    const originCompany = normalizeString(o.company)
+    const originUic = r.unitUic || o.unitUic || ''
+    return hasReviewer(usersArray, 'COMPANY_REVIEWER', { company: originCompany, uic: originUic })
+  }
+
+  // Check if platoon reviewer needs section selection (no company reviewer exists)
+  const platoonNeedsSectionSelect = (r: Request): boolean => {
+    const role = String(currentUser?.role || '')
+    if (!role.includes('PLATOON')) return false
+    return !hasCompanyReviewerFor(r)
+  }
 
   const formatStage = (r: Request) => {
     const stage = r.currentStage || 'PLATOON_REVIEW'
@@ -566,7 +586,7 @@ export default function ReviewDashboard() {
                     </button>
                   </div>
                   <div className="mt-3 flex items-center justify-end gap-2">
-                    {String(currentUser?.role || '').includes('COMPANY') && (
+                    {(String(currentUser?.role || '').includes('COMPANY') || platoonNeedsSectionSelect(r)) && (
                       <div className="flex items-center gap-2 mr-auto">
                         <label className="sr-only">Battalion Section</label>
                         <select
@@ -580,11 +600,15 @@ export default function ReviewDashboard() {
                             <option key={s} value={s}>{s}</option>
                           ))}
                         </select>
+                        {platoonNeedsSectionSelect(r) && (
+                          <span className="text-xs text-[var(--muted)]">No company reviewer</span>
+                        )}
                       </div>
                     )}
                     {(() => {
                       const unitApproved = isUnitApproved(r)
                       const unitEndorsed = isUnitEndorsed(r)
+                      const needsSectionForApproval = String(currentUser?.role || '').includes('COMPANY') || platoonNeedsSectionSelect(r)
                       if (unitApproved || unitEndorsed) {
                         // After commander approval, only return option - archive is handled at battalion level
                         return (
@@ -601,15 +625,14 @@ export default function ReviewDashboard() {
                           <button
                             className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
                             onClick={() => {
-                              const role = String(currentUser?.role || '')
-                              if (role.includes('COMPANY')) {
+                              if (needsSectionForApproval) {
                                 if (!selectedSection[r.id]) return
                                 updateRequest(r, 'BATTALION_REVIEW', `Approved and routed to ${selectedSection[r.id]}`)
                               } else {
                                 updateRequest(r, nextStage(r.currentStage), 'Approved')
                               }
                             }}
-                            disabled={String(currentUser?.role || '').includes('COMPANY') && !selectedSection[r.id]}
+                            disabled={needsSectionForApproval && !selectedSection[r.id]}
                           >
                             Approve
                           </button>

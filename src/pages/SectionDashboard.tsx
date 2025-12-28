@@ -751,60 +751,60 @@ export default function SectionDashboard() {
                       >
                         Save Files
                       </button>
-                      <div className="ml-auto flex items-center gap-2">
-                        <button
-                          className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                          onClick={() => rejectRequest(r)}
-                        >
-                          Return to Previous
-                        </button>
-                        <button
-                          className="px-3 py-1 text-xs rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2"
-                          onClick={() => archiveRequest(r)}
-                        >
-                          Archive
-                        </button>
-                      </div>
                     </div>
-                    
+
                     {(() => {
                       const stage = r.currentStage || ''
                       const isBattalion = stage === 'BATTALION_REVIEW'
                       const lastCommanderAction = (r.activity || []).slice().reverse().find(a => /Commander/i.test(String(a.action || '')))
                       const isApprovedOrEndorsed = !!lastCommanderAction && (/(Approved|Endorsed)/i.test(String(lastCommanderAction.action || '')))
-                      return (isBattalion && !isApprovedOrEndorsed) ? (
-                        <div className="mt-3 flex items-center justify-end gap-2">
-                          <select
-                            value={selectedCmdSection[r.id] || 'COMMANDER'}
-                            onChange={e => {
-                              console.log('SectionDashboard - Command section selected:', e.target.value, 'for request:', r.id)
-                              setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))
-                            }}
-                            className="px-3 py-2 border border-brand-navy/30 rounded-lg"
-                          >
-                            <option value="COMMANDER">Commander</option>
-                            {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => approveRequest(r)}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => rejectRequest(r)}
-                          >
-                            Return
-                          </button>
-                          <button
-                            className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                            onClick={() => archiveRequest(r)}
-                          >
-                            Archive
-                          </button>
-                        </div>
-                      ) : null
+
+                      // Before commander approval: Show Approve and Return buttons
+                      if (isBattalion && !isApprovedOrEndorsed) {
+                        return (
+                          <div className="mt-3 flex items-center justify-end gap-2">
+                            <select
+                              value={selectedCmdSection[r.id] || 'COMMANDER'}
+                              onChange={e => {
+                                console.log('SectionDashboard - Command section selected:', e.target.value, 'for request:', r.id)
+                                setSelectedCmdSection(prev => ({...prev, [r.id]: e.target.value}))
+                              }}
+                              className="px-3 py-2 border border-brand-navy/30 rounded-lg"
+                            >
+                              <option value="COMMANDER">Commander</option>
+                              {(commandSections[currentUser?.unitUic || ''] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <button
+                              className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                              onClick={() => approveRequest(r)}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                              onClick={() => rejectRequest(r)}
+                            >
+                              Return
+                            </button>
+                          </div>
+                        )
+                      }
+
+                      // After commander approval: Show Archive button
+                      if (isBattalion && isApprovedOrEndorsed) {
+                        return (
+                          <div className="mt-3 flex items-center justify-end gap-2">
+                            <button
+                              className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                              onClick={() => archiveRequest(r)}
+                            >
+                              Archive
+                            </button>
+                          </div>
+                        )
+                      }
+
+                      return null
                     })()}
                     {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
                     <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">

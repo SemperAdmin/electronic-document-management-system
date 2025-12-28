@@ -201,38 +201,37 @@ export default function InstallationCommandDashboard() {
       : type === 'Endorsed' ? 'Endorsed by Installation Commander'
       : 'Rejected by Installation Commander — requires action'
 
-    // Find the command section that submitted this request to commander
-    const prevCmdSec = getPreviousCommandSection(r)
+    // Find the installation section that originally routed this request
+    const prevInstSec = getPreviousInstallationSection(r)
 
     let updated: any = { ...r }
     const decisionEntry = { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
 
     if (type === 'Rejected') {
-      // Return to the command section that submitted it
+      // Return to the installation section that originally handled it
       updated = {
         ...r,
         currentStage: 'INSTALLATION_REVIEW',
         finalStatus: undefined,
-        routeSection: prevCmdSec,
-        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: prevCmdSec ? `Returned to command section: ${prevCmdSec}` : 'Returned for review' }]
+        routeSection: prevInstSec,
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: prevInstSec ? `Returned to installation section: ${prevInstSec}` : 'Returned for review' }]
       }
     } else if (type === 'Approved') {
-      // Approved - route to the selected command section for further action
-      const sec = selectedCmdCommander[r.id] || prevCmdSec
-      if (!sec.trim()) { alert('Select a command section to send to'); return }
+      // Approved - route to the installation section for further action
+      const sec = prevInstSec
       updated = {
         ...r,
         currentStage: 'INSTALLATION_REVIEW',
         routeSection: sec,
-        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: `Sent to command section: ${sec}` }]
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: sec ? `Sent to installation section: ${sec}` : 'Sent for further routing' }]
       }
     } else {
-      // Endorsed - return to the command section that submitted it for further routing
+      // Endorsed - return to the installation section for further routing
       updated = {
         ...r,
         currentStage: 'INSTALLATION_REVIEW',
-        routeSection: prevCmdSec,
-        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: prevCmdSec ? `Sent to command section: ${prevCmdSec}` : 'Sent for further routing' }]
+        routeSection: prevInstSec,
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: prevInstSec ? `Sent to installation section: ${prevInstSec}` : 'Sent for further routing' }]
       }
     }
 
@@ -299,37 +298,32 @@ export default function InstallationCommandDashboard() {
     return ''
   }
 
-  // Find the command section that sent the request to the commander
-  const getPreviousCommandSection = (r: Request) => {
+  // Find the installation section that originally routed the request (before it went to command section)
+  const getPreviousInstallationSection = (r: Request) => {
     const acts = (r.activity || []).slice().reverse()
-    let foundSentToCommander = false
     for (const a of acts) {
       const s = String(a.action || '')
-      // Find "Sent to Installation Commander", then look for the command section before it
-      if (/Sent to Installation Commander/i.test(s)) {
-        foundSentToCommander = true
-        continue
-      }
-      if (foundSentToCommander) {
-        // Look for "Approved and routed to Installation Command: S-1 (from SSEC)"
-        const m1 = s.match(/Approved and routed to Installation Command:\s*([^\(]+)/i)
-        if (m1) return m1[1].trim()
-        // Or "Sent to installation command section: S-1"
-        const m2 = s.match(/Sent to installation command section:\s*(.+)/i)
-        if (m2) return m2[1].trim()
-        // Or "Reassigned to command section: S-1 (from XO)"
-        const m3 = s.match(/Reassigned to command section:\s*([^\(]+)/i)
-        if (m3) return m3[1].trim()
-      }
-    }
-    // Fallback: look for any command section pattern if not found after "Sent to Commander"
-    for (const a of acts) {
-      const s = String(a.action || '')
-      const m1 = s.match(/Approved and routed to Installation Command:\s*([^\(]+)/i)
+      // Look for "Approved and routed to Installation Command: S-1 (from SSEC)" - extract SSEC
+      const m1 = s.match(/Approved and routed to Installation Command:[^(]+\(from\s+([^)]+)\)/i)
       if (m1) return m1[1].trim()
-      const m2 = s.match(/Sent to installation command section:\s*(.+)/i)
+      // Or "Reassigned to installation section: SSEC"
+      const m2 = s.match(/Reassigned to installation section:\s*([^\(]+)/i)
       if (m2) return m2[1].trim()
-      const m3 = s.match(/Reassigned to command section:\s*([^\(]+)/i)
+      // Or "Sent to command section: S-1 (from SSEC)"
+      const m3 = s.match(/Sent to command section:[^(]+\(from\s+([^)]+)\)/i)
+      if (m3) return m3[1].trim()
+    }
+    // Fallback: look for any installation section routing pattern
+    for (const a of acts) {
+      const s = String(a.action || '')
+      // "Routed to installation section: SSEC"
+      const m1 = s.match(/Routed to installation section:\s*(.+)/i)
+      if (m1) return m1[1].trim()
+      // "Sent to installation section: SSEC"
+      const m2 = s.match(/Sent to installation section:\s*(.+)/i)
+      if (m2) return m2[1].trim()
+      // "Restored to installation section: SSEC"
+      const m3 = s.match(/Restored to installation section:\s*(.+)/i)
       if (m3) return m3[1].trim()
     }
     return ''

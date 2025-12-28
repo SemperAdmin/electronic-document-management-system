@@ -35,7 +35,6 @@ export default function InstallationSectionDashboard() {
   const [hqmcStructure, setHqmcStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
   const [hqmcDivisionSel, setHqmcDivisionSel] = useState<Record<string, string>>({})
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
-  const [readdressHQMCInst, setReaddressHQMCInst] = useState<Record<string, boolean>>({})
   const [permOpen, setPermOpen] = useState(false)
   const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null)
   const [reassignSection, setReassignSection] = useState<Record<string, string>>({})
@@ -278,58 +277,53 @@ export default function InstallationSectionDashboard() {
     setExternalSection(prev => ({ ...prev, [requestId]: '' }))
   }
 
-  const sendOutFromInstSection = async (r: Request) => {
+  const sendToExternalFromInstSection = async (r: Request) => {
     const actor = formatActorName(currentUser, 'Installation Section')
-    let updated: any = { ...r }
-    if (readdressHQMCInst[r.id]) {
-      const div = hqmcDivisionSel[r.id] || ''
-      const branch = hqmcBranchSel[r.id] || ''
-      if (!div || !branch) { alert('Select HQMC division and section'); return }
-      const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to HQMC: ${div} - ${branch}`, comment: (comments[r.id] || '').trim() }
-      updated = { ...r, currentStage: 'HQMC_REVIEW', routeSection: branch, activity: [...(r.activity || []), entry] }
-    } else if (sendToExternalInst[r.id]) {
-      const extUic = externalUnitUic[r.id] || ''
-      const extUnitName = externalUnit[r.id] || ''
-      const extSec = externalSection[r.id] || ''
-      if (!extUic.trim()) { alert('Please select an external unit'); return }
-      const entry = { actor, timestamp: new Date().toISOString(), action: extSec ? `Sent to external unit: ${extUnitName} - ${extSec}` : `Sent to external unit: ${extUnitName}`, comment: (comments[r.id] || '').trim() }
-      updated = {
-        ...r,
-        currentStage: 'EXTERNAL_REVIEW',
-        externalPendingUnitName: extUnitName,
-        externalPendingUnitUic: extUic,
-        externalPendingStage: extSec || undefined,
-        routeSection: extSec || '',
-        activity: [...(r.activity || []), entry]
-      }
-    } else {
-      alert('Select an option: External Unit or Submit to HQMC')
-      return
+    const extUic = externalUnitUic[r.id] || ''
+    const extUnitName = externalUnit[r.id] || ''
+    const extSec = externalSection[r.id] || ''
+    if (!extUic.trim()) { alert('Please select an external unit'); return }
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: extSec ? `Sent to external unit: ${extUnitName} - ${extSec}` : `Sent to external unit: ${extUnitName}`, comment: (comments[r.id] || '').trim() }
+    const updated: Request = {
+      ...r,
+      currentStage: 'EXTERNAL_REVIEW',
+      externalPendingUnitName: extUnitName,
+      externalPendingUnitUic: extUic,
+      externalPendingStage: extSec || undefined,
+      routeSection: extSec || '',
+      activity: [...(r.activity || []), entry]
     }
     try {
-      await upsertRequest(updated)
+      await upsertRequest(updated as RequestRecord)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
       setComments(prev => ({ ...prev, [r.id]: '' }))
       setSendToExternalInst(prev => ({ ...prev, [r.id]: false }))
-      setReaddressHQMCInst(prev => ({ ...prev, [r.id]: false }))
+      setExternalUnitUic(prev => ({ ...prev, [r.id]: '' }))
+      setExternalUnit(prev => ({ ...prev, [r.id]: '' }))
+      setExternalSection(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
-      console.error('InstallationSectionDashboard - Failed to route:', e)
-      alert('Failed to route')
+      console.error('Failed to send to external unit:', e)
+      alert('Failed to send to external unit')
     }
   }
 
-  const getPreviousHQMCSection = (r: Request) => {
-    const acts = (r.activity || []).slice().reverse()
-    for (const a of acts) {
-      const s = String(a.action || '')
-      const m1 = s.match(/Sent to HQMC:\s*([^\-]+)\s*-\s*(.+)/i)
-      if (m1) return m1[2].trim()
-      const m2 = s.match(/Submitted to HQMC Approver:\s*([^\-]+)\s*-\s*(.+)/i)
-      if (m2) return m2[2].trim()
-      const m3 = s.match(/Routed to HQMC section:\s*(.+)/i)
-      if (m3) return m3[1].trim()
+  const submitToHQMCFromInstSection = async (r: Request) => {
+    const actor = formatActorName(currentUser, 'Installation Section')
+    const div = hqmcDivisionSel[r.id] || ''
+    const branch = hqmcBranchSel[r.id] || ''
+    if (!div || !branch) { alert('Select HQMC division and section'); return }
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Submitted to HQMC: ${div} - ${branch}`, comment: (comments[r.id] || '').trim() }
+    const updated: Request = { ...r, currentStage: 'HQMC_REVIEW', routeSection: branch, activity: [...(r.activity || []), entry] }
+    try {
+      await upsertRequest(updated as RequestRecord)
+      setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setHqmcDivisionSel(prev => ({ ...prev, [r.id]: '' }))
+      setHqmcBranchSel(prev => ({ ...prev, [r.id]: '' }))
+    } catch (e) {
+      console.error('Failed to submit to HQMC:', e)
+      alert('Failed to submit to HQMC')
     }
-    return String(r.routeSection || '')
   }
 
   const archiveRequest = async (r: Request) => {
@@ -351,31 +345,6 @@ export default function InstallationSectionDashboard() {
     }
   }
 
-  const approveFromInstSection = async (r: Request) => {
-    const actor = formatActorName(currentUser, 'Installation Section')
-    let updated: any = { ...r }
-    if (readdressHQMCInst[r.id]) {
-      const div = hqmcDivisionSel[r.id] || ''
-      const branch = hqmcBranchSel[r.id] || ''
-      if (!div || !branch) { alert('Select HQMC division and section'); return }
-      const entry = { actor, timestamp: new Date().toISOString(), action: `Submitted to HQMC Approver: ${div} - ${branch}`, comment: (comments[r.id] || '').trim() }
-      updated = { ...r, currentStage: 'HQMC_REVIEW', routeSection: branch, activity: [...(r.activity || []), entry] }
-    } else {
-      const prevBranch = getPreviousHQMCSection(r)
-      const entry = { actor, timestamp: new Date().toISOString(), action: prevBranch ? `Submitted to HQMC Approver: ${prevBranch}` : 'Submitted to HQMC Approver', comment: (comments[r.id] || '').trim() }
-      updated = { ...r, currentStage: 'HQMC_REVIEW', routeSection: prevBranch || r.routeSection, activity: [...(r.activity || []), entry] }
-    }
-    try {
-      await upsertRequest(updated)
-      setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
-      setComments(prev => ({ ...prev, [r.id]: '' }))
-      setSendToExternalInst(prev => ({ ...prev, [r.id]: false }))
-      setReaddressHQMCInst(prev => ({ ...prev, [r.id]: false }))
-    } catch (e) {
-      console.error('InstallationSectionDashboard - Failed to approve to HQMC:', e)
-      alert('Failed to submit to HQMC approver')
-    }
-  }
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -562,39 +531,41 @@ export default function InstallationSectionDashboard() {
               {/* Additional Send Options - Only after Installation Commander endorsement */}
               {(r.activity || []).some(a => /Endorsed by Installation Commander/i.test(String(a.action || ''))) && (
                 <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
-                  <label className="block text-sm font-medium text-[var(--text)] mb-2">Additional Send Options (Post-Endorsement)</label>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <label className="block text-sm font-medium text-[var(--text)] mb-2">Send Options (Post-Endorsement)</label>
+                  <div className="flex flex-col gap-3">
+                    {/* Send to External Unit Option */}
+                    <div className="pb-3 border-b border-brand-navy/10">
+                      <label className="inline-flex items-center gap-2 cursor-pointer mb-2">
                         <input type="checkbox" id={`send-ext-inst-${r.id}`} checked={sendToExternalInst[r.id] || false} onChange={() => {
                           const next = !(sendToExternalInst[r.id] || false)
                           setSendToExternalInst(prev => ({ ...prev, [r.id]: next }))
-                          if (next) setReaddressHQMCInst(prev => ({ ...prev, [r.id]: false }))
                         }} className="rounded border-brand-navy/30" />
-                        <span className="text-sm">Send to External Unit</span>
+                        <span className="text-sm font-medium">Send to External Unit</span>
                       </label>
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id={`readdress-hqmc-inst-${r.id}`} checked={readdressHQMCInst[r.id] || false} onChange={() => {
-                          const next = !(readdressHQMCInst[r.id] || false)
-                          setReaddressHQMCInst(prev => ({ ...prev, [r.id]: next }))
-                          if (next) setSendToExternalInst(prev => ({ ...prev, [r.id]: false }))
-                        }} className="rounded border-brand-navy/30" />
-                        <span className="text-sm">Readdress to HQMC Section</span>
-                      </label>
+                      {sendToExternalInst[r.id] && (
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <SearchableUnitSelector onUnitSelect={(u) => handleExternalUnitChange(r.id, u)} selectedUnit={{ uic: externalUnitUic[r.id] || '', unitName: externalUnit[r.id] || '' } as any} placeholder="Search by UIC, RUC, MCC, or Unit Name" />
+                          <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm" value={externalSection[r.id] || ''} onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!(externalUnitSections[r.id] || []).length}>
+                            <option value="">Select Section/Office (optional)</option>
+                            {(externalUnitSections[r.id] || []).map(section => (
+                              <option key={section} value={section}>{section}</option>
+                            ))}
+                          </select>
+                          <button
+                            className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => sendToExternalFromInstSection(r)}
+                            disabled={!(externalUnitUic[r.id])}
+                          >
+                            Submit to External Unit
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {sendToExternalInst[r.id] && (
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <SearchableUnitSelector onUnitSelect={(u) => handleExternalUnitChange(r.id, u)} selectedUnit={{ uic: externalUnitUic[r.id] || '', unitName: externalUnit[r.id] || '' } as any} placeholder="Search by UIC, RUC, MCC, or Unit Name" />
-                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm" value={externalSection[r.id] || ''} onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!(externalUnitSections[r.id] || []).length}>
-                          <option value="">Select Section/Office (optional)</option>
-                          {(externalUnitSections[r.id] || []).map(section => (
-                            <option key={section} value={section}>{section}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    {readdressHQMCInst[r.id] && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+
+                    {/* Submit to HQMC Option */}
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--muted)] mb-2">Submit to HQMC</label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm" value={hqmcDivisionSel[r.id] || ''} onChange={(e) => { setHqmcDivisionSel(prev => ({ ...prev, [r.id]: e.target.value })); setHqmcBranchSel(prev => ({ ...prev, [r.id]: '' })) }}>
                           <option value="">Select HQMC Division</option>
                           {hqmcDivisions.map(d => (<option key={d.code} value={d.code}>{d.code} — {d.name}</option>))}
@@ -606,32 +577,15 @@ export default function InstallationSectionDashboard() {
                           ))}
                         </select>
                       </div>
-                    )}
-                    {(sendToExternalInst[r.id] || readdressHQMCInst[r.id]) && (
                       <div className="mt-2">
                         <button
                           className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                          onClick={() => sendOutFromInstSection(r)}
-                          disabled={
-                            readdressHQMCInst[r.id]
-                              ? !(hqmcDivisionSel[r.id] && hqmcBranchSel[r.id])
-                              : sendToExternalInst[r.id]
-                                ? !(externalUnitUic[r.id])
-                                : true
-                          }
+                          onClick={() => submitToHQMCFromInstSection(r)}
+                          disabled={!(hqmcDivisionSel[r.id] && hqmcBranchSel[r.id])}
                         >
-                          {readdressHQMCInst[r.id] ? 'Submit to HQMC (Readdress)' : 'Submit to External Unit'}
+                          Submit to HQMC
                         </button>
                       </div>
-                    )}
-                    <div className="mt-2 pt-2 border-t border-brand-navy/10">
-                      <button
-                        className="px-4 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 font-medium hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                        onClick={() => approveFromInstSection(r)}
-                      >
-                        Approve to HQMC
-                      </button>
-                      <p className="text-xs text-[var(--muted)] mt-1">Submit to HQMC using the previously assigned section</p>
                     </div>
                   </div>
                 </div>

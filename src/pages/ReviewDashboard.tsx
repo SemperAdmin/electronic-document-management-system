@@ -336,11 +336,12 @@ export default function ReviewDashboard() {
       } else {
         toast.success(action, { message: `Request "${r.subject}" updated` })
       }
+      // Only update local state if the API call succeeded
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (err) {
       toast.error('Failed to update request', { message: String(err) })
     }
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
   const addFilesToRequest = async (r: Request) => {

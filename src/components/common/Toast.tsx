@@ -86,6 +86,8 @@ export function useToast() {
         loading: string;
         success: string | ((data: T) => string);
         error: string | ((err: unknown) => string);
+        successOptions?: Partial<Omit<Toast, 'id' | 'type' | 'title'>>;
+        errorOptions?: Partial<Omit<Toast, 'id' | 'type' | 'title'>>;
       }
     ): Promise<T> => {
       const id = addToast({ type: 'loading', title: options.loading, duration: 0, dismissible: false });
@@ -96,6 +98,7 @@ export function useToast() {
           title: typeof options.success === 'function' ? options.success(result) : options.success,
           duration: 5000,
           dismissible: true,
+          ...options.successOptions,
         });
         return result;
       } catch (err) {
@@ -104,6 +107,7 @@ export function useToast() {
           title: typeof options.error === 'function' ? options.error(err) : options.error,
           duration: 8000,
           dismissible: true,
+          ...options.errorOptions,
         });
         throw err;
       }

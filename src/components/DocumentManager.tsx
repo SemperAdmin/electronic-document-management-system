@@ -379,21 +379,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   });
 
   // Check if request needs resubmission by originator
-  // Only true if returned TO THE ORIGINATOR (not just returned to any level)
+  // Only true if returned TO THE ORIGINATOR (stage is ORIGINATOR_REVIEW)
   const needsResubmit = (r: Request) => {
     if (!r.activity || !r.activity.length) return false;
-
-    // Check if current stage is ORIGINATOR_REVIEW (explicitly returned to originator)
-    if (r.currentStage === 'ORIGINATOR_REVIEW') return true;
-
-    // Check if the last action was a return TO THE ORIGINATOR specifically
-    const lastAction = r.activity[r.activity.length - 1];
-    const actionText = String(lastAction?.action || '').toLowerCase();
-
-    // Only allow resubmit if returned to originator, not to other review levels
-    if (/returned to originator/i.test(actionText)) return true;
-
-    return false;
+    return r.currentStage === 'ORIGINATOR_REVIEW';
   };
 
   const isReviewer = () => String(currentUser?.role || '').includes('REVIEW');

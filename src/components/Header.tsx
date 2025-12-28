@@ -138,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                 <div className="my-2 border-t border-brand-navy/20" />
                 <div role="group" aria-label="Administration">
                   {(currentUser?.isUnitAdmin) && (
-                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('admin'); setDashOpen(false) }}>Admin</button>
+                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('admin'); setDashOpen(false) }}>Unit Admin</button>
                   )}
                   {currentUser && !!currentUser.isAppAdmin && (
                     <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('appadmin'); setDashOpen(false) }}>App Admin</button>
@@ -153,13 +153,13 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, hasSectionDashboard
                 <div className="my-2 border-t border-brand-navy/20" />
                 <div role="group" aria-label="Battalion & Command">
                   {(currentUser && hasSectionDashboard) && (
-                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('section'); setDashOpen(false) }}>Battalion Section Dashboard</button>
+                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('section'); setDashOpen(false) }}>Unit Section Dashboard</button>
                   )}
                   {(hasCommandDashboard) && (
-                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('command'); setDashOpen(false) }}>Command Sections Dashboard</button>
+                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('command'); setDashOpen(false) }}>Unit Command Dashboard</button>
                   )}
                   {(String(currentUser?.role || '').includes('REVIEW')) && (
-                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('review'); setDashOpen(false) }}>Review Dashboard</button>
+                    <button className="w-full text-left px-4 py-3 text-sm hover:bg-brand-cream text-brand-navy min-h-[44px]" role="menuitem" onClick={() => { onNavigate('review'); setDashOpen(false) }}>Unit Review Dashboard</button>
                   )}
                 </div>
                 <div className="my-2 border-t border-brand-navy/20" />

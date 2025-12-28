@@ -596,7 +596,7 @@ export default function SectionDashboard() {
     <div className="max-w-7xl mx-auto p-6">
       <div className="bg-[var(--surface)] rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-[var(--text)]">Battalion Section Dashboard</h2>
+          <h2 className="text-xl font-semibold text-[var(--text)]">Unit Section Dashboard</h2>
           <div className="flex items-center gap-2">
             <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{selectedBattalionSection || '—'}</span>
             <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={exportAll}>Export All</button>

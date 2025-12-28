@@ -126,6 +126,7 @@ function HomeContent() {
   }, [currentUser, hasSectionDashboard, hasCommandDashboard, hasInstallationSectionDashboard, hasInstallationCommandDashboard, hasHQMCSectionDashboard, hasHQMCApproverDashboard]);
 
   // Refresh currentUser from Supabase to pick up new privileges (e.g., installation admin)
+  // Preserve local admin flags if server returns null/false (prevents data loss if DB is cleared)
   useEffect(() => {
     let canceled = false;
     (async () => {
@@ -134,8 +135,21 @@ function HomeContent() {
         if (!id) return;
         const fresh = await getUserByIdLegacy(id);
         if (fresh && !canceled) {
-          setCurrentUser(fresh);
-          localStorage.setItem('currentUser', JSON.stringify(fresh));
+          // Merge: prefer server values, but preserve local admin flags if server returns falsy
+          const merged: UserRecord = {
+            ...fresh,
+            // Preserve admin flags if local has them but server doesn't
+            isAppAdmin: fresh.isAppAdmin || currentUser?.isAppAdmin || false,
+            isUnitAdmin: fresh.isUnitAdmin || currentUser?.isUnitAdmin || false,
+            isInstallationAdmin: fresh.isInstallationAdmin || currentUser?.isInstallationAdmin || false,
+            isHqmcAdmin: fresh.isHqmcAdmin || currentUser?.isHqmcAdmin || false,
+            isCommandStaff: fresh.isCommandStaff || currentUser?.isCommandStaff || false,
+            // Preserve IDs if local has them but server doesn't
+            installationId: fresh.installationId || currentUser?.installationId,
+            hqmcDivision: fresh.hqmcDivision || currentUser?.hqmcDivision,
+          };
+          setCurrentUser(merged);
+          localStorage.setItem('currentUser', JSON.stringify(merged));
         }
       } catch {}
     })();

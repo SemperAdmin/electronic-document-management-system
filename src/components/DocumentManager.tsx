@@ -378,9 +378,26 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     return true;
   });
 
-  const isReturnedReq = (r: Request) => {
-    const a = r.activity && r.activity.length ? r.activity[r.activity.length - 1] : null;
-    return !!a && /returned/i.test(String(a?.action || ''));
+  // Check if request needs resubmission - returned and not yet resubmitted
+  const needsResubmit = (r: Request) => {
+    if (!r.activity || !r.activity.length) return false;
+
+    // Find the index of the last return and last submit/resubmit
+    let lastReturnIdx = -1;
+    let lastSubmitIdx = -1;
+
+    for (let i = 0; i < r.activity.length; i++) {
+      const action = String(r.activity[i]?.action || '').toLowerCase();
+      if (/returned/i.test(action)) {
+        lastReturnIdx = i;
+      }
+      if (/resubmitted|submitted request/i.test(action)) {
+        lastSubmitIdx = i;
+      }
+    }
+
+    // Needs resubmit if there was a return after the last submit
+    return lastReturnIdx > lastSubmitIdx;
   };
 
   const isReviewer = () => String(currentUser?.role || '').includes('REVIEW');
@@ -963,7 +980,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
               ) : (
                 <button className="px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits} disabled={!currentUser || currentUser.id !== (selectedRequest?.uploadedById || '')}>Save Changes</button>
               )}
-              {currentUser && isReturnedReq(selectedRequest) && currentUser.id === selectedRequest.uploadedById && (
+              {currentUser && needsResubmit(selectedRequest) && currentUser.id === selectedRequest.uploadedById && (
                 <button className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700" onClick={resubmitRequest}>Resubmit</button>
               )}
               {currentUser && canDeleteRequest(selectedRequest as any, String(currentUser?.id || '')) && (

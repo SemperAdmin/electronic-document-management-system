@@ -329,7 +329,8 @@ export default function SectionDashboard() {
       requestId: r.id,
     })) as any
     const actor = getActorDisplayName(currentUser) || 'Reviewer'
-    const entry = { actor, timestamp: new Date().toISOString(), action: `Reviewer added ${newDocs.length} document(s)`, comment: (comments[r.id] || '').trim() }
+    const actorRole = getActorRole(currentUser)
+    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: `Reviewer added ${newDocs.length} document(s)`, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
       documentIds: [...(r.documentIds || []), ...newDocs.map(d => d.id)],
@@ -353,6 +354,12 @@ export default function SectionDashboard() {
     return `${rank} ${lastName}, ${firstName}${mi ? ` ${mi}` : ''}`;
   }
 
+  const getActorRole = (user: UserRecord | null): string => {
+    if (!user) return 'Battalion'
+    const section = selectedBattalionSection || ''
+    return section ? `Battalion (${section})` : 'Battalion'
+  }
+
   const isUnitInAnyInstallation = (uic?: string) => {
     const target = uic?.trim();
     if (!target) return false;
@@ -365,8 +372,9 @@ export default function SectionDashboard() {
   const approveRequest = async (r: Request) => {
     const dest = selectedCmdSection[r.id] || 'COMMANDER'
     const actor = getActorDisplayName(currentUser) || 'Battalion'
+    const actorRole = getActorRole(currentUser)
     const actionText = dest === 'COMMANDER' ? 'Approved to COMMANDER' : `Approved and routed to ${dest}`
-    const entry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
       currentStage: 'COMMANDER_REVIEW',
@@ -386,7 +394,8 @@ export default function SectionDashboard() {
 
   const rejectRequest = async (r: Request) => {
     const actor = getActorDisplayName(currentUser) || 'Battalion'
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'Returned to previous stage', comment: (comments[r.id] || '').trim() }
+    const actorRole = getActorRole(currentUser)
+    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: 'Returned to previous stage', comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
       currentStage: 'COMPANY_REVIEW',
@@ -406,7 +415,8 @@ export default function SectionDashboard() {
     if (!uic) return
     const unit = UNITS.find(u => u.uic === uic)
     const actor = getActorDisplayName(currentUser) || 'Battalion'
-    const entry = { actor, timestamp: new Date().toISOString(), action: `Endorsed to ${unit?.unitName || uic}`, comment: (comments[r.id] || '').trim() }
+    const actorRole = getActorRole(currentUser)
+    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: `Endorsed to ${unit?.unitName || uic}`, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
       currentStage: 'EXTERNAL_REVIEW',
@@ -424,7 +434,8 @@ export default function SectionDashboard() {
 
   const archiveRequest = async (r: Request) => {
     const actor = getActorDisplayName(currentUser) || 'Battalion'
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'Archived', comment: (comments[r.id] || '').trim() }
+    const actorRole = getActorRole(currentUser)
+    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: 'Archived', comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
       currentStage: 'ARCHIVED',
@@ -713,7 +724,7 @@ export default function SectionDashboard() {
                         {r.activity && r.activity.length ? (
                           r.activity.map((a, idx) => (
                             <div key={idx} className="text-xs text-gray-700">
-                              <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                              <div className="font-medium">{a.actor}{a.actorRole ? ` • ${a.actorRole}` : ''} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
                               {a.comment && <div className="text-gray-600">{a.comment}</div>}
                             </div>
                           ))

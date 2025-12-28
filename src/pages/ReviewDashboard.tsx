@@ -359,7 +359,8 @@ export default function ReviewDashboard() {
 
   const updateRequest = async (r: Request, newStage: string, action: string) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
-    const entry = { actor, timestamp: new Date().toISOString(), action, comment: (comments[r.id] || '').trim() }
+    const actorRole = formatRoleBadge(currentUser)
+    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
       currentStage: newStage,
@@ -403,7 +404,8 @@ export default function ReviewDashboard() {
     })) as any
 
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
-    const entry = { actor, timestamp: new Date().toISOString(), action: `Reviewer added ${newDocs.length} document(s)`, comment: (comments[r.id] || '').trim() }
+    const actorRole = formatRoleBadge(currentUser)
+    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: `Reviewer added ${newDocs.length} document(s)`, comment: (comments[r.id] || '').trim() }
 
     const updated: Request = {
       ...r,
@@ -548,7 +550,7 @@ export default function ReviewDashboard() {
                       {r.activity && r.activity.length ? (
                         r.activity.map((a, idx) => (
                           <div key={idx} className="text-xs text-gray-700">
-                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                            <div className="font-medium">{a.actor}{a.actorRole ? ` • ${a.actorRole}` : ''} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
                             {a.comment && <div className="text-gray-600">{a.comment}</div>}
                           </div>
                         ))
@@ -743,7 +745,7 @@ export default function ReviewDashboard() {
                       {r.activity && r.activity.length ? (
                         r.activity.map((a, idx) => (
                           <div key={idx} className="text-xs text-gray-700">
-                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                            <div className="font-medium">{a.actor}{a.actorRole ? ` • ${a.actorRole}` : ''} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
                             {a.comment && <div className="text-gray-600">{a.comment}</div>}
                           </div>
                         ))

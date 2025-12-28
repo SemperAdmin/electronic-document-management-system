@@ -10,7 +10,7 @@ export interface Request {
   createdAt: string;
   currentStage?: string;
   routeSection?: string;
-  activity?: Array<{ actor: string; timestamp: string; action: string; comment?: string }>;
+  activity?: Array<{ actor: string; actorRole?: string; timestamp: string; action: string; comment?: string }>;
   commanderApprovalDate?: string;
   externalPendingUnitUic?: string;
   externalPendingUnitName?: string;

@@ -226,6 +226,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
     try {
       const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Unknown';
+      const actorRole = 'Member'
       const originUnitUic = targetUic;
       const originCompany = normalizeString(targetUser?.company);
       const originPlatoon = normalizeString(targetUser?.platoon);
@@ -245,7 +246,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       createdAt: new Date().toISOString(),
       currentStage: hasPlatoonReviewer ? Stage.PLATOON_REVIEW : hasCompanyReviewer ? Stage.COMPANY_REVIEW : Stage.BATTALION_REVIEW,
       activity: [
-        { actor, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
+        { actor, actorRole, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
       ]
     };
       try {
@@ -309,7 +310,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     setDocuments(updated);
     try {
       const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Unknown';
-      const entry: ActionEntry = { actor, timestamp: new Date().toISOString(), action: 'Updated document', comment: (editNotes || '').trim() };
+      const actorRole = 'Member'
+      const entry: ActionEntry = { actor, actorRole, timestamp: new Date().toISOString(), action: 'Updated document', comment: (editNotes || '').trim() };
       const req = selectedDoc.requestId ? userRequests.find(r => r.id === selectedDoc.requestId) : null;
       if (req) {
         const nextReq = { ...req, activity: Array.isArray(req.activity) ? [...req.activity, entry] : [entry] };
@@ -807,7 +809,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                   ) : (
                     requestActivity.map((a, idx) => (
                       <div key={idx} className="text-xs text-gray-700">
-                        <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                        <div className="font-medium">{a.actor}{a.actorRole ? ` • ${a.actorRole}` : ''} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
                         {a.comment && <div className="text-gray-600">{a.comment}</div>}
                       </div>
                     ))
@@ -862,7 +864,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                   {selectedRequest.activity && selectedRequest.activity.length ? (
                     selectedRequest.activity.map((a, idx) => (
                       <div key={idx} className="text-xs text-gray-700">
-                        <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                        <div className="font-medium">{a.actor}{a.actorRole ? ` • ${a.actorRole}` : ''} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
                         {a.comment && <div className="text-gray-600">{a.comment}</div>}
                       </div>
                     ))

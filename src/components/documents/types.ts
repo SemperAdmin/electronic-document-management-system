@@ -20,6 +20,7 @@ export interface Document {
 
 export interface ActionEntry {
   actor: string;
+  actorRole?: string;
   timestamp: string;
   action: string;
   comment?: string;

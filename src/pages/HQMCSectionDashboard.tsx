@@ -26,6 +26,7 @@ export default function HQMCSectionDashboard() {
   const [users, setUsers] = useState<Record<string, any>>({})
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
+  const [expandedActivityLogs, setExpandedActivityLogs] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [assignments, setAssignments] = useState<Array<{ division_code: string; branch: string; reviewers: string[]; approvers: string[] }>>([])
@@ -169,13 +170,13 @@ export default function HQMCSectionDashboard() {
                   <div className="mt-3">
                     <button
                       className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                      aria-expanded={!!expandedLogs[r.id]}
+                      aria-expanded={!!expandedActivityLogs[r.id]}
                       aria-controls={`logs-hq-${r.id}`}
-                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      onClick={() => setExpandedActivityLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                     >
-                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                      {expandedActivityLogs[r.id] ? 'Hide' : 'Show'} Activity Log
                     </button>
-                    <div id={`logs-hq-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                    <div id={`logs-hq-${r.id}`} className={expandedActivityLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
                       {r.activity && r.activity.length ? (
                         r.activity.map((a, idx) => (
                           <div key={idx} className="text-xs text-gray-700">
@@ -238,13 +239,13 @@ export default function HQMCSectionDashboard() {
                   <div className="mt-3">
                     <button
                       className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                      aria-expanded={!!expandedLogs[r.id]}
+                      aria-expanded={!!expandedActivityLogs[r.id]}
                       aria-controls={`logs-hqs-${r.id}`}
-                      onClick={() => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                      onClick={() => setExpandedActivityLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
                     >
-                      {expandedLogs[r.id] ? 'Hide' : 'Show'} Activity Log
+                      {expandedActivityLogs[r.id] ? 'Hide' : 'Show'} Activity Log
                     </button>
-                    <div id={`logs-hqs-${r.id}`} className={expandedLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
+                    <div id={`logs-hqs-${r.id}`} className={expandedActivityLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
                       {r.activity && r.activity.length ? (
                         r.activity.map((a, idx) => (
                           <div key={idx} className="text-xs text-gray-700">

@@ -220,20 +220,43 @@ export default function ReviewDashboard() {
     // Pre-compute reviewer's company (used by PLATOON and COMPANY roles)
     const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
 
+    // Debug logging - remove after fixing
+    console.log('isRequestInScope check:', {
+      subject: r.subject,
+      requestUic,
+      cuic,
+      role,
+      originatorLoaded: !!o,
+      originatorId: r.uploadedById,
+      usersMapSize: Object.keys(users).length,
+    });
+
     if (role.includes('PLATOON')) {
       // Reviewer must have a unitUic and it must match the request's unit
-      if (!cuic || requestUic !== cuic) return false;
+      if (!cuic || requestUic !== cuic) {
+        console.log('  -> FAIL: UIC mismatch or missing', { cuic, requestUic });
+        return false;
+      }
       // Get originator's company/platoon from user record or return early if not available
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
       const op = o ? getValidUnitPart(o.platoon).toUpperCase() : '';
       // Use rolePlatoon if set, otherwise fall back to user's own platoon
       const cp = (getValidUnitPart(currentUser?.rolePlatoon) || getValidUnitPart(currentUser?.platoon)).toUpperCase();
+      console.log('  PLATOON scope check:', { oc, op, cc, cp, oCompany: o?.company, oPlatoon: o?.platoon });
       // If reviewer has no company/platoon assigned, they can't review platoon-level requests
-      if (!cc || !cp) return false;
+      if (!cc || !cp) {
+        console.log('  -> FAIL: Reviewer missing company/platoon');
+        return false;
+      }
       // If originator data not loaded yet, can't determine scope
-      if (!oc || !op) return false;
+      if (!oc || !op) {
+        console.log('  -> FAIL: Originator company/platoon empty');
+        return false;
+      }
       // Check company and platoon match (case-insensitive)
-      return oc === cc && op === cp;
+      const match = oc === cc && op === cp;
+      console.log('  -> Result:', match ? 'PASS' : 'FAIL (mismatch)');
+      return match;
     }
     if (role.includes('COMPANY')) {
       // Reviewer must have a unitUic and it must match the request's unit

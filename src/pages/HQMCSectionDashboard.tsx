@@ -16,13 +16,6 @@ interface DocumentItem {
   requestId?: string
 }
 
-const STAGES = ['PLATOON_REVIEW', 'COMPANY_REVIEW', 'BATTALION_REVIEW', 'COMMANDER_REVIEW', 'ARCHIVED']
-
-const prevStage = (stage?: string) => {
-  const i = STAGES.indexOf(stage || STAGES[0])
-  return i > 0 ? STAGES[i - 1] : STAGES[0]
-}
-
 export default function HQMCSectionDashboard() {
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(() => {
     try { const raw = localStorage.getItem('currentUser'); return raw ? JSON.parse(raw) : null } catch { return null }
@@ -123,8 +116,9 @@ export default function HQMCSectionDashboard() {
   }
   const returnRequest = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Reviewer'
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'Returned by HQMC', comment: (comments[r.id] || '').trim() }
-    const updated: Request = { ...r, currentStage: prevStage(r.currentStage), activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
+    const entry = { actor, timestamp: new Date().toISOString(), action: 'Returned by HQMC to Installation', comment: (comments[r.id] || '').trim() }
+    // Return to Installation level (where HQMC requests originate from)
+    const updated: Request = { ...r, currentStage: 'INSTALLATION_REVIEW', activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
     try { await upsertRequest(updated as any) } catch {}
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))

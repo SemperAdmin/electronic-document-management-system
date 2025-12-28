@@ -366,8 +366,8 @@ export default function CommandDashboard() {
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
       setComments(prev => ({ ...prev, [r.id]: '' }));
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
-    } catch {
-      // Failed to make commander decision
+    } catch (error) {
+      console.error('Failed to make commander decision:', error)
     }
   }
 
@@ -426,8 +426,8 @@ export default function CommandDashboard() {
       await upsertRequest(updated as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
       setComments(prev => ({ ...prev, [r.id]: '' }));
-    } catch {
-      // Failed to return from command section
+    } catch (error) {
+      console.error('Failed to return from command section:', error)
     }
   }
 
@@ -542,8 +542,12 @@ export default function CommandDashboard() {
                       {(r: Request) => (
                         <CommandSectionRequestDetails
                           r={r}
+                          docsFor={docsFor}
                           comments={comments}
                           setComments={setComments}
+                          attach={attach}
+                          setAttach={setAttach}
+                          addFilesToRequest={addFilesToRequest}
                           approveToCommander={approveToCommander}
                           commandSectionReturn={commandSectionReturn}
                         />

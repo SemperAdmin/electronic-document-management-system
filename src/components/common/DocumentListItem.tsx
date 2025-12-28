@@ -67,16 +67,18 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({
   );
 };
 
+export type DocumentListItemData = {
+  id: string;
+  name: string;
+  type?: string;
+  uploadedAt: string | Date;
+  fileUrl?: string;
+};
+
 export interface DocumentListProps {
-  documents: Array<{
-    id: string;
-    name: string;
-    type?: string;
-    uploadedAt: string | Date;
-    fileUrl?: string;
-  }>;
+  documents: DocumentListItemData[];
   showIcons?: boolean;
-  onPreview?: (doc: { id: string; name: string; type?: string; fileUrl?: string }) => void;
+  onPreview?: (doc: DocumentListItemData) => void;
   emptyMessage?: string;
 }
 

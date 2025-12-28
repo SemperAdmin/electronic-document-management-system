@@ -7,6 +7,8 @@ import { SearchableUnitSelector } from '../components/SearchableUnitSelector'
 import { Request, Installation, UserRecord } from '../types'
 import { normalizeString, hasReviewer } from '../lib/reviewers';
 import { DocumentList } from '@/components/common';
+import { formatActorName } from '@/lib/utils';
+import { canArchiveAtLevel, isUnitApproved, isUnitEndorsed } from '@/lib/stage';
 
 const DEFAULT_EXTERNAL_STAGE = 'REVIEW';
 
@@ -25,6 +27,7 @@ interface DocumentItem {
   uploadedAt: string | Date
   subject: string
   requestId?: string
+  fileUrl?: string
 }
 
 export default function SectionDashboard() {
@@ -326,8 +329,8 @@ export default function SectionDashboard() {
       subject: r.subject,
       requestId: r.id,
     })) as any
-    const actor = getActorDisplayName(currentUser) || 'Reviewer'
-    const actorRole = getActorRole(currentUser)
+    const actor = formatActorName(currentUser, 'Reviewer')
+    const actorRole = getActorRole()
     const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: `Reviewer added ${newDocs.length} document(s)`, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
@@ -346,14 +349,7 @@ export default function SectionDashboard() {
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
 
-  const getActorDisplayName = (user: UserRecord | null): string | null => {
-    if (!user) return null;
-    const { rank, lastName, firstName, mi } = user;
-    return `${rank} ${lastName}, ${firstName}${mi ? ` ${mi}` : ''}`;
-  }
-
-  const getActorRole = (user: UserRecord | null): string => {
-    if (!user) return 'Battalion'
+  const getActorRole = (): string => {
     const section = selectedBattalionSection || ''
     return section ? `Battalion (${section})` : 'Battalion'
   }
@@ -375,8 +371,8 @@ export default function SectionDashboard() {
 
   const approveRequest = async (r: Request) => {
     const dest = selectedCmdSection[r.id] || 'COMMANDER'
-    const actor = getActorDisplayName(currentUser) || 'Battalion'
-    const actorRole = getActorRole(currentUser)
+    const actor = formatActorName(currentUser, 'Battalion')
+    const actorRole = getActorRole()
     const actionText = dest === 'COMMANDER' ? 'Approved to COMMANDER' : `Approved and routed to ${dest}`
     const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
@@ -396,8 +392,8 @@ export default function SectionDashboard() {
   }
 
   const rejectRequest = async (r: Request) => {
-    const actor = getActorDisplayName(currentUser) || 'Battalion'
-    const actorRole = getActorRole(currentUser)
+    const actor = formatActorName(currentUser, 'Battalion')
+    const actorRole = getActorRole()
     const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: 'Returned to previous stage', comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
@@ -417,8 +413,8 @@ export default function SectionDashboard() {
     const uic = endorseUnitSel[r.id]
     if (!uic) return
     const unit = UNITS.find(u => u.uic === uic)
-    const actor = getActorDisplayName(currentUser) || 'Battalion'
-    const actorRole = getActorRole(currentUser)
+    const actor = formatActorName(currentUser, 'Battalion')
+    const actorRole = getActorRole()
     const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: `Endorsed to ${unit?.unitName || uic}`, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
@@ -436,8 +432,8 @@ export default function SectionDashboard() {
   }
 
   const archiveRequest = async (r: Request) => {
-    const actor = getActorDisplayName(currentUser) || 'Battalion'
-    const actorRole = getActorRole(currentUser)
+    const actor = formatActorName(currentUser, 'Battalion')
+    const actorRole = getActorRole()
     const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: 'Archived', comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
@@ -491,7 +487,7 @@ export default function SectionDashboard() {
     const extSec = externalSection[r.id] || ''
 
     // external unit validation happens only when not submitting to installation (see else branch)
-    const actor = getActorDisplayName(currentUser) || 'Battalion'
+    const actor = formatActorName(currentUser, 'Battalion')
 
     let updated: Request;
 
@@ -577,7 +573,7 @@ export default function SectionDashboard() {
   const assignExternalToSection = async (r: Request) => {
     const dest = externalAssignSel[r.id]
     if (!dest) return
-    const actor = getActorDisplayName(currentUser) || 'Battalion'
+    const actor = formatActorName(currentUser, 'Battalion')
     const updated: Request = {
       ...r,
       currentStage: 'BATTALION_REVIEW',
@@ -776,7 +772,7 @@ export default function SectionDashboard() {
                         </button>
                       </div>
                     )}
-                    {r.currentStage === 'BATTALION_REVIEW' && hasCommanderApproval(r) && (
+                    {canArchiveAtLevel(r, { userLevel: 'unit', userUnitUic: currentUser?.unitUic }) && (
                       <div className="mt-3 flex items-center justify-end gap-2">
                         <button
                           className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"

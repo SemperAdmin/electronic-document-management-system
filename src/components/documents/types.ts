@@ -1,4 +1,6 @@
-import { Request, UserRecord } from '@/types';
+import { Request, UserRecord, ActionEntry } from '@/types';
+
+export { ActionEntry };
 
 export interface Document {
   id: string;
@@ -16,14 +18,6 @@ export interface Document {
   currentStage?: string;
   requestId?: string;
   fileUrl?: string;
-}
-
-export interface ActionEntry {
-  actor: string;
-  actorRole?: string;
-  timestamp: string;
-  action: string;
-  comment?: string;
 }
 
 export interface FeedbackMessage {

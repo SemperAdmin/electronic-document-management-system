@@ -8,7 +8,7 @@ import { Pagination } from '@/components/Pagination';
 import RequestTable from './RequestTable';
 import { Request, UserRecord } from '../types';
 import { normalizeString, hasReviewer } from '../lib/reviewers';
-import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly } from '@/lib/stage';
+import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly, canDeleteRequest } from '@/lib/stage';
 import { logEvent } from '@/lib/logger';
 import { supabaseClient } from '../lib/supabase';
 import { validateFiles, validateFile, sanitizeFilename, MAX_FILES_PER_UPLOAD } from '@/lib/validation';
@@ -922,7 +922,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
               ) : (
                 <button className="px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits} disabled={!currentUser || currentUser.id !== (selectedRequest?.uploadedById || '')}>Save Changes</button>
               )}
-              {currentUser && currentUser.id === (selectedRequest?.uploadedById || '') && (
+              {currentUser && canDeleteRequest(selectedRequest as any, String(currentUser?.id || '')) && (
                 <button className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700" onClick={() => deleteRequest(selectedRequest!)}>Delete Request</button>
               )}
             </div>

@@ -154,49 +154,57 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
     return ''
   }
 
-  const getStatusLabel = (r: Request): string => {
+  const getStatusLabel = (r: Request): { level: string; scope: string } => {
     const stage = r.currentStage || 'PLATOON_REVIEW'
-    if (stage === 'ORIGINATOR_REVIEW') {
-      return 'Member'
+    const originator = originatorFor(r)
+
+    switch (stage) {
+      case 'ORIGINATOR_REVIEW':
+        return { level: 'Member', scope: '' }
+      case 'PLATOON_REVIEW': {
+        const c = originator?.company && originator.company !== 'N/A' ? originator.company : ''
+        const p = originator?.platoon && originator.platoon !== 'N/A' ? originator.platoon : ''
+        if (c && p) return { level: 'Platoon', scope: `(${c}-${p})` }
+        if (c) return { level: 'Platoon', scope: `(${c})` }
+        return { level: 'Platoon Review', scope: '' }
+      }
+      case 'COMPANY_REVIEW': {
+        const c = originator?.company && originator.company !== 'N/A' ? originator.company : ''
+        return { level: 'Company', scope: c ? `(${c})` : '' }
+      }
+      case 'BATTALION_REVIEW': {
+        const section = battalionSectionFor(r)
+        return { level: 'Battalion', scope: section ? `(${section})` : '' }
+      }
+      case 'COMMANDER_REVIEW':
+        return { level: 'Commander', scope: r.routeSection ? `(${r.routeSection})` : '' }
+      case 'INSTALLATION_REVIEW': {
+        const name = getInstallationName(r.installationId)
+        const sec = r.routeSection || ''
+        if (name && sec) return { level: name, scope: `(${sec})` }
+        return { level: name || 'Installation', scope: '' }
+      }
+      case 'HQMC_REVIEW': {
+        const branch = r.routeSection || ''
+        return { level: 'HQMC', scope: branch ? `(${branch})` : '' }
+      }
+      case 'EXTERNAL_REVIEW': {
+        const unitName = r.externalPendingUnitName || ''
+        const sec = r.routeSection || ''
+        if (unitName && sec) return { level: unitName, scope: `(${sec})` }
+        return { level: unitName || 'External', scope: '' }
+      }
+      case 'ARCHIVED':
+        return { level: 'Archived', scope: '' }
+      default:
+        return { level: formatStage(r), scope: '' }
     }
-    if (stage === 'PLATOON_REVIEW') {
-      const originator = originatorFor(r)
-      const c = originator?.company && originator.company !== 'N/A' ? originator.company : ''
-      const p = originator?.platoon && originator.platoon !== 'N/A' ? originator.platoon : ''
-      if (c && p) return `Platoon (${c}-${p})`
-      if (c) return `Platoon (${c})`
-      return 'Platoon Review'
-    }
-    if (stage === 'COMPANY_REVIEW') {
-      const originator = originatorFor(r)
-      const c = originator?.company && originator.company !== 'N/A' ? originator.company : ''
-      return c ? `Company (${c})` : 'Company Review'
-    }
-    if (stage === 'BATTALION_REVIEW') {
-      const section = battalionSectionFor(r)
-      return section || 'Battalion'
-    }
-    if (stage === 'COMMANDER_REVIEW') {
-      return r.routeSection ? r.routeSection : 'Commander'
-    }
-    if (stage === 'INSTALLATION_REVIEW') {
-      const name = getInstallationName(r.installationId)
-      const sec = r.routeSection || ''
-      if (name && sec) return `${name} - ${sec}`
-      return name || 'Installation'
-    }
-    if (stage === 'HQMC_REVIEW') {
-      const branch = r.routeSection || ''
-      return branch ? `HQMC - ${branch}` : 'HQMC'
-    }
-    if (stage === 'EXTERNAL_REVIEW') {
-      const unitName = r.externalPendingUnitName || ''
-      const sec = r.routeSection || ''
-      if (unitName && sec) return `${unitName} - ${sec}`
-      return unitName || 'External'
-    }
-    if (stage === 'ARCHIVED') return 'Archived'
-    return formatStage(r)
+  }
+
+  // Helper to get full status text for filtering
+  const getStatusText = (r: Request): string => {
+    const { level, scope } = getStatusLabel(r)
+    return scope ? `${level} ${scope}` : level
   }
 
   return (
@@ -302,7 +310,7 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
             </tr>
             {requests.filter((r) => {
               const subjOk = !filters.subject || String(r.subject || '').toLowerCase().includes(filters.subject.toLowerCase());
-              const statusText = getStatusLabel(r);
+              const statusText = getStatusText(r);
               const statusOk = !filters.status || statusText.toLowerCase().includes(filters.status.toLowerCase());
               const unitTxt = isInstallation ? getUnitWithName(r) : getCurrentUnit(r);
               const unitOk = !filters.unit || unitTxt.toLowerCase().includes(filters.unit.toLowerCase());
@@ -356,17 +364,16 @@ const RequestTable: React.FC<RequestTableProps> = ({ requests, users, onRowClick
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">
                       {isSkeleton ? <span className="inline-block w-24 h-5 bg-gray-100 animate-pulse rounded" /> : (() => {
-                        const label = getStatusLabel(r);
-                        const match = label.match(/^(.+?)\s*(\([^)]+\))$/);
-                        if (match) {
+                        const { level, scope } = getStatusLabel(r);
+                        if (scope) {
                           return (
                             <span className="inline-flex flex-col items-center px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-lg border border-brand-navy/30 leading-tight">
-                              <span>{match[1]}</span>
-                              <span className="text-[10px]">{match[2]}</span>
+                              <span>{level}</span>
+                              <span className="text-[10px]">{scope}</span>
                             </span>
                           );
                         }
-                        return <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{label}</span>;
+                        return <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">{level}</span>;
                       })()}
                     </td>
                     <td className="p-3 text-sm text-[var(--text)]">

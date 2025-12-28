@@ -63,11 +63,10 @@ export default function CommandDashboard() {
       const raw = localStorage.getItem('currentUser')
       if (raw) {
         const parsed = JSON.parse(raw)
-        console.log('CommandDashboard - loaded currentUser from localStorage:', parsed)
         setCurrentUser(parsed)
       }
-    } catch (err) {
-      console.error('CommandDashboard - failed to load currentUser:', err)
+    } catch {
+      // Failed to load currentUser from localStorage
     }
   }, [])
 
@@ -112,29 +111,18 @@ export default function CommandDashboard() {
   useEffect(() => {
     try {
       const rawUs = localStorage.getItem('unit_structure')
-      console.log('CommandDashboard - localStorage has unit_structure:', !!rawUs)
-      console.log('CommandDashboard - currentUser:', currentUser)
-
-      // Get current user's UIC
       const cuic = getCurrentUserUic()
-      console.log('CommandDashboard - currentUser UIC (with fallback):', cuic)
 
-      if (!cuic) {
-        console.log('CommandDashboard - skipping section load: no UIC available')
-        return
-      }
+      if (!cuic) return
 
       const allSections: string[] = []
       const pMap: Record<string, Record<string, Record<string, string>>> = {}
 
       if (rawUs) {
         const parsed = JSON.parse(rawUs)
-        console.log('CommandDashboard - parsed unit_structure keys:', Object.keys(parsed))
 
         // Load command sections only for current user's unit
         const v = parsed?.[cuic]
-        console.log(`CommandDashboard - unit data for UIC ${cuic}:`, v)
-        console.log(`CommandDashboard - _commandSections for ${cuic}:`, v?._commandSections)
         if (v && Array.isArray(v._commandSections)) {
           allSections.push(...v._commandSections)
         }
@@ -147,11 +135,9 @@ export default function CommandDashboard() {
           }
         }
 
-        console.log('CommandDashboard - loaded sections:', allSections)
         setCommandSections(allSections)
         setPlatoonSectionMap(pMap)
       } else {
-        console.log('CommandDashboard - loading from bundle (async)')
         ;(async () => {
           try {
             const merged = await loadUnitStructureFromBundle()
@@ -172,16 +158,15 @@ export default function CommandDashboard() {
               }
             }
 
-            console.log('CommandDashboard - loaded from bundle:', bundleSec)
             setCommandSections(bundleSec)
             setPlatoonSectionMap(bundlePMap)
-          } catch (err) {
-            console.error('CommandDashboard - failed to load from bundle:', err)
+          } catch {
+            // Failed to load from bundle
           }
         })()
       }
-    } catch (err) {
-      console.error('CommandDashboard - error in useEffect:', err)
+    } catch {
+      // Error loading unit structure
     }
   }, [currentUser])
 
@@ -231,26 +216,8 @@ export default function CommandDashboard() {
     const normalize = (s: string) => String(s || '').trim().toUpperCase()
     const normSections = commandSections.map(s => normalize(s))
 
-    console.log('CommandDashboard - byCommandSection START')
-    console.log('CommandDashboard - commandSections:', commandSections)
-    console.log('CommandDashboard - normalized sections:', normSections)
-    console.log('CommandDashboard - filtering by UIC:', cuic)
-
     // Initialize with known command sections
     for (const name of commandSections) result[name] = []
-
-    const commanderReviewRequests = requests.filter(r => r.currentStage === 'COMMANDER_REVIEW')
-    console.log('CommandDashboard - Total COMMANDER_REVIEW requests:', commanderReviewRequests.length)
-
-    for (const r of commanderReviewRequests) {
-      console.log('CommandDashboard - Processing request:', {
-        id: r.id,
-        subject: r.subject?.substring(0, 30),
-        routeSection: r.routeSection,
-        hasRouteSection: !!r.routeSection,
-        unitUic: r.unitUic
-      })
-    }
 
     for (const r of requests) {
       const stage = r.currentStage || ''
@@ -268,7 +235,6 @@ export default function CommandDashboard() {
         result[sectionKey].push(r)
       }
     }
-    console.log('CommandDashboard - byCommandSection FINAL result:', result)
     return result
   }, [requests, commandSections, currentUser, getCurrentUserUic])
 
@@ -366,14 +332,6 @@ export default function CommandDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
     }
 
-    console.log('CommandDashboard - sendToCommandSection BEFORE SAVE:', {
-      requestId: r.id,
-      cmdSection,
-      updatedRouteSec: updated.routeSection,
-      updatedStage: updated.currentStage,
-      actionText
-    })
-
     try {
       await upsertRequest(updated as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
@@ -402,15 +360,13 @@ export default function CommandDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
     }
 
-    console.log('CommandDashboard - commander decision:', { type, stage: updated.currentStage, routeSec: updated.routeSection, actionText })
-
     try {
       await upsertRequest(updated as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
       setComments(prev => ({ ...prev, [r.id]: '' }));
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
-    } catch (error) {
-      console.error('Failed to make commander decision:', error);
+    } catch {
+      // Failed to make commander decision
     }
   }
 
@@ -465,14 +421,12 @@ export default function CommandDashboard() {
       activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
     }
 
-    console.log('CommandDashboard - command section return:', { stage: updated.currentStage, routeSec: updated.routeSection, actionText })
-
     try {
       await upsertRequest(updated as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
       setComments(prev => ({ ...prev, [r.id]: '' }));
-    } catch (error) {
-      console.error('Failed to return from command section:', error);
+    } catch {
+      // Failed to return from command section
     }
   }
 
@@ -556,8 +510,6 @@ export default function CommandDashboard() {
                       commandSections={commandSections}
                       sendToCommandSection={sendToCommandSection}
                       commanderDecision={commanderDecision}
-                      commanderArchive={commanderArchive}
-                      commanderReturn={commanderReturn}
                       expandedLogs={expandedLogs}
                       setExpandedLogs={setExpandedLogs}
                     />

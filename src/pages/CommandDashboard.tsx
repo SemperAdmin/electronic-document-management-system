@@ -291,7 +291,7 @@ export default function CommandDashboard() {
     const updated: Request = {
       ...r,
       currentStage: newStage,
-      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+      activity: [...(r.activity || []), entry]
     }
     try {
       await upsertRequest(updated as any)
@@ -311,7 +311,7 @@ export default function CommandDashboard() {
       ...r,
       currentStage: 'COMMANDER_REVIEW',
       routeSection: '',
-      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+      activity: [...(r.activity || []), entry]
     }
     try {
       await upsertRequest(updated as any)
@@ -334,7 +334,7 @@ export default function CommandDashboard() {
       ...r,
       currentStage: 'COMMANDER_REVIEW',
       routeSection: cmdSection,
-      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: cmdSection }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: cmdSection }]
+      activity: [...(r.activity || []), { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: cmdSection }]
     }
 
     try {
@@ -362,7 +362,7 @@ export default function CommandDashboard() {
       currentStage: 'BATTALION_REVIEW',
       routeSection: dest || r.routeSection || '',
       commanderApprovalDate: type === 'Approved' ? new Date().toISOString() : r.commanderApprovalDate,
-      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: dest || r.routeSection || undefined }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: dest || r.routeSection || undefined }]
+      activity: [...(r.activity || []), { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: dest || r.routeSection || undefined }]
     }
 
     try {
@@ -383,7 +383,7 @@ export default function CommandDashboard() {
       ...r,
       currentStage: 'ARCHIVED',
       finalStatus: 'Archived',
-      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+      activity: [...(r.activity || []), entry]
     }
     try {
       await upsertRequest(updated as any)
@@ -404,7 +404,7 @@ export default function CommandDashboard() {
       ...r,
       currentStage: 'BATTALION_REVIEW',
       routeSection: dest || r.routeSection || '',
-      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+      activity: [...(r.activity || []), entry]
     }
     try {
       await upsertRequest(updated as any)
@@ -422,12 +422,13 @@ export default function CommandDashboard() {
     const dest = battalionSectionFor(r)
     const prevSec = r.routeSection || ''
     const actionText = `Returned to ${dest || 'Battalion'} by ${prevSec || 'Command Section'}`
+    const entry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: dest || undefined }
 
     const updated: Request = {
       ...r,
       currentStage: 'BATTALION_REVIEW',
       routeSection: dest || r.routeSection || '',
-      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: dest || undefined }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: dest || undefined }]
+      activity: [...(r.activity || []), entry]
     }
 
     try {
@@ -462,7 +463,7 @@ export default function CommandDashboard() {
     const updated: Request = {
       ...r,
       documentIds: [...(r.documentIds || []), ...newDocs.map(d => d.id)],
-      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+      activity: [...(r.activity || []), entry]
     }
     try {
       await upsertDocuments(newDocs as any)

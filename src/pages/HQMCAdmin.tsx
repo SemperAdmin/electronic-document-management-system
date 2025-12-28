@@ -154,7 +154,8 @@ export default function HQMCAdmin() {
                                 onClick={async () => {
                                   const ed = (edipiReviewerByBranch[key] || '').trim()
                                   if (!ed) return
-                                  const { user } = await getUserByEdipi(ed)
+                                  const { user, error } = await getUserByEdipi(ed)
+                                  if (error) { setFeedback({ type: 'error', message: `Database error: ${error}` }); return }
                                   if (!user?.id) { setFeedback({ type: 'error', message: `No user found for EDIPI ${ed}` }); return }
                                   setAssignments(prev => ({ ...prev, [key]: { ...a, reviewers: Array.from(new Set([...(a.reviewers || []), user.id])) } }))
                                   setEdipiReviewerByBranch(prev => ({ ...prev, [key]: '' }))
@@ -190,7 +191,8 @@ export default function HQMCAdmin() {
                                 onClick={async () => {
                                   const ed = (edipiApproverByBranch[key] || '').trim()
                                   if (!ed) return
-                                  const { user } = await getUserByEdipi(ed)
+                                  const { user, error } = await getUserByEdipi(ed)
+                                  if (error) { setFeedback({ type: 'error', message: `Database error: ${error}` }); return }
                                   if (!user?.id) { setFeedback({ type: 'error', message: `No user found for EDIPI ${ed}` }); return }
                                   setAssignments(prev => ({ ...prev, [key]: { ...a, approvers: Array.from(new Set([...(a.approvers || []), user.id])) } }))
                                   setEdipiApproverByBranch(prev => ({ ...prev, [key]: '' }))

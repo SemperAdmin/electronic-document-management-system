@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listInstallationsLegacy, listRequestsLegacy, listUsersLegacy, listDocumentsLegacy, upsertDocuments, upsertRequest, listHQMCDivisionsLegacy, listHQMCStructureLegacy } from '@/lib/db'
 import { SearchableUnitSelector } from '@/components/SearchableUnitSelector'
-import type { DocumentRecord } from '@/lib/db'
+import type { DocumentRecord, RequestRecord } from '@/lib/db'
 import RequestTable from '@/components/RequestTable'
-import { Request, DocumentItem } from '@/types'
+import { Request } from '@/types'
 import InstallationPermissionManager from '@/components/InstallationPermissionManager'
 import { DocumentList, DocumentPreview } from '@/components/common'
 import { formatActorName } from '@/lib/utils'
@@ -37,7 +37,7 @@ export default function InstallationSectionDashboard() {
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
   const [readdressHQMCInst, setReaddressHQMCInst] = useState<Record<string, boolean>>({})
   const [permOpen, setPermOpen] = useState(false)
-  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null)
   const [reassignSection, setReassignSection] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -342,7 +342,7 @@ export default function InstallationSectionDashboard() {
       activity: [...(r.activity || []), entry]
     }
     try {
-      await upsertRequest(updated as any)
+      await upsertRequest(updated as RequestRecord)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
@@ -435,9 +435,9 @@ export default function InstallationSectionDashboard() {
                 className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
               >
                 <DocumentList
-                  documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                  documents={docsFor(r.id)}
                   showIcons
-                  onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) as any || null)}
+                  onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) || null)}
                 />
               </div>
               <div className="mt-3">
@@ -712,9 +712,9 @@ export default function InstallationSectionDashboard() {
       {previewDoc && (
         <DocumentPreview
           fileName={previewDoc.name}
-          url={(previewDoc as any).fileUrl || ''}
-          mimeType={(previewDoc as any).type || ''}
-          fileSize={(previewDoc as any).size || 0}
+          url={previewDoc.fileUrl || ''}
+          mimeType={previewDoc.type || ''}
+          fileSize={previewDoc.size || 0}
           isOpen={!!previewDoc}
           onClose={() => setPreviewDoc(null)}
         />

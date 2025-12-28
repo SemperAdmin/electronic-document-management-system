@@ -298,6 +298,7 @@ export default function CommandDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to update request:', error)
+      alert('Failed to update request')
     }
   }
 
@@ -316,6 +317,7 @@ export default function CommandDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to approve request to commander:', error)
+      alert('Failed to approve request to commander')
     }
   }
 
@@ -340,7 +342,7 @@ export default function CommandDashboard() {
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
       console.error('Failed to send to command section:', error);
-      // TODO: Add user-facing error notification
+      alert('Failed to send to command section')
     }
   }
 
@@ -368,6 +370,7 @@ export default function CommandDashboard() {
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
       console.error('Failed to make commander decision:', error)
+      alert('Failed to record commander decision')
     }
   }
 
@@ -387,6 +390,7 @@ export default function CommandDashboard() {
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to archive request:', error)
+      alert('Failed to archive request')
     }
   }
 
@@ -407,6 +411,7 @@ export default function CommandDashboard() {
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to return request:', error)
+      alert('Failed to return request')
     }
   }
 
@@ -428,6 +433,7 @@ export default function CommandDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
       console.error('Failed to return from command section:', error)
+      alert('Failed to return from command section')
     }
   }
 
@@ -464,6 +470,7 @@ export default function CommandDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to add files to request:', error);
+      alert('Failed to add files to request')
     }
   }
 

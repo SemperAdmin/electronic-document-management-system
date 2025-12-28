@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { listInstallationsLegacy, listRequestsLegacy, listUsersLegacy, listDocumentsLegacy, upsertDocuments, upsertRequest } from '@/lib/db'
 import type { DocumentRecord } from '@/lib/db'
 import RequestTable from '@/components/RequestTable'
-import { Request, DocumentItem } from '@/types'
+import { Request } from '@/types'
 import { DocumentList, DocumentPreview } from '@/components/common'
 import { formatActorName } from '@/lib/utils'
 
@@ -23,7 +23,7 @@ export default function InstallationCommandDashboard() {
   const [selectedCmdCommander, setSelectedCmdCommander] = useState<Record<string, string>>({})
   const [nextInstSection, setNextInstSection] = useState<Record<string, string>>({})
   const [reassignCmdSection, setReassignCmdSection] = useState<Record<string, string>>({})
-  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null)
 
   useEffect(() => {
     try {
@@ -129,7 +129,7 @@ export default function InstallationCommandDashboard() {
   const sendToInstallationCommander = async (r: Request) => {
     const actor = formatActorName(currentUser, 'Installation Command Section')
     const entry = { actor, timestamp: new Date().toISOString(), action: 'Sent to Installation Commander', comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, routeSection: '', activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, routeSection: '', activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -150,7 +150,7 @@ export default function InstallationCommandDashboard() {
       if (m) prevSec = m[1]
     }
     const entry = { actor, timestamp: new Date().toISOString(), action: `Returned to installation section${prevSec ? `: ${prevSec}` : ''}`, comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, routeSection: prevSec, activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, routeSection: prevSec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -166,7 +166,7 @@ export default function InstallationCommandDashboard() {
     if (!sec.trim()) return
     const actor = formatActorName(currentUser, 'Installation Commander')
     const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}`, comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, currentStage: 'INSTALLATION_REVIEW', routeSection: sec, activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, currentStage: 'INSTALLATION_REVIEW', routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -183,7 +183,7 @@ export default function InstallationCommandDashboard() {
     if (!sec.trim()) return
     const actor = formatActorName(currentUser, 'Installation Commander')
     const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to installation command section: ${sec}`, comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -201,36 +201,37 @@ export default function InstallationCommandDashboard() {
       : type === 'Endorsed' ? 'Endorsed by Installation Commander'
       : 'Rejected by Installation Commander — requires action'
 
-    let updated: any = { ...r }
-    const decisionEntry = { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+    // Find the installation section that originally routed this request
+    const prevInstSec = getPreviousInstallationSection(r)
+
+    let updated: Request = { ...r }
+    const decisionEntry = { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
 
     if (type === 'Rejected') {
-      const prevSec = getPreviousInstallSection(r)
+      // Return to the installation section that originally handled it
       updated = {
         ...r,
         currentStage: 'INSTALLATION_REVIEW',
         finalStatus: undefined,
-        routeSection: prevSec,
-        activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: prevSec ? `Returned to installation section: ${prevSec}` : 'Returned to installation commander' }]
+        routeSection: prevInstSec,
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: prevInstSec ? `Returned to installation section: ${prevInstSec}` : 'Returned for review' }]
+      }
+    } else if (type === 'Approved') {
+      // Approved - route to the installation section for further action
+      const sec = prevInstSec
+      updated = {
+        ...r,
+        currentStage: 'INSTALLATION_REVIEW',
+        routeSection: sec,
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: sec ? `Sent to installation section: ${sec}` : 'Sent for further routing' }]
       }
     } else {
-      if (type === 'Approved') {
-        const sec = selectedCmdCommander[r.id] || ''
-        if (!sec.trim()) { alert('Select a command section to send to'); return }
-        updated = {
-          ...r,
-          currentStage: 'INSTALLATION_REVIEW',
-          routeSection: sec,
-          activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}` }]
-        }
-      } else {
-        const prevSec = getPreviousInstallSection(r)
-        updated = {
-          ...r,
-          currentStage: 'INSTALLATION_REVIEW',
-          routeSection: prevSec,
-          activity: [...(r.activity || []), decisionEntry, { actor, timestamp: new Date().toISOString(), action: prevSec ? `Sent to installation section: ${prevSec}` : 'Returned to installation commander' }]
-        }
+      // Endorsed - return to the installation section for further routing
+      updated = {
+        ...r,
+        currentStage: 'INSTALLATION_REVIEW',
+        routeSection: prevInstSec,
+        activity: [...(r.activity || []), decisionEntry, { actor, actorRole: 'Installation Commander', timestamp: new Date().toISOString(), action: prevInstSec ? `Sent to installation section: ${prevInstSec}` : 'Sent for further routing' }]
       }
     }
 
@@ -238,6 +239,7 @@ export default function InstallationCommandDashboard() {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
       setComments(prev => ({ ...prev, [r.id]: '' }))
+      setSelectedCmdCommander(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to record installation commander decision:', e)
       alert('Failed to record decision')
@@ -250,7 +252,7 @@ export default function InstallationCommandDashboard() {
     const actor = formatActorName(currentUser, 'Installation Command Section')
     const prevSec = r.routeSection || ''
     const entry = { actor, actorRole: 'Installation Command Section', timestamp: new Date().toISOString(), action: `Reassigned to command section: ${sec}${prevSec ? ` (from ${prevSec})` : ''}`, comment: (comments[r.id] || '').trim() }
-    const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
+    const updated: Request = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
@@ -296,11 +298,42 @@ export default function InstallationCommandDashboard() {
     return ''
   }
 
+  // Find the installation section that originally routed the request (before it went to command section)
+  const getPreviousInstallationSection = (r: Request) => {
+    const acts = (r.activity || []).slice().reverse()
+    for (const a of acts) {
+      const s = String(a.action || '')
+      // Look for "Approved and routed to Installation Command: S-1 (from SSEC)" - extract SSEC
+      const m1 = s.match(/Approved and routed to Installation Command:[^(]+\(from\s+([^)]+)\)/i)
+      if (m1) return m1[1].trim()
+      // Or "Reassigned to installation section: SSEC"
+      const m2 = s.match(/Reassigned to installation section:\s*([^\(]+)/i)
+      if (m2) return m2[1].trim()
+      // Or "Sent to command section: S-1 (from SSEC)"
+      const m3 = s.match(/Sent to command section:[^(]+\(from\s+([^)]+)\)/i)
+      if (m3) return m3[1].trim()
+    }
+    // Fallback: look for any installation section routing pattern
+    for (const a of acts) {
+      const s = String(a.action || '')
+      // "Routed to installation section: SSEC"
+      const m1 = s.match(/Routed to installation section:\s*(.+)/i)
+      if (m1) return m1[1].trim()
+      // "Sent to installation section: SSEC"
+      const m2 = s.match(/Sent to installation section:\s*(.+)/i)
+      if (m2) return m2[1].trim()
+      // "Restored to installation section: SSEC"
+      const m3 = s.match(/Restored to installation section:\s*(.+)/i)
+      if (m3) return m3[1].trim()
+    }
+    return ''
+  }
+
   const restoreToInstallationSection = async (r: Request, sec?: string) => {
     const actor = formatActorName(currentUser, 'Installation Commander')
     const targetSec = (sec || '').trim() || getPreviousInstallSection(r)
     const entry = { actor, timestamp: new Date().toISOString(), action: `Restored to installation section${targetSec ? `: ${targetSec}` : ''}` }
-    const updated: any = {
+    const updated: Request = {
       ...r,
       currentStage: 'INSTALLATION_REVIEW',
       finalStatus: undefined,
@@ -370,9 +403,9 @@ export default function InstallationCommandDashboard() {
                       className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                     >
                       <DocumentList
-                        documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                        documents={docsFor(r.id)}
                         showIcons
-                        onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) as any || null)}
+                        onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) || null)}
                       />
                     </div>
                     <div className="mt-2">
@@ -641,9 +674,9 @@ export default function InstallationCommandDashboard() {
       {previewDoc && (
         <DocumentPreview
           fileName={previewDoc.name}
-          url={(previewDoc as any).fileUrl || ''}
-          mimeType={(previewDoc as any).type || ''}
-          fileSize={(previewDoc as any).size || 0}
+          url={previewDoc.fileUrl || ''}
+          mimeType={previewDoc.type || ''}
+          fileSize={previewDoc.size || 0}
           isOpen={!!previewDoc}
           onClose={() => setPreviewDoc(null)}
         />

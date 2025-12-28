@@ -36,12 +36,25 @@ function HomeContent() {
   });
   const [profileMode, setProfileMode] = useState<'create' | 'edit'>('create');
   const [dashOpen, setDashOpen] = useState(false);
-  const [hasSectionDashboard, setHasSectionDashboard] = useState(false);
-  const [hasCommandDashboard, setHasCommandDashboard] = useState(false);
-  const [hasInstallationSectionDashboard, setHasInstallationSectionDashboard] = useState(false);
-  const [hasInstallationCommandDashboard, setHasInstallationCommandDashboard] = useState(false);
-  const [hasHQMCSectionDashboard, setHasHQMCSectionDashboard] = useState(false);
-  const [hasHQMCApproverDashboard, setHasHQMCApproverDashboard] = useState(false);
+  // Load cached dashboard permissions from localStorage to prevent permission loss on refresh
+  const [hasSectionDashboard, setHasSectionDashboard] = useState(() => {
+    try { return localStorage.getItem('perm_section') === 'true' } catch { return false }
+  });
+  const [hasCommandDashboard, setHasCommandDashboard] = useState(() => {
+    try { return localStorage.getItem('perm_command') === 'true' } catch { return false }
+  });
+  const [hasInstallationSectionDashboard, setHasInstallationSectionDashboard] = useState(() => {
+    try { return localStorage.getItem('perm_inst_section') === 'true' } catch { return false }
+  });
+  const [hasInstallationCommandDashboard, setHasInstallationCommandDashboard] = useState(() => {
+    try { return localStorage.getItem('perm_inst_command') === 'true' } catch { return false }
+  });
+  const [hasHQMCSectionDashboard, setHasHQMCSectionDashboard] = useState(() => {
+    try { return localStorage.getItem('perm_hqmc_section') === 'true' } catch { return false }
+  });
+  const [hasHQMCApproverDashboard, setHasHQMCApproverDashboard] = useState(() => {
+    try { return localStorage.getItem('perm_hqmc_approver') === 'true' } catch { return false }
+  });
   const navigate = useNavigate();
 
   // Load view from URL params or localStorage
@@ -72,8 +85,28 @@ function HomeContent() {
     } else {
       localStorage.removeItem('currentUser');
       localStorage.removeItem('currentView');
+      // Clear cached permissions on logout
+      localStorage.removeItem('perm_section');
+      localStorage.removeItem('perm_command');
+      localStorage.removeItem('perm_inst_section');
+      localStorage.removeItem('perm_inst_command');
+      localStorage.removeItem('perm_hqmc_section');
+      localStorage.removeItem('perm_hqmc_approver');
     }
   }, [currentUser]);
+
+  // Cache dashboard permissions to localStorage to persist across refreshes
+  useEffect(() => {
+    if (!currentUser) return;
+    try {
+      localStorage.setItem('perm_section', String(hasSectionDashboard));
+      localStorage.setItem('perm_command', String(hasCommandDashboard));
+      localStorage.setItem('perm_inst_section', String(hasInstallationSectionDashboard));
+      localStorage.setItem('perm_inst_command', String(hasInstallationCommandDashboard));
+      localStorage.setItem('perm_hqmc_section', String(hasHQMCSectionDashboard));
+      localStorage.setItem('perm_hqmc_approver', String(hasHQMCApproverDashboard));
+    } catch {}
+  }, [currentUser, hasSectionDashboard, hasCommandDashboard, hasInstallationSectionDashboard, hasInstallationCommandDashboard, hasHQMCSectionDashboard, hasHQMCApproverDashboard]);
 
   // Refresh currentUser from Supabase to pick up new privileges (e.g., installation admin)
   useEffect(() => {

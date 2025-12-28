@@ -101,7 +101,7 @@ export function hasBattalionActionPostApproval(r: { activity?: Array<{ action: s
   return false
 }
 
-// Determine if delete is allowed - only before battalion takes action post-approval
+// Determine if delete is allowed - only before unit commander approval/endorsement
 export function canDeleteRequest(
   r: { currentStage?: string; uploadedById?: string; activity?: Array<{ action: string; timestamp?: string }> },
   requesterId: string
@@ -109,8 +109,13 @@ export function canDeleteRequest(
   const owner = String(r.uploadedById || '') === String(requesterId || '')
   if (!owner) return false
 
-  // Cannot delete if unit commander has approved and battalion has taken action
-  if ((isUnitApproved(r) || isUnitEndorsed(r)) && hasBattalionActionPostApproval(r)) {
+  // Cannot delete once unit commander has approved or endorsed
+  if (isUnitApproved(r) || isUnitEndorsed(r)) {
+    return false
+  }
+
+  // Cannot delete if installation commander has approved or endorsed
+  if (isInstallationApproved(r) || isInstallationEndorsed(r)) {
     return false
   }
 

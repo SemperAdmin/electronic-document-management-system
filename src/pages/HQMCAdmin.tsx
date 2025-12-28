@@ -40,8 +40,8 @@ export default function HQMCAdmin() {
 
   const myDivisionCode = currentUser?.hqmcDivision || (divisions[0]?.code || '')
   const myDivision = useMemo(() => divisions.find(d => d.code === myDivisionCode), [divisions, myDivisionCode])
-  const branches = useMemo(() => structure.filter(s => String(s.division_code || '') === myDivisionCode), [structure, myDivisionCode])
-  const divisionAdmins = useMemo(() => users.filter(u => !!u.isHqmcAdmin && String(u.hqmcDivision || '') === myDivisionCode), [users, myDivisionCode])
+  const branches = useMemo(() => (Array.isArray(structure) ? structure : []).filter(s => String(s.division_code || '') === myDivisionCode), [structure, myDivisionCode])
+  const divisionAdmins = useMemo(() => (Array.isArray(users) ? users : []).filter(u => !!u.isHqmcAdmin && String(u.hqmcDivision || '') === myDivisionCode), [users, myDivisionCode])
 
   return (
     <div className="bg-white rounded-lg shadow p-6">

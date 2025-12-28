@@ -119,13 +119,14 @@ export default function AppAdmin() {
   }
 
   const unitsWithAdmin = useMemo(() => UNITS.filter(u => !!unitAdmins[u.uic]), [unitAdmins])
-  const hqmcAdmins = useMemo(() => users.filter(u => !!u.isHqmcAdmin), [users])
+  const hqmcAdmins = useMemo(() => (Array.isArray(users) ? users : []).filter(u => !!u.isHqmcAdmin), [users])
   const unitsWithoutAdmin = useMemo(() => UNITS.filter(u => !unitAdmins[u.uic]), [unitAdmins])
-  const installationsWithAdmin = useMemo(() => installations.filter(i => (installationAdminsById as any)[i.id]?.length), [installations, installationAdminsById])
-  const installationsWithoutAdmin = useMemo(() => installations.filter(i => !((installationAdminsById as any)[i.id]?.length)), [installations, installationAdminsById])
+  const installationsWithAdmin = useMemo(() => (Array.isArray(installations) ? installations : []).filter(i => (installationAdminsById as any)[i.id]?.length), [installations, installationAdminsById])
+  const installationsWithoutAdmin = useMemo(() => (Array.isArray(installations) ? installations : []).filter(i => !((installationAdminsById as any)[i.id]?.length)), [installations, installationAdminsById])
   const hqmcAdminsByDivision = useMemo(() => {
     const map: Record<string, UserRecord[]> = {}
-    for (const u of users) {
+    const userList = Array.isArray(users) ? users : []
+    for (const u of userList) {
       if (u.isHqmcAdmin && u.hqmcDivision) {
         const code = u.hqmcDivision
         map[code] = map[code] || []
@@ -134,11 +135,11 @@ export default function AppAdmin() {
     }
     return map
   }, [users])
-  const hqmcDivisionsWithAdmin = useMemo(() => hqmcDivisions.filter(d => (hqmcAdminsByDivision as any)[d.code]?.length), [hqmcDivisions, hqmcAdminsByDivision])
+  const hqmcDivisionsWithAdmin = useMemo(() => (Array.isArray(hqmcDivisions) ? hqmcDivisions : []).filter(d => (hqmcAdminsByDivision as any)[d.code]?.length), [hqmcDivisions, hqmcAdminsByDivision])
 
   const pendingApprovals = useMemo(() => {
     const STAGES = ['PLATOON_REVIEW','COMPANY_REVIEW','BATTALION_REVIEW','COMMANDER_REVIEW']
-    return requests.filter(r => STAGES.includes(String(r.currentStage || '')))
+    return (Array.isArray(requests) ? requests : []).filter(r => STAGES.includes(String(r.currentStage || '')))
   }, [requests])
 
   const [assignedPage, setAssignedPage] = useState(1)

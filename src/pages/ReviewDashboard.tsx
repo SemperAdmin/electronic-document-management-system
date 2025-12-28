@@ -220,7 +220,7 @@ export default function ReviewDashboard() {
     return true;
   };
 
-  const inScope = useMemo(() => requests.filter(isRequestInScope), [requests, currentUser, users, platoonSectionMap]);
+  const inScope = useMemo(() => (Array.isArray(requests) ? requests : []).filter(isRequestInScope), [requests, currentUser, users, platoonSectionMap]);
 
   // Generate originator options from users
   const originatorOptions: FilterOption[] = useMemo(() => {
@@ -244,9 +244,9 @@ export default function ReviewDashboard() {
     getOriginatorId: (r) => r.uploadedById,
   })
 
-  const pending = useMemo(() => filteredInScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage), [filteredInScope, myStage]);
+  const pending = useMemo(() => (Array.isArray(filteredInScope) ? filteredInScope : []).filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage), [filteredInScope, myStage]);
 
-  const inScopeOther = useMemo(() => filteredInScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [filteredInScope, myStage])
+  const inScopeOther = useMemo(() => (Array.isArray(filteredInScope) ? filteredInScope : []).filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [filteredInScope, myStage])
 
   // Pagination for pending requests
   const pendingPagination = usePagination(pending, { pageSize: 25 })

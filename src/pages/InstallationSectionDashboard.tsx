@@ -3,9 +3,11 @@ import { listInstallationsLegacy, listRequestsLegacy, listUsersLegacy, listDocum
 import { SearchableUnitSelector } from '@/components/SearchableUnitSelector'
 import type { DocumentRecord } from '@/lib/db'
 import RequestTable from '@/components/RequestTable'
-import { Request } from '@/types'
+import { Request, DocumentItem } from '@/types'
 import InstallationPermissionManager from '@/components/InstallationPermissionManager'
-import { DocumentList } from '@/components/common'
+import { DocumentList, DocumentPreview } from '@/components/common'
+import { formatActorName } from '@/lib/utils'
+import { canArchiveAtLevel, isInstallationApproved, isInstallationEndorsed } from '@/lib/stage'
 
 export default function InstallationSectionDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -35,6 +37,7 @@ export default function InstallationSectionDashboard() {
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
   const [readdressHQMCInst, setReaddressHQMCInst] = useState<Record<string, boolean>>({})
   const [permOpen, setPermOpen] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null)
 
   useEffect(() => {
     try {
@@ -175,7 +178,7 @@ export default function InstallationSectionDashboard() {
   }, [requests, currentUser, mySections])
 
   const restoreToSection = async (r: Request, sec?: string) => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Section'
+    const actor = formatActorName(currentUser, 'Installation Section')
     const targetSec = (sec || '').trim() || (r.routeSection || '')
     const entry = { actor, timestamp: new Date().toISOString(), action: `Restored to installation section${targetSec ? `: ${targetSec}` : ''}` }
     const updated: any = { ...r, currentStage: 'INSTALLATION_REVIEW', finalStatus: undefined, routeSection: targetSec, activity: [...(r.activity || []), entry] }
@@ -191,7 +194,7 @@ export default function InstallationSectionDashboard() {
   const sendToInstallationCommand = async (r: Request) => {
     const sec = selectedCmd[r.id] || ''
     if (!sec.trim()) return
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Section'
+    const actor = formatActorName(currentUser, 'Installation Section')
     const prevSec = r.routeSection || ''
     const entry = { actor, timestamp: new Date().toISOString(), action: `Routed to installation command section: ${sec}${prevSec ? ` (from ${prevSec})` : ''}` }
     const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
@@ -205,7 +208,7 @@ export default function InstallationSectionDashboard() {
   }
 
   const returnToUnit = async (r: Request) => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Section'
+    const actor = formatActorName(currentUser, 'Installation Section')
     const entry = { actor, timestamp: new Date().toISOString(), action: 'Returned to unit for corrections', comment: (comments[r.id] || '').trim() }
     const updated: any = {
       ...r,
@@ -254,7 +257,7 @@ export default function InstallationSectionDashboard() {
   }
 
   const sendOutFromInstSection = async (r: Request) => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Section'
+    const actor = formatActorName(currentUser, 'Installation Section')
     let updated: any = { ...r }
     if (readdressHQMCInst[r.id]) {
       const div = hqmcDivisionSel[r.id] || ''
@@ -307,8 +310,27 @@ export default function InstallationSectionDashboard() {
     return String(r.routeSection || '')
   }
 
+  const archiveRequest = async (r: Request) => {
+    const actor = formatActorName(currentUser, 'Installation Section')
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: 'Archived by Installation Section', comment: (comments[r.id] || '').trim() }
+    const updated: Request = {
+      ...r,
+      currentStage: 'ARCHIVED',
+      finalStatus: 'Archived',
+      activity: [...(r.activity || []), entry]
+    }
+    try {
+      await upsertRequest(updated as any)
+      setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+    } catch (e) {
+      console.error('Failed to archive request:', e)
+      alert('Failed to archive request')
+    }
+  }
+
   const approveFromInstSection = async (r: Request) => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Section'
+    const actor = formatActorName(currentUser, 'Installation Section')
     let updated: any = { ...r }
     if (readdressHQMCInst[r.id]) {
       const div = hqmcDivisionSel[r.id] || ''
@@ -390,7 +412,11 @@ export default function InstallationSectionDashboard() {
                 ref={expandedDocs[r.id] ? docsRef : undefined}
                 className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
               >
-                <DocumentList documents={docsFor(r.id)} />
+                <DocumentList
+                  documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                  showIcons
+                  onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) as any || null)}
+                />
               </div>
               <div className="mt-3">
                 <button
@@ -500,10 +526,21 @@ export default function InstallationSectionDashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-end gap-2">
-                  <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => approveFromInstSection(r)}>Approve</button>
-                  <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2" onClick={() => returnToUnit(r)}>Return</button>
+                  <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold" onClick={() => approveFromInstSection(r)}>Approve</button>
+                  <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold" onClick={() => returnToUnit(r)}>Return</button>
                 </div>
                 </>
+              )}
+              {/* Archive button - only after installation commander approval */}
+              {canArchiveAtLevel(r, { userLevel: 'installation', userInstallationId: currentUser?.installationId }) && (
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                    onClick={() => archiveRequest(r)}
+                  >
+                    Archive
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -564,6 +601,18 @@ export default function InstallationSectionDashboard() {
       </div>
       {permOpen && currentUser && (
         <InstallationPermissionManager currentUser={currentUser} onClose={() => setPermOpen(false)} />
+      )}
+
+      {/* Document Preview Modal */}
+      {previewDoc && (
+        <DocumentPreview
+          fileName={previewDoc.name}
+          url={(previewDoc as any).fileUrl || ''}
+          mimeType={(previewDoc as any).type || ''}
+          fileSize={(previewDoc as any).size || 0}
+          isOpen={!!previewDoc}
+          onClose={() => setPreviewDoc(null)}
+        />
       )}
     </div>
   )

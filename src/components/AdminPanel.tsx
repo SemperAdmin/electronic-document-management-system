@@ -105,30 +105,26 @@ export const AdminPanel: React.FC = () => {
       setUnitCommandSections(cmdMap);
       setPlatoonSectionMap(pMap);
     } catch {}
-    setUsersLoading(true);
-    setUsersError(null);
-    listUsers().then((result) => {
-      setUsersLoading(false);
-      if (result.error) {
-        console.error('[AdminPanel] Failed to fetch users:', result.error);
-        setUsersError(result.error);
+    (async () => {
+      setUsersLoading(true);
+      setUsersError(null);
+      try {
+        const result = await listUsers();
+        if (result.error) {
+          throw new Error(result.error);
+        }
+        setUsers(result.data);
+        setTotalFetchedUsers(result.data.length);
+      } catch (e: any) {
+        const msg = e?.message || 'Unknown error fetching users';
+        console.error('[AdminPanel] Failed to fetch users:', msg);
+        setUsersError(msg);
         setUsers([]);
         setTotalFetchedUsers(0);
-      } else {
-        setUsers(result.data as any);
-        setTotalFetchedUsers(result.data.length);
-        if (result.data.length > 0) {
-          console.log('[AdminPanel] Fetched', result.data.length, 'users from database');
-        }
+      } finally {
+        setUsersLoading(false);
       }
-    }).catch((e) => {
-      setUsersLoading(false);
-      const msg = e?.message || 'Unknown error fetching users';
-      console.error('[AdminPanel] Exception fetching users:', msg);
-      setUsersError(msg);
-      setUsers([]);
-      setTotalFetchedUsers(0);
-    });
+    })();
     try {
       const rawCurrent = localStorage.getItem('currentUser');
       if (rawCurrent) {
@@ -259,6 +255,28 @@ export const AdminPanel: React.FC = () => {
     const cur = editingRolePlatoon || (editingUser && (editingUser as any).rolePlatoon && (editingUser as any).rolePlatoon !== 'N/A' ? (editingUser as any).rolePlatoon : '');
     return (cur && !base.includes(cur)) ? [cur, ...base] : base;
   }, [rolePlatoons, editingRolePlatoon, editingUser]);
+
+  // Filter users by selected unit
+  const usersInSelectedUnit = useMemo(() => {
+    if (!selectedUnit) return users;
+    return users.filter(u => {
+      const userUic = String(u.unitUic || '').trim().toUpperCase();
+      const selectedUic = String(selectedUnit.uic || '').trim().toUpperCase();
+      const userUnitName = String(u.unit || '').trim().toLowerCase();
+      const selectedUnitName = String(selectedUnit.unitName || '').trim().toLowerCase();
+      return (userUic && userUic === selectedUic) || (userUnitName && userUnitName === selectedUnitName);
+    });
+  }, [users, selectedUnit]);
+
+  // Apply text filter on top of unit filter
+  const displayedUsers = useMemo(() => {
+    if (!filter) return usersInSelectedUnit;
+    const lowerFilter = filter.toLowerCase();
+    return usersInSelectedUnit.filter(u =>
+      (u.email ?? '').toLowerCase().includes(lowerFilter) ||
+      (u.lastName ?? '').toLowerCase().includes(lowerFilter)
+    );
+  }, [usersInSelectedUnit, filter]);
 
   const saveUnitStructure = () => {
     try {
@@ -787,14 +805,8 @@ export const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Debug info - show if users fetched but none displayed */}
-        {!usersLoading && !usersError && totalFetchedUsers > 0 && users.filter(u => {
-          const userUic = String(u.unitUic || '').trim().toUpperCase();
-          const selectedUic = String(selectedUnit?.uic || '').trim().toUpperCase();
-          const userUnitName = String(u.unit || '').trim().toLowerCase();
-          const selectedUnitName = String(selectedUnit?.unitName || '').trim().toLowerCase();
-          return selectedUnit ? ((userUic && userUic === selectedUic) || (userUnitName && userUnitName === selectedUnitName)) : true;
-        }).length === 0 && (
+        {/* Debug info - show if users fetched but none displayed due to unit filter */}
+        {!usersLoading && !usersError && totalFetchedUsers > 0 && usersInSelectedUnit.length === 0 && (
           <div className="mb-4 p-3 border border-yellow-200 bg-yellow-50 text-yellow-800 rounded">
             <strong>Note:</strong> {totalFetchedUsers} user(s) found in database, but none match your unit ({selectedUnit?.unitName || 'No unit selected'}, UIC: {selectedUnit?.uic || 'N/A'}).
             <br />
@@ -817,22 +829,7 @@ export const AdminPanel: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {users
-                .filter(u => {
-                  const textMatch = !filter || (u.email ?? '').toLowerCase().includes(filter.toLowerCase()) || (u.lastName ?? '').toLowerCase().includes(filter.toLowerCase());
-                  // Normalize UIC comparison (case-insensitive, trimmed)
-                  const userUic = String(u.unitUic || '').trim().toUpperCase();
-                  const selectedUic = String(selectedUnit?.uic || '').trim().toUpperCase();
-                  const userUnitName = String(u.unit || '').trim().toLowerCase();
-                  const selectedUnitName = String(selectedUnit?.unitName || '').trim().toLowerCase();
-                  const unitMatch = selectedUnit ? (
-                    (userUic && userUic === selectedUic) ||
-                    (userUnitName && userUnitName === selectedUnitName)
-                  ) : true;
-                  // In the unit admin dashboard, only show accounts in the selected unit
-                  return textMatch && unitMatch;
-                })
-                .map(u => (
+              {displayedUsers.map(u => (
                 <tr key={u.id} className="border-b">
                   <td className="py-2 px-3">{u.lastName}, {u.firstName}{u.mi ? ` ${u.mi}` : ''}</td>
                   <td className="py-2 px-3">{u.email}</td>
@@ -880,9 +877,11 @@ export const AdminPanel: React.FC = () => {
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && !usersLoading && (
+              {displayedUsers.length === 0 && !usersLoading && (
                 <tr><td colSpan={8} className="py-3 px-3 text-gray-500">
-                  {usersError ? 'Failed to load users - check console for details' : 'No users found in database'}
+                  {usersError ? 'Failed to load users - check console for details' :
+                   totalFetchedUsers === 0 ? 'No users found in database' :
+                   filter ? 'No users match your search' : 'No users in this unit'}
                 </td></tr>
               )}
             </tbody>

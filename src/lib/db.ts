@@ -333,20 +333,6 @@ function fromUserRow(r: UserRow): UserRecord {
   // even if their display role is overridden to a reviewer role.
   const hasCommandAccess = dbRole === 'COMMANDER' || !!r.is_command_staff;
 
-  // Debug: log role transformation for first few users
-  if (r.email) {
-    console.log('[DB] fromUserRow:', {
-      email: r.email,
-      dbRole,
-      displayRole,
-      roleCompany,
-      rolePlatoon,
-      is_unit_admin: r.is_unit_admin,
-      is_command_staff: r.is_command_staff,
-      hasCommandAccess,
-    });
-  }
-
   return {
     id: String(r.id),
     email: r.email ? String(r.email) : undefined,
@@ -560,18 +546,6 @@ export async function listUsers(): Promise<DbListResult<UserRecord>> {
     if (error) {
       console.error('[DB] listUsers failed:', error.message)
       return { data: [], error: error.message }
-    }
-    // Debug: log raw data from Supabase for permission fields
-    if (data && data.length > 0) {
-      console.log('[DB] listUsers raw data sample:', data.slice(0, 2).map((u: any) => ({
-        id: u.id,
-        email: u.email,
-        role: u.role,
-        is_unit_admin: u.is_unit_admin,
-        is_command_staff: u.is_command_staff,
-        role_company: u.role_company,
-        role_platoon: u.role_platoon,
-      })))
     }
     return { data: ((data ?? []) as UserRow[]).map(fromUserRow), error: null }
   } catch (e) {

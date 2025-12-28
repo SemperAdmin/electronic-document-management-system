@@ -6,6 +6,7 @@ import { Request, DocumentItem } from '../types'
 import { UNITS } from '../lib/units'
 import CommanderRequestDetails from '../components/CommanderRequestDetails'
 import CommandSectionRequestDetails from '../components/CommandSectionRequestDetails'
+import { DocumentList } from '@/components/common'
 
 export default function CommandDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -580,20 +581,9 @@ export default function CommandDashboard() {
                               id={`docs-csec-archived-${r.id}`}
                               className={`${expandedDocs[r.id] ? 'mt-2 space-y-2' : 'hidden'}`}
                             >
-                              {docsFor(r.id).map(d => (
-                                <div key={d.id} className="flex items-center justify-between p-3 border border-brand-navy/20 rounded-lg bg-[var(--surface)]">
-                                  <div className="text-sm">
-                                    <div className="font-medium">{d.name}</div>
-                                    <div className="text-gray-500">{new Date(d.uploadedAt as any).toLocaleDateString()}</div>
-                                  </div>
-                                  {(d as any).fileUrl && (
-                                    <a href={(d as any).fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:bg-brand-gold-2">Open</a>
-                                  )}
-                                </div>
-                              ))}
-                              {docsFor(r.id).length === 0 && (
-                                <div className="text-sm text-gray-500">No documents</div>
-                              )}
+                              <DocumentList
+                                documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                              />
                             </div>
                           </div>
 

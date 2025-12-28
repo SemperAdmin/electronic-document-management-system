@@ -136,21 +136,22 @@ export default function ReviewDashboard() {
   }, [openDocsId])
 
   useEffect(() => {
-    listRequests().then((remote) => {
-      setRequests(remote as any)
+    listRequests().then((result) => {
+      setRequests(result.data || [])
     }).catch(() => setRequests([]))
   }, [])
 
   useEffect(() => {
-    listDocuments().then((remote) => {
-      setDocuments(remote as any)
+    listDocuments().then((result) => {
+      setDocuments(result.data as any || [])
     }).catch(() => setDocuments([]))
   }, [])
 
   useEffect(() => {
-    listUsers().then((remote) => {
+    listUsers().then((result) => {
       const map: Record<string, any> = {}
-      for (const u of (remote as any)) if (u?.id) map[u.id] = u
+      const userList = result.data || []
+      for (const u of userList) if (u?.id) map[u.id] = u
       setUsers(map)
     }).catch(() => setUsers({}))
   }, [])
@@ -219,47 +220,20 @@ export default function ReviewDashboard() {
     // Pre-compute reviewer's company (used by PLATOON and COMPANY roles)
     const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
 
-    // Debug logging
-    console.log('isRequestInScope:', {
-      requestId: r.id,
-      requestSubject: r.subject,
-      requestUic,
-      rUnitUic: r.unitUic,
-      oUnitUic: o?.unitUic,
-      cuic,
-      role,
-      originatorLoaded: !!o,
-      originatorCompany: o?.company,
-      originatorPlatoon: o?.platoon,
-      reviewerCompany: cc,
-    });
-
     if (role.includes('PLATOON')) {
       // Reviewer must have a unitUic and it must match the request's unit
-      if (!cuic || requestUic !== cuic) {
-        console.log('  -> FAIL: UIC mismatch', { cuic, requestUic });
-        return false;
-      }
+      if (!cuic || requestUic !== cuic) return false;
       // Get originator's company/platoon from user record or return early if not available
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
       const op = o ? getValidUnitPart(o.platoon).toUpperCase() : '';
       // Use rolePlatoon if set, otherwise fall back to user's own platoon
       const cp = (getValidUnitPart(currentUser?.rolePlatoon) || getValidUnitPart(currentUser?.platoon)).toUpperCase();
-      console.log('  PLATOON check:', { oc, op, cc, cp });
       // If reviewer has no company/platoon assigned, they can't review platoon-level requests
-      if (!cc || !cp) {
-        console.log('  -> FAIL: Reviewer missing company/platoon');
-        return false;
-      }
+      if (!cc || !cp) return false;
       // If originator data not loaded yet, can't determine scope
-      if (!oc || !op) {
-        console.log('  -> FAIL: Originator company/platoon not loaded');
-        return false;
-      }
+      if (!oc || !op) return false;
       // Check company and platoon match (case-insensitive)
-      const match = oc === cc && op === cp;
-      console.log('  -> Result:', match ? 'PASS' : 'FAIL (company/platoon mismatch)');
-      return match;
+      return oc === cc && op === cp;
     }
     if (role.includes('COMPANY')) {
       // Reviewer must have a unitUic and it must match the request's unit

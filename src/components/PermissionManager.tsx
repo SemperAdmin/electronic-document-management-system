@@ -16,13 +16,10 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
   const [confirmRemoveId, setConfirmRemoveId] = useState<string>('')
 
   useEffect(() => {
-    listUsers().then((remote) => {
-      setUsers(remote as any)
+    listUsers().then((result) => {
+      setUsers(result.data || [])
     }).catch(() => setUsers([]))
   }, [])
-
-  // Ensure users is always an array to prevent runtime errors
-  const safeUsers = useMemo(() => Array.isArray(users) ? users : [], [users])
 
   const canManage = useMemo(() => {
     const r = String(currentUser.role || '')
@@ -50,8 +47,8 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
       }
       return false
     }
-    return safeUsers.filter(u => u.id !== currentUser.id && scopeFilter(u))
-  }, [safeUsers, currentUser])
+    return users.filter(u => u.id !== currentUser.id && scopeFilter(u))
+  }, [users, currentUser])
 
   const currentAccess = useMemo(() => {
     const role = String(currentUser.role || '')
@@ -74,14 +71,14 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
       }
       return false
     }
-    return safeUsers.filter(u => u.id !== currentUser.id && scopeFilter(u) && String(u.role || '') === role)
-  }, [safeUsers, currentUser])
+    return users.filter(u => u.id !== currentUser.id && scopeFilter(u) && String(u.role || '') === role)
+  }, [users, currentUser])
 
   const grantEquivalentPermission = async () => {
     try {
       setBusy(true)
       setError('')
-      const target = safeUsers.find(u => u.id === selectedUserId)
+      const target = users.find(u => u.id === selectedUserId)
     if (!canManage || !target) { setBusy(false); return }
     const role = String(currentUser.role || '')
     const next: UserRecord = { ...target }
@@ -150,7 +147,7 @@ export const PermissionManager: React.FC<PermissionManagerProps> = ({ currentUse
     try {
       setBusy(true)
       setError('')
-      const target = safeUsers.find(u => u.id === targetId)
+      const target = users.find(u => u.id === targetId)
       if (!target) { setBusy(false); return }
       const role = String(currentUser.role || '')
       // ensure scope

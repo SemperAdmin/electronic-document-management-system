@@ -6,7 +6,7 @@ import { Request, DocumentItem } from '../types'
 import { UNITS } from '../lib/units'
 import CommanderRequestDetails from '../components/CommanderRequestDetails'
 import CommandSectionRequestDetails from '../components/CommandSectionRequestDetails'
-import { DocumentList } from '@/components/common'
+import { DocumentList, useToast } from '@/components/common'
 
 export default function CommandDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -24,6 +24,7 @@ export default function CommandDashboard() {
   const [platoonSectionMap, setPlatoonSectionMap] = useState<Record<string, Record<string, Record<string, string>>>>({})
   const [selectedCommandSection, setSelectedCommandSection] = useState<Record<string, string>>({})
   const [installation, setInstallation] = useState<any | null>(null)
+  const toast = useToast()
   // Removed activeTab state - only showing pending items now
 
   useEffect(() => {
@@ -298,13 +299,14 @@ export default function CommandDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to update request:', error)
-      alert('Failed to update request')
+      toast.error('Failed to update request')
     }
   }
 
   const approveToCommander = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Reviewer'
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'Approved and routed to COMMANDER', comment: (comments[r.id] || '').trim() }
+    const prevSec = r.routeSection || ''
+    const entry = { actor, timestamp: new Date().toISOString(), action: 'Approved and routed to COMMANDER', comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: 'Commander' }
     const updated: Request = {
       ...r,
       currentStage: 'COMMANDER_REVIEW',
@@ -317,7 +319,7 @@ export default function CommandDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to approve request to commander:', error)
-      alert('Failed to approve request to commander')
+      toast.error('Failed to approve request to commander')
     }
   }
 
@@ -332,7 +334,7 @@ export default function CommandDashboard() {
       ...r,
       currentStage: 'COMMANDER_REVIEW',
       routeSection: cmdSection,
-      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: cmdSection }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: cmdSection }]
     }
 
     try {
@@ -342,7 +344,7 @@ export default function CommandDashboard() {
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
       console.error('Failed to send to command section:', error);
-      alert('Failed to send to command section')
+      toast.error('Failed to send to command section')
     }
   }
 
@@ -360,7 +362,7 @@ export default function CommandDashboard() {
       currentStage: 'BATTALION_REVIEW',
       routeSection: dest || r.routeSection || '',
       commanderApprovalDate: type === 'Approved' ? new Date().toISOString() : r.commanderApprovalDate,
-      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: dest || r.routeSection || undefined }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: dest || r.routeSection || undefined }]
     }
 
     try {
@@ -370,7 +372,7 @@ export default function CommandDashboard() {
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
       console.error('Failed to make commander decision:', error)
-      alert('Failed to record commander decision')
+      toast.error('Failed to record commander decision')
     }
   }
 
@@ -390,14 +392,14 @@ export default function CommandDashboard() {
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to archive request:', error)
-      alert('Failed to archive request')
+      toast.error('Failed to archive request')
     }
   }
 
   const commanderReturn = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Commander'
     const dest = battalionSectionFor(r)
-    const entry = { actor, timestamp: new Date().toISOString(), action: `Returned to ${dest || 'Battalion'} by Commander`, comment: (comments[r.id] || '').trim() }
+    const entry = { actor, timestamp: new Date().toISOString(), action: `Returned to ${dest || 'Battalion'} by Commander`, comment: (comments[r.id] || '').trim(), fromSection: 'Commander', toSection: dest || r.routeSection || undefined }
     const updated: Request = {
       ...r,
       currentStage: 'BATTALION_REVIEW',
@@ -411,20 +413,21 @@ export default function CommandDashboard() {
       setSelectedCommandSection(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to return request:', error)
-      alert('Failed to return request')
+      toast.error('Failed to return request')
     }
   }
 
   const commandSectionReturn = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Command Section'
     const dest = battalionSectionFor(r)
-    const actionText = `Returned to ${dest || 'Battalion'} by ${r.routeSection || 'Command Section'}`
+    const prevSec = r.routeSection || ''
+    const actionText = `Returned to ${dest || 'Battalion'} by ${prevSec || 'Command Section'}`
 
     const updated: Request = {
       ...r,
       currentStage: 'BATTALION_REVIEW',
       routeSection: dest || r.routeSection || '',
-      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }]
+      activity: Array.isArray(r.activity) ? [...r.activity, { actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: dest || undefined }] : [{ actor, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: dest || undefined }]
     }
 
     try {
@@ -433,7 +436,7 @@ export default function CommandDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
       console.error('Failed to return from command section:', error)
-      alert('Failed to return from command section')
+      toast.error('Failed to return from command section')
     }
   }
 
@@ -470,7 +473,7 @@ export default function CommandDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (error) {
       console.error('Failed to add files to request:', error);
-      alert('Failed to add files to request')
+      toast.error('Failed to add files to request')
     }
   }
 

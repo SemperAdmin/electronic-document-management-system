@@ -5,7 +5,7 @@ import type { DocumentRecord, RequestRecord } from '@/lib/db'
 import RequestTable from '@/components/RequestTable'
 import { Request } from '@/types'
 import InstallationPermissionManager from '@/components/InstallationPermissionManager'
-import { DocumentList, DocumentPreview } from '@/components/common'
+import { DocumentList, DocumentPreview, useToast } from '@/components/common'
 import { formatActorName } from '@/lib/utils'
 import { canArchiveAtLevel, isInstallationApproved, isInstallationEndorsed } from '@/lib/stage'
 
@@ -38,6 +38,7 @@ export default function InstallationSectionDashboard() {
   const [permOpen, setPermOpen] = useState(false)
   const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null)
   const [reassignSection, setReassignSection] = useState<Record<string, string>>({})
+  const toast = useToast()
 
   useEffect(() => {
     try {
@@ -144,7 +145,7 @@ export default function InstallationSectionDashboard() {
       setDocuments(prev => [...newDocs, ...prev])
       setAttach(prev => ({ ...prev, [r.id]: [] }))
     } else {
-      alert('Failed to save files')
+      toast.error('Failed to save files')
     }
   }
 
@@ -187,7 +188,7 @@ export default function InstallationSectionDashboard() {
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
     } catch (e) {
       console.error('InstallationSectionDashboard - Failed to restore:', e)
-      alert('Failed to restore to section')
+      toast.error('Failed to restore to section')
     }
   }
 
@@ -196,7 +197,7 @@ export default function InstallationSectionDashboard() {
     if (!sec.trim()) return
     const actor = formatActorName(currentUser, 'Installation Section')
     const prevSec = r.routeSection || ''
-    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Approved and routed to Installation Command: ${sec}${prevSec ? ` (from ${prevSec})` : ''}`, comment: (comments[r.id] || '').trim() }
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Approved and routed to Installation Command: ${sec}${prevSec ? ` (from ${prevSec})` : ''}`, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: sec }
     const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
@@ -205,7 +206,7 @@ export default function InstallationSectionDashboard() {
       setSelectedCmd(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to route to installation command section:', e)
-      alert('Failed to route to installation command section')
+      toast.error('Failed to route to installation command section')
     }
   }
 
@@ -214,7 +215,7 @@ export default function InstallationSectionDashboard() {
     if (!sec.trim()) return
     const actor = formatActorName(currentUser, 'Installation Section')
     const prevSec = r.routeSection || ''
-    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Reassigned to installation section: ${sec}${prevSec ? ` (from ${prevSec})` : ''}`, comment: (comments[r.id] || '').trim() }
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Reassigned to installation section: ${sec}${prevSec ? ` (from ${prevSec})` : ''}`, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: sec }
     const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
@@ -223,13 +224,14 @@ export default function InstallationSectionDashboard() {
       setReassignSection(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to reassign to installation section:', e)
-      alert('Failed to reassign to installation section')
+      toast.error('Failed to reassign to installation section')
     }
   }
 
   const returnToUnit = async (r: Request) => {
     const actor = formatActorName(currentUser, 'Installation Section')
-    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: 'Returned to originating unit (Battalion)', comment: (comments[r.id] || '').trim() }
+    const prevSec = r.routeSection || ''
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: 'Returned to originating unit (Battalion)', comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: 'BATTALION_REVIEW' }
     const updated: any = {
       ...r,
       currentStage: 'BATTALION_REVIEW',
@@ -243,7 +245,7 @@ export default function InstallationSectionDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to return to unit:', e)
-      alert('Failed to return to unit')
+      toast.error('Failed to return to unit')
     }
   }
 
@@ -282,8 +284,9 @@ export default function InstallationSectionDashboard() {
     const extUic = externalUnitUic[r.id] || ''
     const extUnitName = externalUnit[r.id] || ''
     const extSec = externalSection[r.id] || ''
-    if (!extUic.trim()) { alert('Please select an external unit'); return }
-    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: extSec ? `Sent to external unit: ${extUnitName} - ${extSec}` : `Sent to external unit: ${extUnitName}`, comment: (comments[r.id] || '').trim() }
+    if (!extUic.trim()) { toast.warning('Please select an external unit'); return }
+    const prevSec = r.routeSection || ''
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: extSec ? `Sent to external unit: ${extUnitName} - ${extSec}` : `Sent to external unit: ${extUnitName}`, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: extSec || extUnitName }
     const updated: Request = {
       ...r,
       currentStage: 'EXTERNAL_REVIEW',
@@ -303,7 +306,7 @@ export default function InstallationSectionDashboard() {
       setExternalSection(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to send to external unit:', e)
-      alert('Failed to send to external unit')
+      toast.error('Failed to send to external unit')
     }
   }
 
@@ -311,8 +314,9 @@ export default function InstallationSectionDashboard() {
     const actor = formatActorName(currentUser, 'Installation Section')
     const div = hqmcDivisionSel[r.id] || ''
     const branch = hqmcBranchSel[r.id] || ''
-    if (!div || !branch) { alert('Select HQMC division and section'); return }
-    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Submitted to HQMC: ${div} - ${branch}`, comment: (comments[r.id] || '').trim() }
+    if (!div || !branch) { toast.warning('Select HQMC division and section'); return }
+    const prevSec = r.routeSection || ''
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Submitted to HQMC: ${div} - ${branch}`, comment: (comments[r.id] || '').trim(), fromSection: prevSec || undefined, toSection: branch }
     const updated: Request = { ...r, currentStage: 'HQMC_REVIEW', routeSection: branch, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated as RequestRecord)
@@ -322,7 +326,7 @@ export default function InstallationSectionDashboard() {
       setHqmcBranchSel(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to submit to HQMC:', e)
-      alert('Failed to submit to HQMC')
+      toast.error('Failed to submit to HQMC')
     }
   }
 
@@ -341,7 +345,7 @@ export default function InstallationSectionDashboard() {
       setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to archive request:', e)
-      alert('Failed to archive request')
+      toast.error('Failed to archive request')
     }
   }
 

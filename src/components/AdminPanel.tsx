@@ -766,7 +766,15 @@ export const AdminPanel: React.FC = () => {
               {users
                 .filter(u => {
                   const textMatch = !filter || (u.email ?? '').toLowerCase().includes(filter.toLowerCase()) || (u.lastName ?? '').toLowerCase().includes(filter.toLowerCase());
-                  const unitMatch = selectedUnit ? (u.unitUic === selectedUnit.uic || (u.unit && u.unit === selectedUnit.unitName)) : true;
+                  // Normalize UIC comparison (case-insensitive, trimmed)
+                  const userUic = String(u.unitUic || '').trim().toUpperCase();
+                  const selectedUic = String(selectedUnit?.uic || '').trim().toUpperCase();
+                  const userUnitName = String(u.unit || '').trim().toLowerCase();
+                  const selectedUnitName = String(selectedUnit?.unitName || '').trim().toLowerCase();
+                  const unitMatch = selectedUnit ? (
+                    (userUic && userUic === selectedUic) ||
+                    (userUnitName && userUnitName === selectedUnitName)
+                  ) : true;
                   // In the unit admin dashboard, only show accounts in the selected unit
                   return textMatch && unitMatch;
                 })

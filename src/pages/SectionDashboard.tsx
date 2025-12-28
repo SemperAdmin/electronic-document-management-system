@@ -373,8 +373,9 @@ export default function SectionDashboard() {
     const dest = selectedCmdSection[r.id] || 'COMMANDER'
     const actor = formatActorName(currentUser, 'Battalion')
     const actorRole = getActorRole()
+    const fromSection = battalionSectionFor(r) || selectedBattalionSection || ''
     const actionText = dest === 'COMMANDER' ? 'Approved to COMMANDER' : `Approved and routed to ${dest}`
-    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim() }
+    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: actionText, comment: (comments[r.id] || '').trim(), fromSection: fromSection || undefined, toSection: dest }
     const updated: Request = {
       ...r,
       currentStage: 'COMMANDER_REVIEW',

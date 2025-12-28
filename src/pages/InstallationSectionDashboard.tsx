@@ -38,6 +38,7 @@ export default function InstallationSectionDashboard() {
   const [readdressHQMCInst, setReaddressHQMCInst] = useState<Record<string, boolean>>({})
   const [permOpen, setPermOpen] = useState(false)
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null)
+  const [reassignSection, setReassignSection] = useState<Record<string, string>>({})
 
   useEffect(() => {
     try {
@@ -196,20 +197,40 @@ export default function InstallationSectionDashboard() {
     if (!sec.trim()) return
     const actor = formatActorName(currentUser, 'Installation Section')
     const prevSec = r.routeSection || ''
-    const entry = { actor, timestamp: new Date().toISOString(), action: `Routed to installation command section: ${sec}${prevSec ? ` (from ${prevSec})` : ''}` }
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Approved and routed to Installation Command: ${sec}${prevSec ? ` (from ${prevSec})` : ''}`, comment: (comments[r.id] || '').trim() }
     const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setSelectedCmd(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to route to installation command section:', e)
       alert('Failed to route to installation command section')
     }
   }
 
+  const reassignToSection = async (r: Request) => {
+    const sec = reassignSection[r.id] || ''
+    if (!sec.trim()) return
+    const actor = formatActorName(currentUser, 'Installation Section')
+    const prevSec = r.routeSection || ''
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Reassigned to installation section: ${sec}${prevSec ? ` (from ${prevSec})` : ''}`, comment: (comments[r.id] || '').trim() }
+    const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
+    try {
+      await upsertRequest(updated)
+      setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setReassignSection(prev => ({ ...prev, [r.id]: '' }))
+    } catch (e) {
+      console.error('Failed to reassign to installation section:', e)
+      alert('Failed to reassign to installation section')
+    }
+  }
+
   const returnToUnit = async (r: Request) => {
     const actor = formatActorName(currentUser, 'Installation Section')
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'Returned to unit for corrections', comment: (comments[r.id] || '').trim() }
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: 'Returned to originating unit (Battalion)', comment: (comments[r.id] || '').trim() }
     const updated: any = {
       ...r,
       currentStage: 'BATTALION_REVIEW',
@@ -220,6 +241,7 @@ export default function InstallationSectionDashboard() {
     try {
       await upsertRequest(updated)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
     } catch (e) {
       console.error('Failed to return to unit:', e)
       alert('Failed to return to unit')
@@ -450,8 +472,8 @@ export default function InstallationSectionDashboard() {
                   placeholder="Optional notes"
                 />
               </div>
-              <div className="mt-3 flex items-center gap-2">
-                <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded hover:bg-brand-red-2 cursor-pointer inline-block">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="bg-brand-navy text-brand-cream px-3 py-1 text-sm rounded hover:bg-brand-red-2 cursor-pointer inline-block">
                   <input
                     type="file"
                     multiple
@@ -462,37 +484,108 @@ export default function InstallationSectionDashboard() {
                   Add Files
                 </label>
                 <span className="text-xs text-[var(--muted)]">{(attach[r.id] || []).length ? `${(attach[r.id] || []).length} file(s) selected` : 'No files selected'}</span>
-                <button
-                  className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
-                  onClick={() => addFilesToRequest(r)}
-                  disabled={!attach[r.id] || !(attach[r.id] || []).length}
-                >
-                  Save Files
-                </button>
+                {(attach[r.id] || []).length > 0 && (
+                  <button
+                    className="px-3 py-1 text-xs bg-brand-gold text-brand-charcoal rounded hover:bg-brand-gold-2"
+                    onClick={() => addFilesToRequest(r)}
+                  >
+                    Save Files
+                  </button>
+                )}
               </div>
-              { (r.activity || []).some(a => /Endorsed by Installation Commander/i.test(String(a.action || ''))) && (
-                <>
+
+              {/* Routing Options */}
+              <div className="mt-4 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
+                <label className="block text-sm font-medium text-[var(--text)] mb-3">Routing Options</label>
+
+                {/* Option 1: Approve to Installation Command Section */}
+                <div className="mb-3 pb-3 border-b border-brand-navy/10">
+                  <label className="block text-xs font-medium text-[var(--muted)] mb-2">Approve to Installation Command Section</label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className="flex-1 min-w-[200px] px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
+                      value={selectedCmd[r.id] || ''}
+                      onChange={(e) => setSelectedCmd(prev => ({ ...prev, [r.id]: e.target.value }))}
+                    >
+                      <option value="">Select command section...</option>
+                      {(install?.commandSections || []).map((s: string) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => sendToInstallationCommand(r)}
+                      disabled={!selectedCmd[r.id]}
+                    >
+                      Approve to Command
+                    </button>
+                  </div>
+                </div>
+
+                {/* Option 2: Reassign to Another Installation Section */}
+                <div className="mb-3 pb-3 border-b border-brand-navy/10">
+                  <label className="block text-xs font-medium text-[var(--muted)] mb-2">Reassign to Another Installation Section</label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className="flex-1 min-w-[200px] px-3 py-2 border border-brand-navy/30 rounded-lg text-sm"
+                      value={reassignSection[r.id] || ''}
+                      onChange={(e) => setReassignSection(prev => ({ ...prev, [r.id]: e.target.value }))}
+                    >
+                      <option value="">Select installation section...</option>
+                      {(install?.sections || []).filter((s: string) => s.toUpperCase() !== (r.routeSection || '').toUpperCase()).map((s: string) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="px-4 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 font-medium hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => reassignToSection(r)}
+                      disabled={!reassignSection[r.id]}
+                    >
+                      Reassign
+                    </button>
+                  </div>
+                </div>
+
+                {/* Option 3: Return to Originating Unit */}
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted)] mb-2">Return to Originating Unit</label>
+                  <button
+                    className="px-4 py-2 rounded bg-brand-navy text-brand-cream font-medium hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                    onClick={() => returnToUnit(r)}
+                  >
+                    Return to Battalion
+                  </button>
+                  <p className="text-xs text-[var(--muted)] mt-1">Request will be returned to the originating unit's Battalion Section Dashboard</p>
+                </div>
+              </div>
+
+              {/* Additional Send Options - Only after Installation Commander endorsement */}
+              {(r.activity || []).some(a => /Endorsed by Installation Commander/i.test(String(a.action || ''))) && (
                 <div className="mt-3 p-3 border border-brand-navy/20 rounded-lg bg-brand-cream/30">
-                  <label className="block text-sm font-medium text-[var(--text)] mb-2">Send Options</label>
+                  <label className="block text-sm font-medium text-[var(--text)] mb-2">Additional Send Options (Post-Endorsement)</label>
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3">
-                      <input type="checkbox" id={`send-ext-inst-${r.id}`} checked={sendToExternalInst[r.id] || false} onChange={() => {
-                        const next = !(sendToExternalInst[r.id] || false)
-                        setSendToExternalInst(prev => ({ ...prev, [r.id]: next }))
-                        if (next) setSubmitToHQMCInst(prev => ({ ...prev, [r.id]: false }))
-                      }} />
-                      <label htmlFor={`send-ext-inst-${r.id}`}>Send to External Unit</label>
-                      <input type="checkbox" id={`readdress-hqmc-inst-${r.id}`} checked={readdressHQMCInst[r.id] || false} onChange={() => {
-                        const next = !(readdressHQMCInst[r.id] || false)
-                        setReaddressHQMCInst(prev => ({ ...prev, [r.id]: next }))
-                        if (next) setSendToExternalInst(prev => ({ ...prev, [r.id]: false }))
-                      }} />
-                      <label htmlFor={`readdress-hqmc-inst-${r.id}`}>Readdress to HQMC Section</label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id={`send-ext-inst-${r.id}`} checked={sendToExternalInst[r.id] || false} onChange={() => {
+                          const next = !(sendToExternalInst[r.id] || false)
+                          setSendToExternalInst(prev => ({ ...prev, [r.id]: next }))
+                          if (next) setReaddressHQMCInst(prev => ({ ...prev, [r.id]: false }))
+                        }} className="rounded border-brand-navy/30" />
+                        <span className="text-sm">Send to External Unit</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id={`readdress-hqmc-inst-${r.id}`} checked={readdressHQMCInst[r.id] || false} onChange={() => {
+                          const next = !(readdressHQMCInst[r.id] || false)
+                          setReaddressHQMCInst(prev => ({ ...prev, [r.id]: next }))
+                          if (next) setSendToExternalInst(prev => ({ ...prev, [r.id]: false }))
+                        }} className="rounded border-brand-navy/30" />
+                        <span className="text-sm">Readdress to HQMC Section</span>
+                      </label>
                     </div>
                     {sendToExternalInst[r.id] && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
                         <SearchableUnitSelector onUnitSelect={(u) => handleExternalUnitChange(r.id, u)} selectedUnit={{ uic: externalUnitUic[r.id] || '', unitName: externalUnit[r.id] || '' } as any} placeholder="Search by UIC, RUC, MCC, or Unit Name" />
-                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg" value={externalSection[r.id] || ''} onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!(externalUnitSections[r.id] || []).length}>
+                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm" value={externalSection[r.id] || ''} onChange={(e) => setExternalSection(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!(externalUnitSections[r.id] || []).length}>
                           <option value="">Select Section/Office (optional)</option>
                           {(externalUnitSections[r.id] || []).map(section => (
                             <option key={section} value={section}>{section}</option>
@@ -501,12 +594,12 @@ export default function InstallationSectionDashboard() {
                       </div>
                     )}
                     {readdressHQMCInst[r.id] && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg" value={hqmcDivisionSel[r.id] || ''} onChange={(e) => { setHqmcDivisionSel(prev => ({ ...prev, [r.id]: e.target.value })); setHqmcBranchSel(prev => ({ ...prev, [r.id]: '' })) }}>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm" value={hqmcDivisionSel[r.id] || ''} onChange={(e) => { setHqmcDivisionSel(prev => ({ ...prev, [r.id]: e.target.value })); setHqmcBranchSel(prev => ({ ...prev, [r.id]: '' })) }}>
                           <option value="">Select HQMC Division</option>
                           {hqmcDivisions.map(d => (<option key={d.code} value={d.code}>{d.code} — {d.name}</option>))}
                         </select>
-                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" value={hqmcBranchSel[r.id] || ''} onChange={(e) => setHqmcBranchSel(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!hqmcDivisionSel[r.id]}>
+                        <select className="px-3 py-2 border border-brand-navy/30 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed" value={hqmcBranchSel[r.id] || ''} onChange={(e) => setHqmcBranchSel(prev => ({ ...prev, [r.id]: e.target.value }))} disabled={!hqmcDivisionSel[r.id]}>
                           <option value="">Select HQMC Section</option>
                           {hqmcStructure.filter(s => String(s.division_code || '') === String(hqmcDivisionSel[r.id] || '')).map(s => (
                             <option key={s.branch} value={s.branch}>{s.branch}</option>
@@ -514,22 +607,34 @@ export default function InstallationSectionDashboard() {
                         </select>
                       </div>
                     )}
-                    <div className="mt-2">
-                      <button className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed" onClick={() => sendOutFromInstSection(r)} disabled={
-                        readdressHQMCInst[r.id]
-                          ? !(hqmcDivisionSel[r.id] && hqmcBranchSel[r.id])
-                          : sendToExternalInst[r.id]
-                            ? !(externalUnitUic[r.id])
-                            : true
-                      }>{ readdressHQMCInst[r.id] ? 'Submit to HQMC (Readdress)' : sendToExternalInst[r.id] ? 'Submit to External' : 'Submit' }</button>
+                    {(sendToExternalInst[r.id] || readdressHQMCInst[r.id]) && (
+                      <div className="mt-2">
+                        <button
+                          className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal font-medium hover:bg-brand-gold-2 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                          onClick={() => sendOutFromInstSection(r)}
+                          disabled={
+                            readdressHQMCInst[r.id]
+                              ? !(hqmcDivisionSel[r.id] && hqmcBranchSel[r.id])
+                              : sendToExternalInst[r.id]
+                                ? !(externalUnitUic[r.id])
+                                : true
+                          }
+                        >
+                          {readdressHQMCInst[r.id] ? 'Submit to HQMC (Readdress)' : 'Submit to External Unit'}
+                        </button>
+                      </div>
+                    )}
+                    <div className="mt-2 pt-2 border-t border-brand-navy/10">
+                      <button
+                        className="px-4 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 font-medium hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+                        onClick={() => approveFromInstSection(r)}
+                      >
+                        Approve to HQMC
+                      </button>
+                      <p className="text-xs text-[var(--muted)] mt-1">Submit to HQMC using the previously assigned section</p>
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center justify-end gap-2">
-                  <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold" onClick={() => approveFromInstSection(r)}>Approve</button>
-                  <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold" onClick={() => returnToUnit(r)}>Return</button>
-                </div>
-                </>
               )}
               {/* Archive button - only after installation commander approval */}
               {canArchiveAtLevel(r, { userLevel: 'installation', userInstallationId: currentUser?.installationId }) && (

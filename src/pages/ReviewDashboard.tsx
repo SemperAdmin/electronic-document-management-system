@@ -216,6 +216,9 @@ export default function ReviewDashboard() {
     const role = String(currentUser?.role || '');
     const cuic = currentUser?.unitUic || '';
 
+    // Pre-compute reviewer's company (used by PLATOON and COMPANY roles)
+    const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
+
     if (role.includes('PLATOON')) {
       // Reviewer must have unitUic set - security requirement
       if (!cuic) return false;
@@ -224,8 +227,7 @@ export default function ReviewDashboard() {
       // Get originator's company/platoon from user record or return early if not available
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
       const op = o ? getValidUnitPart(o.platoon).toUpperCase() : '';
-      // Use roleCompany/rolePlatoon if set, otherwise fall back to user's own company/platoon
-      const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
+      // Use rolePlatoon if set, otherwise fall back to user's own platoon
       const cp = (getValidUnitPart(currentUser?.rolePlatoon) || getValidUnitPart(currentUser?.platoon)).toUpperCase();
       // If reviewer has no company/platoon assigned, they can't review platoon-level requests
       if (!cc || !cp) return false;
@@ -240,8 +242,6 @@ export default function ReviewDashboard() {
       // Request must be from the same unit
       if (requestUic !== cuic) return false;
       const oc = o ? getValidUnitPart(o.company).toUpperCase() : '';
-      // Use roleCompany if set, otherwise fall back to user's own company
-      const cc = (getValidUnitPart(currentUser?.roleCompany) || getValidUnitPart(currentUser?.company)).toUpperCase();
       if (!cc) return false;
       if (!oc) return false;
       // Check company match (case-insensitive)
@@ -293,9 +293,9 @@ export default function ReviewDashboard() {
     getOriginatorId: (r) => r.uploadedById,
   })
 
-  const pending = useMemo(() => (Array.isArray(filteredInScope) ? filteredInScope : []).filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage), [filteredInScope, myStage]);
+  const pending = useMemo(() => filteredInScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === myStage), [filteredInScope, myStage]);
 
-  const inScopeOther = useMemo(() => (Array.isArray(filteredInScope) ? filteredInScope : []).filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [filteredInScope, myStage])
+  const inScopeOther = useMemo(() => filteredInScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') !== myStage), [filteredInScope, myStage])
 
   // Pagination for pending requests
   const pendingPagination = usePagination(pending, { pageSize: 25 })

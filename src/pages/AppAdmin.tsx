@@ -125,8 +125,7 @@ export default function AppAdmin() {
   const installationsWithoutAdmin = useMemo(() => (Array.isArray(installations) ? installations : []).filter(i => !((installationAdminsById as any)[i.id]?.length)), [installations, installationAdminsById])
   const hqmcAdminsByDivision = useMemo(() => {
     const map: Record<string, UserRecord[]> = {}
-    const userList = Array.isArray(users) ? users : []
-    for (const u of userList) {
+    for (const u of (Array.isArray(users) ? users : [])) {
       if (u.isHqmcAdmin && u.hqmcDivision) {
         const code = u.hqmcDivision
         map[code] = map[code] || []

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listUsersLegacy, listHQMCDivisionsLegacy, listHQMCSectionAssignmentsLegacy, upsertHQMCSectionAssignment, getUserByEdipi, listHQMCStructureLegacy } from '../lib/db'
+import { listUsersLegacy, listHQMCDivisionsLegacy, listHQMCSectionAssignmentsLegacy, upsertHQMCSectionAssignment, getUserByEdipi, listHQMCStructureLegacy, deleteHQMCStructure } from '../lib/db'
 import { UserRecord } from '@/types'
 
 export default function HQMCAdmin() {
@@ -75,6 +75,7 @@ export default function HQMCAdmin() {
                   <tr className="text-left border-b">
                     <th className="py-2 px-3">Branch/Section</th>
                     <th className="py-2 px-3">Description</th>
+                    <th className="py-2 px-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -82,10 +83,25 @@ export default function HQMCAdmin() {
                     <tr key={b.branch} className="border-b">
                       <td className="py-2 px-3">{b.branch}</td>
                       <td className="py-2 px-3">{b.description || ''}</td>
+                      <td className="py-2 px-3">
+                        <button
+                          className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                          onClick={async () => {
+                            if (!confirm(`Delete branch "${b.branch}"?`)) return
+                            const result = await deleteHQMCStructure(myDivisionCode, b.branch)
+                            if (result.ok) {
+                              setStructure(prev => prev.filter(s => !(s.division_code === myDivisionCode && s.branch === b.branch)))
+                              setFeedback({ type: 'success', message: `Deleted branch "${b.branch}"` })
+                            } else {
+                              setFeedback({ type: 'error', message: `Failed to delete: ${result.error}` })
+                            }
+                          }}
+                        >Delete</button>
+                      </td>
                     </tr>
                   ))}
                   {branches.length === 0 && (
-                    <tr><td colSpan={2} className="py-3 px-3 text-gray-500">No structure entries for your division.</td></tr>
+                    <tr><td colSpan={3} className="py-3 px-3 text-gray-500">No structure entries for your division.</td></tr>
                   )}
                 </tbody>
               </table>

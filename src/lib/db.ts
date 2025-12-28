@@ -790,6 +790,29 @@ export async function listHQMCStructure(): Promise<DbListResult<HQMCStructureRec
   }
 }
 
+export async function deleteHQMCStructure(divisionCode: string, branch: string): Promise<DbMutationResult> {
+  try {
+    const sb = getSupabase()
+    if (!sb?.from) {
+      return { ok: false, error: 'Supabase client not initialized' }
+    }
+    const { error } = await sb
+      .from('hqmc_structure')
+      .delete()
+      .eq('division_code', divisionCode)
+      .eq('branch', branch)
+    if (error) {
+      console.error('[DB] deleteHQMCStructure failed:', error.message)
+      return { ok: false, error: error.message }
+    }
+    return { ok: true, error: null }
+  } catch (e) {
+    const msg = getErrorMessage(e)
+    console.error('[DB] deleteHQMCStructure exception:', msg)
+    return { ok: false, error: msg }
+  }
+}
+
 export async function listHQMCDivisions(): Promise<DbListResult<HQMCDivisionRecord>> {
   try {
     const sb = getSupabase()

@@ -3,8 +3,9 @@ import { listInstallationsLegacy, listRequestsLegacy, listUsersLegacy, listDocum
 import type { DocumentRecord } from '@/lib/db'
 import { SearchableUnitSelector } from '@/components/SearchableUnitSelector'
 import RequestTable from '@/components/RequestTable'
-import { Request } from '@/types'
-import { DocumentList } from '@/components/common'
+import { Request, DocumentItem } from '@/types'
+import { DocumentList, DocumentPreview } from '@/components/common'
+import { formatActorName } from '@/lib/utils'
 
 export default function InstallationCommandDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -32,6 +33,7 @@ export default function InstallationCommandDashboard() {
   const [hqmcStructure, setHqmcStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
   const [hqmcDivisionSelCmd, setHqmcDivisionSelCmd] = useState<Record<string, string>>({})
   const [hqmcBranchSelCmd, setHqmcBranchSelCmd] = useState<Record<string, string>>({})
+  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null)
 
   useEffect(() => {
     try {
@@ -139,7 +141,7 @@ export default function InstallationCommandDashboard() {
   }
 
   const sendToInstallationCommander = async (r: Request) => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Command Section'
+    const actor = formatActorName(currentUser, 'Installation Command Section')
     const entry = { actor, timestamp: new Date().toISOString(), action: 'Sent to Installation Commander', comment: (comments[r.id] || '').trim() }
     const updated: any = { ...r, routeSection: '', activity: [...(r.activity || []), entry] }
     try {
@@ -153,7 +155,7 @@ export default function InstallationCommandDashboard() {
   }
 
   const returnToInstallationSection = async (r: Request) => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Command Section'
+    const actor = formatActorName(currentUser, 'Installation Command Section')
     // Try to extract previous section from activity entry
     const lastRoute = (r.activity || []).slice().reverse().find(a => /Routed to installation command section/i.test(String(a.action || '')))
     let prevSec = ''
@@ -176,7 +178,7 @@ export default function InstallationCommandDashboard() {
   const routeToInstallationSection = async (r: Request) => {
     const sec = nextInstSection[r.id] || ''
     if (!sec.trim()) return
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Commander'
+    const actor = formatActorName(currentUser, 'Installation Commander')
     const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to installation section: ${sec}`, comment: (comments[r.id] || '').trim() }
     const updated: any = { ...r, currentStage: 'INSTALLATION_REVIEW', routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
@@ -193,7 +195,7 @@ export default function InstallationCommandDashboard() {
   const routeToInstallationCommandFromCommander = async (r: Request) => {
     const sec = selectedCmdCommander[r.id] || ''
     if (!sec.trim()) return
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Commander'
+    const actor = formatActorName(currentUser, 'Installation Commander')
     const entry = { actor, timestamp: new Date().toISOString(), action: `Sent to installation command section: ${sec}`, comment: (comments[r.id] || '').trim() }
     const updated: any = { ...r, routeSection: sec, activity: [...(r.activity || []), entry] }
     try {
@@ -208,7 +210,7 @@ export default function InstallationCommandDashboard() {
   }
 
   const installationCommanderDecision = async (r: Request, type: 'Approved' | 'Endorsed' | 'Rejected') => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Commander'
+    const actor = formatActorName(currentUser, 'Installation Commander')
     const actionText = type === 'Approved' ? 'Approved by Installation Commander'
       : type === 'Endorsed' ? 'Endorsed by Installation Commander'
       : 'Rejected by Installation Commander — requires action'
@@ -321,7 +323,7 @@ export default function InstallationCommandDashboard() {
   }
 
   const restoreToInstallationSection = async (r: Request, sec?: string) => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Commander'
+    const actor = formatActorName(currentUser, 'Installation Commander')
     const targetSec = (sec || '').trim() || getPreviousInstallSection(r)
     const entry = { actor, timestamp: new Date().toISOString(), action: `Restored to installation section${targetSec ? `: ${targetSec}` : ''}` }
     const updated: any = {
@@ -341,7 +343,7 @@ export default function InstallationCommandDashboard() {
   }
 
   const sendOutFromCmdSection = async (r: Request) => {
-    const actor = `${currentUser?.rank || ''} ${currentUser?.lastName || ''}, ${currentUser?.firstName || ''}`.trim() || 'Installation Command Section'
+    const actor = formatActorName(currentUser, 'Installation Command Section')
     let updated: any = { ...r }
     if (submitToHQMCCmd[r.id]) {
       const div = hqmcDivisionSelCmd[r.id] || ''
@@ -432,7 +434,11 @@ export default function InstallationCommandDashboard() {
                       ref={expandedDocs[r.id] ? docsRef : undefined}
                       className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
                     >
-                      <DocumentList documents={docsFor(r.id)} />
+                      <DocumentList
+                        documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+                        showIcons
+                        onPreview={(doc) => setPreviewDoc(docsFor(r.id).find(d => d.id === doc.id) as any || null)}
+                      />
                     </div>
                     <div className="mt-2">
                       <button
@@ -721,6 +727,18 @@ export default function InstallationCommandDashboard() {
         </RequestTable>
         )}
       </div>
+
+      {/* Document Preview Modal */}
+      {previewDoc && (
+        <DocumentPreview
+          fileName={previewDoc.name}
+          url={(previewDoc as any).fileUrl || ''}
+          mimeType={(previewDoc as any).type || ''}
+          fileSize={(previewDoc as any).size || 0}
+          isOpen={!!previewDoc}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
     </div>
   )
 }

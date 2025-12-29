@@ -23,7 +23,8 @@ export default function InstallationSectionDashboard() {
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = React.useRef<HTMLDivElement>(null)
-  const [activeTab, setActiveTab] = useState<'Pending' | 'Previously in Section'>('Pending')
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Previously in Section' | 'Files'>('Pending')
+  const [filesSearchQuery, setFilesSearchQuery] = useState<string>('')
   const [nextInstSection, setNextInstSection] = useState<Record<string, string>>({})
   const [sendToExternalInst, setSendToExternalInst] = useState<Record<string, boolean>>({})
   const [submitToHQMCInst, setSubmitToHQMCInst] = useState<Record<string, boolean>>({})
@@ -121,7 +122,8 @@ export default function InstallationSectionDashboard() {
   }
   const exportPending = () => downloadCsv('installation_section_pending.csv', buildRows(inMySections))
   const exportPrevious = () => downloadCsv('installation_section_previous.csv', buildRows(previouslyInSection))
-  const exportAll = () => downloadCsv('installation_section_all.csv', buildRows([...inMySections, ...previouslyInSection]))
+  const exportFiles = () => downloadCsv('installation_section_files.csv', buildRows(filedInInstallation))
+  const exportAll = () => downloadCsv('installation_section_all.csv', buildRows([...inMySections, ...previouslyInSection, ...filedInInstallation]))
 
   const addFilesToRequest = async (r: Request) => {
     const files = attach[r.id] || []
@@ -176,11 +178,51 @@ export default function InstallationSectionDashboard() {
   const previouslyInSection = useMemo(() => {
     const iid = currentUser?.installationId || ''
     const allowed = new Set(mySections.map(s => s.toUpperCase()))
-    return requests.filter(r => r.installationId === iid && (
-      (r.currentStage !== 'INSTALLATION_REVIEW') ||
-      !(r.routeSection && allowed.has(String(r.routeSection || '').toUpperCase()))
-    ))
+    return requests.filter(r => {
+      // Skip filed records - they go to Files tab
+      if (r.filedAt) return false
+
+      return r.installationId === iid && (
+        (r.currentStage !== 'INSTALLATION_REVIEW') ||
+        !(r.routeSection && allowed.has(String(r.routeSection || '').toUpperCase()))
+      )
+    })
   }, [requests, currentUser, mySections])
+
+  // Filed records within this installation section's scope
+  const filedInInstallation = useMemo(() => {
+    const iid = currentUser?.installationId || ''
+    const allowed = new Set(mySections.map(s => s.toUpperCase()))
+
+    let records = requests.filter(r => {
+      // Only filed records
+      if (!r.filedAt) return false
+
+      // Must be in this installation
+      if (r.installationId !== iid) return false
+
+      // Check if any of my sections were involved
+      const hasActivity = r.activity?.some(a => {
+        const action = String(a.action || '')
+        return mySections.some(sec => action.includes(sec) || action.includes(sec.toUpperCase()))
+      })
+
+      return hasActivity
+    })
+
+    // Apply search filter
+    if (filesSearchQuery.trim()) {
+      const query = filesSearchQuery.toLowerCase().trim()
+      records = records.filter(r =>
+        r.subject?.toLowerCase().includes(query) ||
+        r.ssic?.toLowerCase().includes(query) ||
+        r.ssicNomenclature?.toLowerCase().includes(query) ||
+        r.ssicBucketTitle?.toLowerCase().includes(query)
+      )
+    }
+
+    return records
+  }, [requests, currentUser, mySections, filesSearchQuery])
 
   const restoreToSection = async (r: Request, sec?: string) => {
     const actor = formatActorName(currentUser, 'Installation Section')
@@ -393,6 +435,10 @@ export default function InstallationSectionDashboard() {
               onClick={() => setActiveTab('Previously in Section')}
               className={`${activeTab === 'Previously in Section' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
             >Previously in Section</button>
+            <button
+              onClick={() => setActiveTab('Files')}
+              className={`${activeTab === 'Files' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
+            >Files ({filedInInstallation.length})</button>
           </nav>
         </div>
         {activeTab === 'Pending' && (
@@ -701,6 +747,67 @@ export default function InstallationSectionDashboard() {
             </div>
           )}
         </RequestTable>
+        )}
+        {activeTab === 'Files' && (
+          <div className="space-y-4">
+            {/* Search Bar */}
+            <div className="flex items-center justify-between">
+              <div className="relative flex-1 max-w-md">
+                <input
+                  type="text"
+                  placeholder="Search files by subject, SSIC, category..."
+                  value={filesSearchQuery}
+                  onChange={(e) => setFilesSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent"
+                />
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {filesSearchQuery && (
+                  <button onClick={() => setFilesSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportFiles}>Export Files</button>
+            </div>
+
+            {filedInInstallation.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                {filesSearchQuery ? 'No records match your search.' : 'No filed records in this installation section.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">Subject</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">Category</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">Date Filed</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filedInInstallation.map(r => {
+                      const originator = usersById[r.uploadedById]
+                      return (
+                        <tr key={r.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
+                          <td className="px-3 py-2">{r.ssic || '—'}</td>
+                          <td className="px-3 py-2">{r.ssicBucketTitle || r.ssicBucket || '—'}</td>
+                          <td className="px-3 py-2">{r.filedAt ? new Date(r.filedAt).toLocaleDateString() : '—'}</td>
+                          <td className="px-3 py-2">{originator ? `${originator.lastName}, ${originator.firstName?.charAt(0) || ''}` : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         )}
       </div>
       {permOpen && currentUser && (

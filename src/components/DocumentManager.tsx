@@ -52,7 +52,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [docsExpanded, setDocsExpanded] = useState<boolean>(false);
   const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
   const [submitForUserId, setSubmitForUserId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'Pending' | 'Archived'>('Pending');
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Files'>('Pending');
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({});
   const [selectedBattalionSection, setSelectedBattalionSection] = useState<string>('');
   const [ssicSelection, setSsicSelection] = useState<SsicSelection | null>(null);
@@ -678,15 +678,70 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     } catch {}
   }, []);
 
-  // Filter user's requests
+  // Filter user's requests for Pending tab
   const myRequests = useMemo(() => {
     if (!currentUser?.id) return [];
     const filtered = userRequests.filter(r => r.uploadedById === currentUser.id);
-    if (activeTab === 'Pending') {
-      return filtered.filter(r => r.currentStage !== 'ARCHIVED');
+    // Pending tab shows non-archived requests
+    return filtered.filter(r => r.currentStage !== 'ARCHIVED');
+  }, [userRequests, currentUser]);
+
+  // Separate requests by retention type for Files tab
+  const permanentRecords = useMemo(() => {
+    if (!currentUser?.id) return [];
+    return userRequests
+      .filter(r => r.uploadedById === currentUser.id && r.ssic && r.isPermanent === true)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [userRequests, currentUser]);
+
+  const temporaryRecords = useMemo(() => {
+    if (!currentUser?.id) return [];
+    return userRequests
+      .filter(r => r.uploadedById === currentUser.id && r.ssic && r.isPermanent === false)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [userRequests, currentUser]);
+
+  // Calculate disposal date based on retention rules
+  const calculateDisposalDate = useCallback((request: Request): string => {
+    if (!request.retentionValue || !request.cutoffTrigger) return 'N/A';
+    if (request.isPermanent) return 'Permanent';
+
+    const createdDate = new Date(request.createdAt);
+    let cutoffDate: Date;
+
+    switch (request.cutoffTrigger) {
+      case 'CALENDAR_YEAR':
+        cutoffDate = new Date(createdDate.getFullYear(), 11, 31); // Dec 31
+        break;
+      case 'FISCAL_YEAR':
+        // Fiscal year ends Sep 30
+        cutoffDate = createdDate.getMonth() >= 9
+          ? new Date(createdDate.getFullYear() + 1, 8, 30)
+          : new Date(createdDate.getFullYear(), 8, 30);
+        break;
+      default:
+        cutoffDate = createdDate;
     }
-    return filtered.filter(r => r.currentStage === 'ARCHIVED');
-  }, [userRequests, currentUser, activeTab]);
+
+    // Add retention period
+    const disposalDate = new Date(cutoffDate);
+    if (request.retentionUnit === 'years') {
+      disposalDate.setFullYear(disposalDate.getFullYear() + request.retentionValue);
+    } else if (request.retentionUnit === 'months') {
+      disposalDate.setMonth(disposalDate.getMonth() + request.retentionValue);
+    } else if (request.retentionUnit === 'days') {
+      disposalDate.setDate(disposalDate.getDate() + request.retentionValue);
+    }
+
+    return disposalDate.toLocaleDateString();
+  }, []);
+
+  // Get originator name
+  const getOriginatorName = useCallback((request: Request): string => {
+    const user = users.find(u => u.id === request.uploadedById);
+    if (!user) return 'Unknown';
+    return `${user.lastName}, ${user.firstName?.charAt(0) || ''}`;
+  }, [users]);
 
   // Pagination for user requests
   const requestsPagination = usePagination(myRequests, { pageSize: 10 });
@@ -895,57 +950,186 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                   Pending
                 </button>
                 <button
-                  onClick={() => setActiveTab('Archived')}
-                  className={`${activeTab === 'Archived' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  onClick={() => setActiveTab('Files')}
+                  className={`${activeTab === 'Files' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                 >
-                  Archived
+                  Files
                 </button>
               </nav>
             </div>
-            <div className="flex items-center justify-between py-2 text-sm text-[var(--muted)]">
-              <div>{requestsPagination.totalItems > 0 ? `${requestsPagination.startIndex}–${requestsPagination.endIndex} of ${requestsPagination.totalItems}` : ''}</div>
-              {loadingRequests && <div className="animate-pulse">Loading requests…</div>}
-            </div>
-            <RequestTable
-              title="Your Requests"
-              requests={loadingRequests ? Array.from({ length: 5 }).map((_, i) => ({ id: `s-${i}`, subject: '', uploadedById: '', documentIds: [], createdAt: new Date().toISOString(), currentStage: Stage.PLATOON_REVIEW } as any)) : requestsPagination.currentData}
-              users={usersByIdMap}
-              onRowClick={(r) => setSelectedRequest(r)}
-              expandedRows={expandedRequests}
-            >
-              {(r: Request) => (
-                <div id={`req-docs-${r.id}`}>
-                  {loadingDocuments ? (
-                    <div className="h-16 rounded bg-gray-100 animate-pulse" />
-                  ) : (
-                    documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
-                      <DocCard key={d.id} doc={d} onView={openDoc} onDelete={deleteDocument} />
-                    ))
-                  )}
-                  {!loadingDocuments && documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
-                    <div className="text-sm text-[var(--muted)]">No documents</div>
-                  )}
+
+            {/* Pending Tab Content */}
+            {activeTab === 'Pending' && (
+              <>
+                <div className="flex items-center justify-between py-2 text-sm text-[var(--muted)]">
+                  <div>{requestsPagination.totalItems > 0 ? `${requestsPagination.startIndex}–${requestsPagination.endIndex} of ${requestsPagination.totalItems}` : ''}</div>
+                  {loadingRequests && <div className="animate-pulse">Loading requests…</div>}
                 </div>
-              )}
-            </RequestTable>
-            {requestsPagination.totalItems > 0 && (
-              <Pagination
-                currentPage={requestsPagination.currentPage}
-                totalPages={requestsPagination.totalPages}
-                totalItems={requestsPagination.totalItems}
-                pageSize={requestsPagination.pageSize}
-                startIndex={requestsPagination.startIndex}
-                endIndex={requestsPagination.endIndex}
-                onPageChange={requestsPagination.goToPage}
-                onPageSizeChange={requestsPagination.setPageSize}
-                onNext={requestsPagination.nextPage}
-                onPrevious={requestsPagination.previousPage}
-                onFirst={requestsPagination.goToFirstPage}
-                onLast={requestsPagination.goToLastPage}
-                canGoNext={requestsPagination.canGoNext}
-                canGoPrevious={requestsPagination.canGoPrevious}
-                pageSizeOptions={[5, 10, 25, 50]}
-              />
+                <RequestTable
+                  title="Your Requests"
+                  requests={loadingRequests ? Array.from({ length: 5 }).map((_, i) => ({ id: `s-${i}`, subject: '', uploadedById: '', documentIds: [], createdAt: new Date().toISOString(), currentStage: Stage.PLATOON_REVIEW } as any)) : requestsPagination.currentData}
+                  users={usersByIdMap}
+                  onRowClick={(r) => setSelectedRequest(r)}
+                  expandedRows={expandedRequests}
+                >
+                  {(r: Request) => (
+                    <div id={`req-docs-${r.id}`}>
+                      {loadingDocuments ? (
+                        <div className="h-16 rounded bg-gray-100 animate-pulse" />
+                      ) : (
+                        documents.filter(d => d.requestId === r.id && d.type !== 'request').map(d => (
+                          <DocCard key={d.id} doc={d} onView={openDoc} onDelete={deleteDocument} />
+                        ))
+                      )}
+                      {!loadingDocuments && documents.filter(d => d.requestId === r.id && d.type !== 'request').length === 0 && (
+                        <div className="text-sm text-[var(--muted)]">No documents</div>
+                      )}
+                    </div>
+                  )}
+                </RequestTable>
+                {requestsPagination.totalItems > 0 && (
+                  <Pagination
+                    currentPage={requestsPagination.currentPage}
+                    totalPages={requestsPagination.totalPages}
+                    totalItems={requestsPagination.totalItems}
+                    pageSize={requestsPagination.pageSize}
+                    startIndex={requestsPagination.startIndex}
+                    endIndex={requestsPagination.endIndex}
+                    onPageChange={requestsPagination.goToPage}
+                    onPageSizeChange={requestsPagination.setPageSize}
+                    onNext={requestsPagination.nextPage}
+                    onPrevious={requestsPagination.previousPage}
+                    onFirst={requestsPagination.goToFirstPage}
+                    onLast={requestsPagination.goToLastPage}
+                    canGoNext={requestsPagination.canGoNext}
+                    canGoPrevious={requestsPagination.canGoPrevious}
+                    pageSizeOptions={[5, 10, 25, 50]}
+                  />
+                )}
+              </>
+            )}
+
+            {/* Files Tab Content - Records Management Dashboard */}
+            {activeTab === 'Files' && (
+              <div className="py-4 space-y-6">
+                {loadingRequests ? (
+                  <div className="animate-pulse">Loading records…</div>
+                ) : (
+                  <>
+                    {/* Permanent Records Section */}
+                    <div>
+                      <div className="bg-brand-navy text-brand-cream px-3 py-2 rounded-t-lg font-medium text-sm">
+                        Permanent Records
+                      </div>
+                      <div className="border border-t-0 border-gray-200 rounded-b-lg overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Name</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Status</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Retention</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Date</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Date Created</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {permanentRecords.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="px-3 py-4 text-center text-gray-500">No permanent records</td>
+                              </tr>
+                            ) : (
+                              permanentRecords.map((r) => (
+                                <tr
+                                  key={r.id}
+                                  className="hover:bg-gray-50 cursor-pointer"
+                                  onClick={() => setSelectedRequest(r)}
+                                >
+                                  <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
+                                  <td className="px-3 py-2">{r.ssic}</td>
+                                  <td className="px-3 py-2">
+                                    <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                                      Permanent
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2">Permanent</td>
+                                  <td className="px-3 py-2">N/A</td>
+                                  <td className="px-3 py-2">{getOriginatorName(r)}</td>
+                                  <td className="px-3 py-2">{new Date(r.createdAt).toLocaleDateString()}</td>
+                                  <td className="px-3 py-2">{r.disposalAction || 'TRANSFER'}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Temporary Records Section */}
+                    <div>
+                      <div className="bg-brand-navy text-brand-cream px-3 py-2 rounded-t-lg font-medium text-sm">
+                        Temporary Records
+                      </div>
+                      <div className="border border-t-0 border-gray-200 rounded-b-lg overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Name</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Status</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Retention</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Date</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Date Created</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {temporaryRecords.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="px-3 py-4 text-center text-gray-500">No temporary records</td>
+                              </tr>
+                            ) : (
+                              temporaryRecords.map((r) => (
+                                <tr
+                                  key={r.id}
+                                  className="hover:bg-gray-50 cursor-pointer"
+                                  onClick={() => setSelectedRequest(r)}
+                                >
+                                  <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
+                                  <td className="px-3 py-2">{r.ssic}</td>
+                                  <td className="px-3 py-2">
+                                    <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded">
+                                      Temporary
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {r.retentionValue} {r.retentionUnit}
+                                  </td>
+                                  <td className="px-3 py-2">{calculateDisposalDate(r)}</td>
+                                  <td className="px-3 py-2">{getOriginatorName(r)}</td>
+                                  <td className="px-3 py-2">{new Date(r.createdAt).toLocaleDateString()}</td>
+                                  <td className="px-3 py-2">{r.disposalAction || 'DESTROY'}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Summary */}
+                    {permanentRecords.length === 0 && temporaryRecords.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No records with retention classification yet.</p>
+                        <p className="text-sm mt-1">Create a new request with SSIC classification to see records here.</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </div>
         )}

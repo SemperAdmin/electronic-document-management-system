@@ -780,11 +780,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
 
     const disposalDate = new Date(cutoffDate);
-    if (request.retentionUnit === 'years') {
+    const unit = (request.retentionUnit || '').toLowerCase();
+    if (unit === 'years') {
       disposalDate.setFullYear(disposalDate.getFullYear() + request.retentionValue);
-    } else if (request.retentionUnit === 'months') {
+    } else if (unit === 'months') {
       disposalDate.setMonth(disposalDate.getMonth() + request.retentionValue);
-    } else if (request.retentionUnit === 'days') {
+    } else if (unit === 'days') {
       disposalDate.setDate(disposalDate.getDate() + request.retentionValue);
     }
 
@@ -864,11 +865,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
     // Add retention period
     const disposalDate = new Date(cutoffDate);
-    if (request.retentionUnit === 'years') {
+    const unit = (request.retentionUnit || '').toLowerCase();
+    if (unit === 'years') {
       disposalDate.setFullYear(disposalDate.getFullYear() + request.retentionValue);
-    } else if (request.retentionUnit === 'months') {
+    } else if (unit === 'months') {
       disposalDate.setMonth(disposalDate.getMonth() + request.retentionValue);
-    } else if (request.retentionUnit === 'days') {
+    } else if (unit === 'days') {
       disposalDate.setDate(disposalDate.getDate() + request.retentionValue);
     }
 

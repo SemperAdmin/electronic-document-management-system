@@ -25,19 +25,19 @@ export const DocCard: React.FC<DocCardProps> = memo(function DocCard({ doc, onVi
   return (
     <>
       <article
-        className="flex items-center justify-between p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)] hover:bg-brand-cream/50 transition-colors"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border border-brand-navy/20 rounded-lg bg-[var(--surface)] hover:bg-brand-cream/50 transition-colors gap-3"
         aria-label={`Document: ${doc.subject}`}
       >
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 min-w-0">
           <FileTypeIcon type={doc.type} fileName={doc.name} size="md" />
-          <div>
-            <h4 className="font-medium text-[var(--text)]">{doc.subject}</h4>
-            <p className="text-sm text-[var(--muted)]">{doc.name} • {formatFileSize(doc.size)} • {new Date(doc.uploadedAt).toLocaleDateString()}</p>
+          <div className="min-w-0">
+            <h4 className="font-medium text-[var(--text)] truncate">{doc.subject}</h4>
+            <p className="text-sm text-[var(--muted)] truncate">{doc.name} • {formatFileSize(doc.size)} • {new Date(doc.uploadedAt).toLocaleDateString()}</p>
             {doc.dueDate && <p className="text-xs text-[var(--muted)]">Due {new Date(doc.dueDate).toLocaleDateString()}</p>}
-            {doc.notes && <p className="text-xs text-[var(--muted)] mt-1">Notes: {doc.notes}</p>}
+            {doc.notes && <p className="text-xs text-[var(--muted)] mt-1 truncate">Notes: {doc.notes}</p>}
           </div>
         </div>
-        <div className="flex items-center space-x-2" role="group" aria-label="Document actions">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Document actions">
           {doc.currentStage && (
             <span className="px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-full border border-brand-navy/30">
               {formatStageLabel({ currentStage: doc.currentStage })}

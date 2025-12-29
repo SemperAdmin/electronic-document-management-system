@@ -18,6 +18,7 @@ import { NewRequestForm } from './documents/NewRequestForm';
 import { RequestDetailsModal } from './documents/RequestDetailsModal';
 import { SsicSearch, SsicSelection, RetentionInfoPanel } from './common';
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure';
+import { StartNavalLetterButton } from '@/components/nlf';
 
 const STORAGE_BUCKET = 'edms-docs';
 
@@ -969,6 +970,32 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
         {showForm && (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Start from Naval Letter Option */}
+          <div className="flex flex-col items-center gap-3 p-4 bg-brand-cream/30 border border-brand-navy/10 rounded-lg">
+            <StartNavalLetterButton
+              currentUser={currentUser}
+              onRequestCreated={(requestId) => {
+                // Close the form and refresh requests
+                setShowForm(false);
+                setFeedback({ type: 'success', message: 'Naval letter draft created. Complete your letter in the Naval Letter Formatter.' });
+                // Refresh requests to show the new draft
+                listRequestsLegacy().then((remote) => {
+                  setUserRequests(remote as any);
+                }).catch(() => {});
+              }}
+            />
+            <p className="text-xs text-[var(--muted)] text-center">
+              Create a formal naval letter that auto-fills request details
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-brand-navy/20"></div>
+            <span className="text-xs text-[var(--muted)] font-medium">OR FILL OUT MANUALLY</span>
+            <div className="flex-1 border-t border-brand-navy/20"></div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-[var(--text)] mb-1">Subject</label>

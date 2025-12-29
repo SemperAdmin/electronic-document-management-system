@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Request, ActionEntry, DocumentItem } from '@/types';
 import { DocumentList, DocumentPreview } from './index';
+import { RetentionInfoPanel } from './RetentionInfoPanel';
 
 export interface RequestFormDetailsProps {
   request: Request;
@@ -26,6 +27,8 @@ export interface RequestFormDetailsProps {
   idPrefix?: string;
 }
 
+type DetailTab = 'documents' | 'retention' | 'activity';
+
 export const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({
   request,
   documents,
@@ -42,35 +45,9 @@ export const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({
   showPreview = true,
   idPrefix = 'req',
 }) => {
-  const [expandedDocs, setExpandedDocs] = useState(false);
-  const [expandedLogs, setExpandedLogs] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>('documents');
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
-  const docsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Handle outside click to close docs
-  useEffect(() => {
-    const handleOutside = (e: MouseEvent) => {
-      if (expandedDocs && docsRef.current && !docsRef.current.contains(e.target as Node)) {
-        setExpandedDocs(false);
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && expandedDocs) {
-        setExpandedDocs(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [expandedDocs]);
-
-  const handleToggleDocs = () => {
-    setExpandedDocs(!expandedDocs);
-  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
@@ -84,36 +61,95 @@ export const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({
 
   const requestDocs = documents.filter(d => d.requestId === request.id);
 
+  const tabClass = (tab: DetailTab) =>
+    `px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+      activeTab === tab
+        ? 'border-brand-navy text-brand-navy'
+        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+    }`;
+
   return (
     <div id={`${idPrefix}-details-${request.id}`} className="space-y-3">
-      {/* Documents Section */}
-      <div>
-        <button
-          className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-          aria-expanded={expandedDocs}
-          aria-controls={`${idPrefix}-docs-${request.id}`}
-          onClick={handleToggleDocs}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleDocs(); } }}
-        >
-          <span>{expandedDocs ? 'Hide' : 'Show'} Documents ({requestDocs.length})</span>
-          <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true">
-            <path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/>
-          </svg>
-        </button>
-      </div>
-      <div
-        id={`${idPrefix}-docs-${request.id}`}
-        ref={expandedDocs ? docsRef : undefined}
-        className={`${expandedDocs ? 'space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}
-      >
-        <DocumentList
-          documents={requestDocs.map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
-          showIcons
-          onPreview={showPreview ? (doc) => setPreviewDoc(requestDocs.find(d => d.id === doc.id) || null) : undefined}
-        />
+      {/* Tabbed Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-4" aria-label="Request details tabs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('documents')}
+            className={tabClass('documents')}
+          >
+            Documents ({requestDocs.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('retention')}
+            className={tabClass('retention')}
+          >
+            Retention
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('activity')}
+            className={tabClass('activity')}
+          >
+            Activity
+          </button>
+        </nav>
       </div>
 
-      {/* Comment Section - Responsive layout */}
+      {/* Tab Content */}
+      <div className="min-h-[120px]">
+        {/* Documents Tab */}
+        {activeTab === 'documents' && (
+          <div className="space-y-3">
+            <DocumentList
+              documents={requestDocs.map(d => ({ ...d, fileUrl: (d as any).fileUrl }))}
+              showIcons
+              onPreview={showPreview ? (doc) => setPreviewDoc(requestDocs.find(d => d.id === doc.id) || null) : undefined}
+            />
+            {requestDocs.length === 0 && (
+              <div className="text-sm text-[var(--muted)] text-center py-4">
+                No documents attached
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Retention Tab */}
+        {activeTab === 'retention' && (
+          <RetentionInfoPanel request={request} />
+        )}
+
+        {/* Activity Tab */}
+        {activeTab === 'activity' && (
+          <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+            {request.activity && request.activity.length ? (
+              request.activity.map((a, idx) => (
+                <div key={idx} className="text-xs text-gray-700 p-2 bg-gray-50 rounded">
+                  <div className="font-medium">
+                    {a.actor}
+                    {a.actorRole ? ` • ${a.actorRole}` : ''}
+                    {' • '}
+                    {new Date(a.timestamp).toLocaleString()}
+                  </div>
+                  <div className="text-brand-navy mt-1">{a.action}</div>
+                  {a.comment && (
+                    <div className="text-gray-600 mt-1 pl-3 border-l-2 border-gray-300">
+                      {a.comment}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-[var(--muted)] text-center py-4">
+                No activity recorded
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Comment Section */}
       <div>
         <label className="block text-sm font-medium text-[var(--text)] mb-1">{commentLabel}</label>
         <textarea
@@ -174,41 +210,7 @@ export const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({
       {/* Additional Content (routing options, etc.) */}
       {children}
 
-      {/* Activity Log Section */}
-      <div>
-        <button
-          className="px-3 py-1 text-xs rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-          onClick={() => setExpandedLogs(!expandedLogs)}
-          aria-expanded={expandedLogs}
-          aria-controls={`${idPrefix}-logs-${request.id}`}
-        >
-          {expandedLogs ? 'Hide' : 'Show'} Activity Log
-        </button>
-        <div
-          id={`${idPrefix}-logs-${request.id}`}
-          className={expandedLogs ? 'mt-2 space-y-2 max-h-[30vh] overflow-y-auto' : 'hidden'}
-        >
-          {request.activity && request.activity.length ? (
-            request.activity.map((a, idx) => (
-              <div key={idx} className="text-xs text-gray-700">
-                <div className="font-medium">
-                  {a.actor}
-                  {a.actorRole ? ` • ${a.actorRole}` : ''}
-                  {' • '}
-                  {new Date(a.timestamp).toLocaleString()}
-                  {' • '}
-                  {a.action}
-                </div>
-                {a.comment && <div className="text-gray-600 pl-4 border-l-2 border-gray-300 ml-2">{a.comment}</div>}
-              </div>
-            ))
-          ) : (
-            <div className="text-xs text-gray-500">No activity</div>
-          )}
-        </div>
-      </div>
-
-      {/* Action Buttons - Responsive grid on mobile */}
+      {/* Action Buttons */}
       {actionButtons && (
         <div className="pt-2 border-t border-brand-navy/10">
           <div className="flex flex-wrap items-center justify-end gap-2">

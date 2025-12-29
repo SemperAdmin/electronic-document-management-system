@@ -4,6 +4,7 @@ import { FeedbackMessage } from './types';
 import { MAX_FILES_PER_UPLOAD } from '@/lib/validation';
 import { FileDropzone } from '../common/FileDropzone';
 import { FeedbackAlert } from '../common/FeedbackAlert';
+import { SsicSearch, SsicSelection } from '../common/SsicSearch';
 
 interface NewRequestFormProps {
   subject: string;
@@ -24,6 +25,9 @@ interface NewRequestFormProps {
   /** @deprecated Use FileDropzone internally now */
   onFileSelect?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   feedback: FeedbackMessage | null;
+  /** SSIC classification selection */
+  ssicSelection?: SsicSelection | null;
+  onSsicChange?: (selection: SsicSelection | null) => void;
 }
 
 export const NewRequestForm: React.FC<NewRequestFormProps> = ({
@@ -43,6 +47,8 @@ export const NewRequestForm: React.FC<NewRequestFormProps> = ({
   onCancel,
   onFileSelect,
   feedback,
+  ssicSelection,
+  onSsicChange,
 }) => {
   const handleFilesAdded = useCallback((files: File[]) => {
     setSelectedFiles(prev => [...prev, ...files]);
@@ -94,6 +100,17 @@ export const NewRequestForm: React.FC<NewRequestFormProps> = ({
         </div>
       )}
 
+      {/* SSIC Classification Search */}
+      {onSsicChange && (
+        <div className="relative">
+          <SsicSearch
+            value={ssicSelection ?? null}
+            onChange={onSsicChange}
+            required
+          />
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-[var(--text)] mb-1">Notes (optional)</label>
         <textarea
@@ -123,7 +140,7 @@ export const NewRequestForm: React.FC<NewRequestFormProps> = ({
         <button
           type="submit"
           className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors disabled:opacity-60"
-          disabled={!subject.trim()}
+          disabled={!subject.trim() || (onSsicChange && !ssicSelection)}
         >
           Submit
         </button>

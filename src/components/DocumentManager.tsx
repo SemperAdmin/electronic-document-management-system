@@ -975,7 +975,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
               <input
                 type="text"
                 value={subject}
-                onChange={(e) => setSubject(e.target.value)}
+                onChange={(e) => setSubject(e.target.value.toUpperCase())}
                 placeholder="Document subject/title"
                 className={`w-full px-3 py-2 border ${subject.trim() ? 'border-brand-navy/30' : 'border-brand-red'} rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold`}
               />

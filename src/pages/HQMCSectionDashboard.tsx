@@ -30,7 +30,8 @@ export default function HQMCSectionDashboard() {
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [assignments, setAssignments] = useState<Array<{ division_code: string; branch: string; reviewers: string[]; approvers: string[] }>>([])
-  const [activeTab, setActiveTab] = useState<'Pending' | 'Approved' | 'Archived'>('Pending')
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Approved' | 'Archived' | 'Files'>('Pending')
+  const [filesSearchQuery, setFilesSearchQuery] = useState<string>('')
   const [hqmcStructure, setHqmcStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
   const [permOpen, setPermOpen] = useState(false)
@@ -97,8 +98,26 @@ export default function HQMCSectionDashboard() {
   const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'HQMC_REVIEW' && !isApproverApproved(r)), [inScope])
   // Approved: at HQMC_REVIEW AND approved by HQMC Approver (waiting for Section action)
   const approvedByHqmc = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'HQMC_REVIEW' && isApproverApproved(r)), [inScope])
-  // Archived: completed requests
-  const archived = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED'), [inScope])
+  // Archived: completed requests (not filed)
+  const archived = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED' && !r.filedAt), [inScope])
+
+  // Filed records in this HQMC section's scope
+  const filedInHQMC = useMemo(() => {
+    let records = inScope.filter(r => !!r.filedAt)
+
+    // Apply search filter
+    if (filesSearchQuery.trim()) {
+      const query = filesSearchQuery.toLowerCase().trim()
+      records = records.filter(r =>
+        r.subject?.toLowerCase().includes(query) ||
+        r.ssic?.toLowerCase().includes(query) ||
+        r.ssicNomenclature?.toLowerCase().includes(query) ||
+        r.ssicBucketTitle?.toLowerCase().includes(query)
+      )
+    }
+
+    return records
+  }, [inScope, filesSearchQuery])
 
   const docsFor = (reqId: string) => documents.filter(d => d.requestId === reqId)
 
@@ -118,7 +137,8 @@ export default function HQMCSectionDashboard() {
   const exportPending = () => downloadCsv('hqmc_pending.csv', buildRows(pending))
   const exportApproved = () => downloadCsv('hqmc_approved.csv', buildRows(approvedByHqmc))
   const exportArchived = () => downloadCsv('hqmc_archived.csv', buildRows(archived))
-  const exportAll = () => downloadCsv('hqmc_all.csv', buildRows([...pending, ...approvedByHqmc, ...archived]))
+  const exportFiles = () => downloadCsv('hqmc_files.csv', buildRows(filedInHQMC))
+  const exportAll = () => downloadCsv('hqmc_all.csv', buildRows([...pending, ...approvedByHqmc, ...archived, ...filedInHQMC]))
 
   const approveRequest = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Reviewer'
@@ -199,6 +219,7 @@ export default function HQMCSectionDashboard() {
             <button onClick={() => setActiveTab('Pending')} className={`${activeTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Pending</button>
             <button onClick={() => setActiveTab('Approved')} className={`${activeTab === 'Approved' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Approved</button>
             <button onClick={() => setActiveTab('Archived')} className={`${activeTab === 'Archived' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Archived</button>
+            <button onClick={() => setActiveTab('Files')} className={`${activeTab === 'Files' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Files ({filedInHQMC.length})</button>
           </nav>
         </div>
         <div className="mt-4">
@@ -388,6 +409,67 @@ export default function HQMCSectionDashboard() {
                 </div>
               )}
             </RequestTable>
+          )}
+          {activeTab === 'Files' && (
+            <div className="space-y-4">
+              {/* Search Bar */}
+              <div className="flex items-center justify-between">
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Search files by subject, SSIC, category..."
+                    value={filesSearchQuery}
+                    onChange={(e) => setFilesSearchQuery(e.target.value)}
+                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent"
+                  />
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {filesSearchQuery && (
+                    <button onClick={() => setFilesSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportFiles}>Export Files</button>
+              </div>
+
+              {filedInHQMC.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  {filesSearchQuery ? 'No records match your search.' : 'No filed records in this HQMC section.'}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Subject</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Category</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date Filed</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filedInHQMC.map(r => {
+                        const originator = users[r.uploadedById]
+                        return (
+                          <tr key={r.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
+                            <td className="px-3 py-2">{r.ssic || '—'}</td>
+                            <td className="px-3 py-2">{r.ssicBucketTitle || r.ssicBucket || '—'}</td>
+                            <td className="px-3 py-2">{r.filedAt ? new Date(r.filedAt).toLocaleDateString() : '—'}</td>
+                            <td className="px-3 py-2">{originator ? `${originator.lastName}, ${originator.firstName?.charAt(0) || ''}` : '—'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

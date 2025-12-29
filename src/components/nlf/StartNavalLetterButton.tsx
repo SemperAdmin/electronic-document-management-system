@@ -35,13 +35,8 @@ export function StartNavalLetterButton({
     setError(null);
 
     try {
-      // Get the current auth token
+      // Get the current auth token (optional - may not have Supabase session)
       const token = await getAccessToken();
-      if (!token) {
-        setError('No active session. Please log in again.');
-        setIsCreating(false);
-        return;
-      }
 
       // Generate a new request ID
       const requestId = crypto.randomUUID();
@@ -75,8 +70,11 @@ export function StartNavalLetterButton({
         edmsId: requestId,
         unitCode: currentUser.unitUic || '',
         returnUrl: returnUrl,
-        token: token,
       });
+      // Only include token if available (may not have Supabase session)
+      if (token) {
+        params.set('token', token);
+      }
 
       const launchUrl = `${NLF_BASE_URL}?${params.toString()}`;
 

@@ -5,6 +5,7 @@ import { MAX_FILES_PER_UPLOAD } from '@/lib/validation';
 import { FileDropzone } from '../common/FileDropzone';
 import { FeedbackAlert } from '../common/FeedbackAlert';
 import { SsicSearch, SsicSelection } from '../common/SsicSearch';
+import { StartNavalLetterButton } from '@/components/nlf';
 
 interface NewRequestFormProps {
   subject: string;
@@ -28,6 +29,8 @@ interface NewRequestFormProps {
   /** SSIC classification selection */
   ssicSelection?: SsicSelection | null;
   onSsicChange?: (selection: SsicSelection | null) => void;
+  /** Callback when a request is created via Naval Letter Formatter */
+  onNavalLetterCreated?: (requestId: string) => void;
 }
 
 export const NewRequestForm: React.FC<NewRequestFormProps> = ({
@@ -41,6 +44,7 @@ export const NewRequestForm: React.FC<NewRequestFormProps> = ({
   setSelectedFiles,
   submitForUserId,
   setSubmitForUserId,
+  currentUser,
   eligibleUsers,
   isReviewer,
   onSubmit,
@@ -49,6 +53,7 @@ export const NewRequestForm: React.FC<NewRequestFormProps> = ({
   feedback,
   ssicSelection,
   onSsicChange,
+  onNavalLetterCreated,
 }) => {
   const handleFilesAdded = useCallback((files: File[]) => {
     setSelectedFiles(prev => [...prev, ...files]);
@@ -60,6 +65,24 @@ export const NewRequestForm: React.FC<NewRequestFormProps> = ({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {/* Start from Naval Letter Option */}
+      <div className="flex flex-col items-center gap-3 p-4 bg-brand-cream/30 border border-brand-navy/10 rounded-lg">
+        <StartNavalLetterButton
+          currentUser={currentUser}
+          onRequestCreated={onNavalLetterCreated}
+        />
+        <p className="text-xs text-[var(--muted)] text-center">
+          Create a formal naval letter that auto-fills request details
+        </p>
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 border-t border-brand-navy/20"></div>
+        <span className="text-xs text-[var(--muted)] font-medium">OR FILL OUT MANUALLY</span>
+        <div className="flex-1 border-t border-brand-navy/20"></div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-[var(--text)] mb-1">Subject</label>

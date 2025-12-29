@@ -249,7 +249,7 @@ function toDocRow(d: DocumentRecord): Omit<DocumentRow, never> {
   }
 }
 
-function fromDocRow(r: DocumentRow): DocumentRecord {
+export function fromDocRow(r: DocumentRow): DocumentRecord {
   return {
     id: String(r.id),
     name: String(r.name || ''),

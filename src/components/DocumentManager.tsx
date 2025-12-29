@@ -686,20 +686,84 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     return filtered.filter(r => r.currentStage !== 'ARCHIVED');
   }, [userRequests, currentUser]);
 
-  // Separate requests by retention type for Files tab
-  const permanentRecords = useMemo(() => {
-    if (!currentUser?.id) return [];
-    return userRequests
-      .filter(r => r.uploadedById === currentUser.id && r.ssic && r.isPermanent === true)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [userRequests, currentUser]);
+  // Get disposal year from request (returns "Permanent" for permanent records or the year as string)
+  const getDisposalYear = useCallback((request: Request): string => {
+    if (request.isPermanent) return 'Permanent';
+    if (!request.retentionValue || !request.cutoffTrigger) return 'Unknown';
 
-  const temporaryRecords = useMemo(() => {
-    if (!currentUser?.id) return [];
-    return userRequests
-      .filter(r => r.uploadedById === currentUser.id && r.ssic && r.isPermanent === false)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [userRequests, currentUser]);
+    const createdDate = new Date(request.createdAt);
+    let cutoffDate: Date;
+
+    switch (request.cutoffTrigger) {
+      case 'CALENDAR_YEAR':
+        cutoffDate = new Date(createdDate.getFullYear(), 11, 31);
+        break;
+      case 'FISCAL_YEAR':
+        cutoffDate = createdDate.getMonth() >= 9
+          ? new Date(createdDate.getFullYear() + 1, 8, 30)
+          : new Date(createdDate.getFullYear(), 8, 30);
+        break;
+      default:
+        cutoffDate = createdDate;
+    }
+
+    const disposalDate = new Date(cutoffDate);
+    if (request.retentionUnit === 'years') {
+      disposalDate.setFullYear(disposalDate.getFullYear() + request.retentionValue);
+    } else if (request.retentionUnit === 'months') {
+      disposalDate.setMonth(disposalDate.getMonth() + request.retentionValue);
+    } else if (request.retentionUnit === 'days') {
+      disposalDate.setDate(disposalDate.getDate() + request.retentionValue);
+    }
+
+    return disposalDate.getFullYear().toString();
+  }, []);
+
+  // Group records by disposal year, then by bucket
+  type GroupedRecords = Record<string, Record<string, Request[]>>;
+
+  const groupedRecords = useMemo<GroupedRecords>(() => {
+    if (!currentUser?.id) return {};
+
+    const records = userRequests.filter(r => r.uploadedById === currentUser.id && r.ssic);
+    const grouped: GroupedRecords = {};
+
+    for (const record of records) {
+      const year = getDisposalYear(record);
+      const bucket = record.ssicBucketTitle || record.ssicBucket || 'Uncategorized';
+
+      if (!grouped[year]) {
+        grouped[year] = {};
+      }
+      if (!grouped[year][bucket]) {
+        grouped[year][bucket] = [];
+      }
+      grouped[year][bucket].push(record);
+    }
+
+    // Sort records within each bucket by date created (newest first)
+    for (const year of Object.keys(grouped)) {
+      for (const bucket of Object.keys(grouped[year])) {
+        grouped[year][bucket].sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      }
+    }
+
+    return grouped;
+  }, [userRequests, currentUser, getDisposalYear]);
+
+  // Get sorted year keys (Permanent first, then years in ascending order)
+  const sortedYearKeys = useMemo(() => {
+    const years = Object.keys(groupedRecords);
+    return years.sort((a, b) => {
+      if (a === 'Permanent') return -1;
+      if (b === 'Permanent') return 1;
+      if (a === 'Unknown') return 1;
+      if (b === 'Unknown') return -1;
+      return parseInt(a) - parseInt(b);
+    });
+  }, [groupedRecords]);
 
   // Calculate disposal date based on retention rules
   const calculateDisposalDate = useCallback((request: Request): string => {
@@ -1014,119 +1078,92 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
               <div className="py-4 space-y-6">
                 {loadingRequests ? (
                   <div className="animate-pulse">Loading records…</div>
+                ) : sortedYearKeys.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No records with retention classification yet.</p>
+                    <p className="text-sm mt-1">Create a new request with SSIC classification to see records here.</p>
+                  </div>
                 ) : (
                   <>
-                    {/* Permanent Records Section */}
-                    <div>
-                      <div className="bg-brand-navy text-brand-cream px-3 py-2 rounded-t-lg font-medium text-sm">
-                        Permanent Records
-                      </div>
-                      <div className="border border-t-0 border-gray-200 rounded-b-lg overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Name</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Status</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Retention</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Date</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Date Created</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {permanentRecords.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-3 py-4 text-center text-gray-500">No permanent records</td>
-                              </tr>
-                            ) : (
-                              permanentRecords.map((r) => (
-                                <tr
-                                  key={r.id}
-                                  className="hover:bg-gray-50 cursor-pointer"
-                                  onClick={() => setSelectedRequest(r)}
-                                >
-                                  <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
-                                  <td className="px-3 py-2">{r.ssic}</td>
-                                  <td className="px-3 py-2">
-                                    <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                                      Permanent
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2">Permanent</td>
-                                  <td className="px-3 py-2">N/A</td>
-                                  <td className="px-3 py-2">{getOriginatorName(r)}</td>
-                                  <td className="px-3 py-2">{new Date(r.createdAt).toLocaleDateString()}</td>
-                                  <td className="px-3 py-2">{r.disposalAction || 'TRANSFER'}</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                    {/* Records grouped by disposal year, then by bucket */}
+                    {sortedYearKeys.map((year) => {
+                      const buckets = groupedRecords[year];
+                      const sortedBuckets = Object.keys(buckets).sort();
+                      const isPermanentYear = year === 'Permanent';
+                      const recordCount = Object.values(buckets).reduce((sum, arr) => sum + arr.length, 0);
 
-                    {/* Temporary Records Section */}
-                    <div>
-                      <div className="bg-brand-navy text-brand-cream px-3 py-2 rounded-t-lg font-medium text-sm">
-                        Temporary Records
-                      </div>
-                      <div className="border border-t-0 border-gray-200 rounded-b-lg overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Name</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Status</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Retention</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Date</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Date Created</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {temporaryRecords.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-3 py-4 text-center text-gray-500">No temporary records</td>
-                              </tr>
-                            ) : (
-                              temporaryRecords.map((r) => (
-                                <tr
-                                  key={r.id}
-                                  className="hover:bg-gray-50 cursor-pointer"
-                                  onClick={() => setSelectedRequest(r)}
-                                >
-                                  <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
-                                  <td className="px-3 py-2">{r.ssic}</td>
-                                  <td className="px-3 py-2">
-                                    <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded">
-                                      Temporary
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    {r.retentionValue} {r.retentionUnit}
-                                  </td>
-                                  <td className="px-3 py-2">{calculateDisposalDate(r)}</td>
-                                  <td className="px-3 py-2">{getOriginatorName(r)}</td>
-                                  <td className="px-3 py-2">{new Date(r.createdAt).toLocaleDateString()}</td>
-                                  <td className="px-3 py-2">{r.disposalAction || 'DESTROY'}</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                      return (
+                        <div key={year} className="space-y-3">
+                          {/* Year Header */}
+                          <div className={`${isPermanentYear ? 'bg-blue-800' : 'bg-brand-navy'} text-brand-cream px-4 py-2 rounded-lg font-medium flex items-center justify-between`}>
+                            <span>
+                              {isPermanentYear ? 'Permanent Records' : `Disposal Year: ${year}`}
+                            </span>
+                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded">
+                              {recordCount} record{recordCount !== 1 ? 's' : ''}
+                            </span>
+                          </div>
 
-                    {/* Summary */}
-                    {permanentRecords.length === 0 && temporaryRecords.length === 0 && (
-                      <div className="text-center py-8 text-gray-500">
-                        <p>No records with retention classification yet.</p>
-                        <p className="text-sm mt-1">Create a new request with SSIC classification to see records here.</p>
-                      </div>
-                    )}
+                          {/* Buckets within year */}
+                          {sortedBuckets.map((bucket) => {
+                            const records = buckets[bucket];
+                            return (
+                              <div key={`${year}-${bucket}`} className="ml-4">
+                                {/* Bucket Header */}
+                                <div className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-t-lg font-medium text-sm border border-b-0 border-gray-200 flex items-center justify-between">
+                                  <span>{bucket}</span>
+                                  <span className="text-xs text-gray-500">{records.length} item{records.length !== 1 ? 's' : ''}</span>
+                                </div>
+
+                                {/* Records Table */}
+                                <div className="border border-gray-200 rounded-b-lg overflow-x-auto">
+                                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                    <thead className="bg-gray-50">
+                                      <tr>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Name</th>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Retention</th>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Date</th>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date Created</th>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Action</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                      {records.map((r) => (
+                                        <tr
+                                          key={r.id}
+                                          className="hover:bg-gray-50 cursor-pointer"
+                                          onClick={() => setSelectedRequest(r)}
+                                        >
+                                          <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
+                                          <td className="px-3 py-2">{r.ssic}</td>
+                                          <td className="px-3 py-2">
+                                            {r.isPermanent ? (
+                                              <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                                                Permanent
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded">
+                                                {r.retentionValue} {r.retentionUnit}
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-2">{calculateDisposalDate(r)}</td>
+                                          <td className="px-3 py-2">{getOriginatorName(r)}</td>
+                                          <td className="px-3 py-2">{new Date(r.createdAt).toLocaleDateString()}</td>
+                                          <td className="px-3 py-2">{r.disposalAction || (r.isPermanent ? 'TRANSFER' : 'DESTROY')}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
                   </>
                 )}
               </div>

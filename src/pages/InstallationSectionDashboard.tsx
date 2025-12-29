@@ -7,7 +7,7 @@ import { Request } from '@/types'
 import InstallationPermissionManager from '@/components/InstallationPermissionManager'
 import { DocumentList, DocumentPreview, useToast } from '@/components/common'
 import { formatActorName } from '@/lib/utils'
-import { canArchiveAtLevel, isInstallationApproved, isInstallationEndorsed } from '@/lib/stage'
+import { canArchiveAtLevel, isInstallationApproved, isInstallationEndorsed, isUnitApproved, isUnitEndorsed } from '@/lib/stage'
 
 export default function InstallationSectionDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -38,6 +38,10 @@ export default function InstallationSectionDashboard() {
   const [permOpen, setPermOpen] = useState(false)
   const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null)
   const [reassignSection, setReassignSection] = useState<Record<string, string>>({})
+  // File dialog state
+  const [showFileDialog, setShowFileDialog] = useState(false)
+  const [fileDialogRequest, setFileDialogRequest] = useState<Request | null>(null)
+  const [fileFinalizedDate, setFileFinalizedDate] = useState('')
   const toast = useToast()
 
   useEffect(() => {
@@ -336,22 +340,33 @@ export default function InstallationSectionDashboard() {
     }
   }
 
-  const archiveRequest = async (r: Request) => {
+  const openFileDialog = (r: Request) => {
+    setFileDialogRequest(r)
+    setFileFinalizedDate(new Date().toISOString().slice(0, 10))
+    setShowFileDialog(true)
+  }
+
+  const confirmFileRequest = async () => {
+    if (!fileDialogRequest || !fileFinalizedDate) return
+    const r = fileDialogRequest
     const actor = formatActorName(currentUser, 'Installation Section')
-    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: 'Archived by Installation Section', comment: (comments[r.id] || '').trim() }
+    const entry = { actor, actorRole: 'Installation Section', timestamp: new Date().toISOString(), action: `Filed by Installation Section (Date Finalized: ${fileFinalizedDate})`, comment: (comments[r.id] || '').trim() }
     const updated: Request = {
       ...r,
-      currentStage: 'ARCHIVED',
-      finalStatus: 'Archived',
+      filedAt: new Date(fileFinalizedDate).toISOString(),
       activity: [...(r.activity || []), entry]
     }
     try {
       await upsertRequest(updated as RequestRecord)
       setRequests(prev => prev.map(x => x.id === r.id ? updated : x))
       setComments(prev => ({ ...prev, [r.id]: '' }))
+      setShowFileDialog(false)
+      setFileDialogRequest(null)
+      setFileFinalizedDate('')
+      toast.success('Request filed successfully')
     } catch (e) {
-      console.error('Failed to archive request:', e)
-      toast.error('Failed to archive request')
+      console.error('Failed to file request:', e)
+      toast.error('Failed to file request')
     }
   }
 
@@ -620,14 +635,14 @@ export default function InstallationSectionDashboard() {
                   </div>
                 </div>
               )}
-              {/* Archive button - only after installation commander approval */}
-              {canArchiveAtLevel(r, { userLevel: 'installation', userInstallationId: currentUser?.installationId }) && (
+              {/* File button - only after installation commander approval and has SSIC */}
+              {canArchiveAtLevel(r, { userLevel: 'installation', userInstallationId: currentUser?.installationId }) && r.ssic && !r.filedAt && (
                 <div className="mt-3 flex items-center justify-end gap-2">
                   <button
                     className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                    onClick={() => archiveRequest(r)}
+                    onClick={() => openFileDialog(r)}
                   >
-                    Archive
+                    File
                   </button>
                 </div>
               )}
@@ -702,6 +717,43 @@ export default function InstallationSectionDashboard() {
           isOpen={!!previewDoc}
           onClose={() => setPreviewDoc(null)}
         />
+      )}
+
+      {/* File Dialog Modal */}
+      {showFileDialog && fileDialogRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">File Record</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Filing: <strong>{fileDialogRequest.subject}</strong>
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date Finalized</label>
+              <input
+                type="date"
+                value={fileFinalizedDate}
+                onChange={(e) => setFileFinalizedDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
+              />
+              <p className="text-xs text-gray-500 mt-1">This date will be used to calculate the disposal date based on the retention schedule.</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                className="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+                onClick={() => { setShowFileDialog(false); setFileDialogRequest(null); setFileFinalizedDate('') }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2"
+                onClick={confirmFileRequest}
+                disabled={!fileFinalizedDate}
+              >
+                Confirm File
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import { upsertRequest } from '@/lib/db';
+import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/supabase';
 import { UserRecord } from '@/types';
 
 // Get NLF URL from environment variable
@@ -66,11 +67,23 @@ export function StartNavalLetterButton({
 
       // Build the NLF launch URL with context parameters
       const returnUrl = encodeURIComponent(window.location.href);
+      const supabaseUrl = getSupabaseUrl();
+      const supabaseKey = getSupabaseAnonKey();
+
       const params = new URLSearchParams({
         edmsId: requestId,
         unitCode: currentUser.unitUic || '',
         returnUrl: returnUrl,
       });
+
+      // Include Supabase credentials so NLF can save back to EDMS
+      if (supabaseUrl) {
+        params.set('supabaseUrl', supabaseUrl);
+      }
+      if (supabaseKey) {
+        params.set('supabaseKey', supabaseKey);
+      }
+
       // Only include token if available (may not have Supabase session)
       if (token) {
         params.set('token', token);

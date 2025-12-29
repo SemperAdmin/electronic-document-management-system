@@ -143,6 +143,11 @@ export function getSupabaseUrl(): string {
   return url || '';
 }
 
+// Export a convenience getter for the anon key if needed elsewhere
+export function getSupabaseAnonKey(): string {
+  return anonKey || '';
+}
+
 // Legacy exports for compatibility
 export const supabase = supabaseClient;
 export const hasSupabase = !!supabaseClient;

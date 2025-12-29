@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { listInstallationsLegacy, listRequestsLegacy, listUsersLegacy, listDocumentsLegacy, upsertDocuments, upsertRequest, listHQMCDivisionsLegacy, listHQMCStructureLegacy } from '@/lib/db'
 import { SearchableUnitSelector } from '@/components/SearchableUnitSelector'
 import type { DocumentRecord, RequestRecord } from '@/lib/db'
@@ -25,6 +25,8 @@ export default function InstallationSectionDashboard() {
   const docsRef = React.useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState<'Pending' | 'Previously in Section' | 'Files'>('Pending')
   const [filesSearchQuery, setFilesSearchQuery] = useState<string>('')
+  const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({})
+  const [expandedBuckets, setExpandedBuckets] = useState<Record<string, boolean>>({})
   const [nextInstSection, setNextInstSection] = useState<Record<string, string>>({})
   const [sendToExternalInst, setSendToExternalInst] = useState<Record<string, boolean>>({})
   const [submitToHQMCInst, setSubmitToHQMCInst] = useState<Record<string, boolean>>({})
@@ -189,24 +191,87 @@ export default function InstallationSectionDashboard() {
     })
   }, [requests, currentUser, mySections])
 
-  // Filed records within this installation section's scope
-  const filedInInstallation = useMemo(() => {
+  // Get disposal year from request
+  const getDisposalYear = useCallback((request: Request): string => {
+    if (request.isPermanent) return 'Permanent';
+    if (!request.retentionValue || !request.cutoffTrigger || !request.filedAt) return 'Unknown';
+
+    const finalizedDate = new Date(request.filedAt);
+    let cutoffDate: Date;
+
+    switch (request.cutoffTrigger) {
+      case 'CALENDAR_YEAR':
+        cutoffDate = new Date(finalizedDate.getFullYear(), 11, 31);
+        break;
+      case 'FISCAL_YEAR':
+        cutoffDate = finalizedDate.getMonth() >= 9
+          ? new Date(finalizedDate.getFullYear() + 1, 8, 30)
+          : new Date(finalizedDate.getFullYear(), 8, 30);
+        break;
+      default:
+        cutoffDate = finalizedDate;
+    }
+
+    const disposalDate = new Date(cutoffDate);
+    const unit = (request.retentionUnit || '').toLowerCase();
+    if (unit === 'years') {
+      disposalDate.setFullYear(disposalDate.getFullYear() + request.retentionValue);
+    } else if (unit === 'months') {
+      disposalDate.setMonth(disposalDate.getMonth() + request.retentionValue);
+    } else if (unit === 'days') {
+      disposalDate.setDate(disposalDate.getDate() + request.retentionValue);
+    }
+
+    return disposalDate.getFullYear().toString();
+  }, []);
+
+  // Calculate disposal date for display
+  const calculateDisposalDate = useCallback((request: Request): string => {
+    if (!request.retentionValue || !request.cutoffTrigger || !request.filedAt) return 'N/A';
+    if (request.isPermanent) return 'Permanent';
+
+    const finalizedDate = new Date(request.filedAt);
+    let cutoffDate: Date;
+
+    switch (request.cutoffTrigger) {
+      case 'CALENDAR_YEAR':
+        cutoffDate = new Date(finalizedDate.getFullYear(), 11, 31);
+        break;
+      case 'FISCAL_YEAR':
+        cutoffDate = finalizedDate.getMonth() >= 9
+          ? new Date(finalizedDate.getFullYear() + 1, 8, 30)
+          : new Date(finalizedDate.getFullYear(), 8, 30);
+        break;
+      default:
+        cutoffDate = finalizedDate;
+    }
+
+    const disposalDate = new Date(cutoffDate);
+    const unit = (request.retentionUnit || '').toLowerCase();
+    if (unit === 'years') {
+      disposalDate.setFullYear(disposalDate.getFullYear() + request.retentionValue);
+    } else if (unit === 'months') {
+      disposalDate.setMonth(disposalDate.getMonth() + request.retentionValue);
+    } else if (unit === 'days') {
+      disposalDate.setDate(disposalDate.getDate() + request.retentionValue);
+    }
+
+    return disposalDate.toLocaleDateString();
+  }, []);
+
+  // Filed records grouped by disposal year then bucket
+  type GroupedRecords = Record<string, Record<string, Request[]>>;
+
+  const groupedFiledRecords = useMemo<GroupedRecords>(() => {
     const iid = currentUser?.installationId || ''
-    const allowed = new Set(mySections.map(s => s.toUpperCase()))
 
     let records = requests.filter(r => {
-      // Only filed records
       if (!r.filedAt) return false
-
-      // Must be in this installation
       if (r.installationId !== iid) return false
-
-      // Check if any of my sections were involved
       const hasActivity = r.activity?.some(a => {
         const action = String(a.action || '')
         return mySections.some(sec => action.includes(sec) || action.includes(sec.toUpperCase()))
       })
-
       return hasActivity
     })
 
@@ -221,8 +286,44 @@ export default function InstallationSectionDashboard() {
       )
     }
 
-    return records
-  }, [requests, currentUser, mySections, filesSearchQuery])
+    const grouped: GroupedRecords = {};
+    for (const record of records) {
+      const year = getDisposalYear(record);
+      const bucket = record.ssicBucketTitle || record.ssicBucket || 'Uncategorized';
+      if (!grouped[year]) grouped[year] = {};
+      if (!grouped[year][bucket]) grouped[year][bucket] = [];
+      grouped[year][bucket].push(record);
+    }
+
+    // Sort records within each bucket
+    for (const year of Object.keys(grouped)) {
+      for (const bucket of Object.keys(grouped[year])) {
+        grouped[year][bucket].sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      }
+    }
+
+    return grouped;
+  }, [requests, currentUser, mySections, filesSearchQuery, getDisposalYear])
+
+  // Get sorted year keys
+  const sortedYearKeys = useMemo(() => {
+    const years = Object.keys(groupedFiledRecords);
+    return years.sort((a, b) => {
+      if (a === 'Permanent') return -1;
+      if (b === 'Permanent') return 1;
+      if (a === 'Unknown') return 1;
+      if (b === 'Unknown') return -1;
+      return parseInt(a) - parseInt(b);
+    });
+  }, [groupedFiledRecords])
+
+  // Count total filed records
+  const filedRecordCount = useMemo(() => {
+    return Object.values(groupedFiledRecords).reduce((sum, buckets) =>
+      sum + Object.values(buckets).reduce((s, arr) => s + arr.length, 0), 0);
+  }, [groupedFiledRecords])
 
   const restoreToSection = async (r: Request, sec?: string) => {
     const actor = formatActorName(currentUser, 'Installation Section')
@@ -438,7 +539,7 @@ export default function InstallationSectionDashboard() {
             <button
               onClick={() => setActiveTab('Files')}
               className={`${activeTab === 'Files' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
-            >Files ({filedInInstallation.length})</button>
+            >Files ({filedRecordCount})</button>
           </nav>
         </div>
         {activeTab === 'Pending' && (
@@ -751,60 +852,135 @@ export default function InstallationSectionDashboard() {
         {activeTab === 'Files' && (
           <div className="space-y-4">
             {/* Search Bar */}
-            <div className="flex items-center justify-between">
-              <div className="relative flex-1 max-w-md">
-                <input
-                  type="text"
-                  placeholder="Search files by subject, SSIC, category..."
-                  value={filesSearchQuery}
-                  onChange={(e) => setFilesSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent"
-                />
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                {filesSearchQuery && (
-                  <button onClick={() => setFilesSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-              <button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportFiles}>Export Files</button>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search files by subject, SSIC, category..."
+                value={filesSearchQuery}
+                onChange={(e) => setFilesSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent"
+              />
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {filesSearchQuery && (
+                <button onClick={() => setFilesSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
 
-            {filedInInstallation.length === 0 ? (
+            {sortedYearKeys.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 {filesSearchQuery ? 'No records match your search.' : 'No filed records in this installation section.'}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Subject</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Category</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Date Filed</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filedInInstallation.map(r => {
-                      const originator = usersById[r.uploadedById]
-                      return (
-                        <tr key={r.id} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
-                          <td className="px-3 py-2">{r.ssic || '—'}</td>
-                          <td className="px-3 py-2">{r.ssicBucketTitle || r.ssicBucket || '—'}</td>
-                          <td className="px-3 py-2">{r.filedAt ? new Date(r.filedAt).toLocaleDateString() : '—'}</td>
-                          <td className="px-3 py-2">{originator ? `${originator.lastName}, ${originator.firstName?.charAt(0) || ''}` : '—'}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+              <div className="space-y-2">
+                {/* Records grouped by disposal year, then by bucket - Accordion Style */}
+                {sortedYearKeys.map((year) => {
+                  const buckets = groupedFiledRecords[year];
+                  const sortedBuckets = Object.keys(buckets).sort();
+                  const isPermanentYear = year === 'Permanent';
+                  const recordCount = Object.values(buckets).reduce((sum, arr) => sum + arr.length, 0);
+                  const isYearExpanded = expandedYears[year] || false;
+
+                  return (
+                    <div key={year} className="border border-gray-200 rounded-lg overflow-hidden">
+                      {/* Year Header - Clickable Accordion */}
+                      <button
+                        onClick={() => setExpandedYears(prev => ({ ...prev, [year]: !prev[year] }))}
+                        className={`w-full ${isPermanentYear ? 'bg-blue-800 hover:bg-blue-700' : 'bg-brand-navy hover:bg-brand-navy/90'} text-brand-cream px-4 py-3 font-medium flex items-center justify-between transition-colors`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg
+                            className={`w-4 h-4 transition-transform flex-shrink-0 ${isYearExpanded ? 'rotate-90' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          <span className="truncate">{isPermanentYear ? 'Permanent Records' : `Disposal Year: ${year}`}</span>
+                        </div>
+                        <span className="text-xs bg-white/20 px-2 py-0.5 rounded flex-shrink-0 ml-2">
+                          {recordCount} record{recordCount !== 1 ? 's' : ''}
+                        </span>
+                      </button>
+
+                      {/* Year Content - Buckets */}
+                      {isYearExpanded && (
+                        <div className="bg-gray-50 p-2 space-y-2">
+                          {sortedBuckets.map((bucket) => {
+                            const records = buckets[bucket];
+                            const bucketKey = `${year}-${bucket}`;
+                            const isBucketExpanded = expandedBuckets[bucketKey] || false;
+
+                            return (
+                              <div key={bucketKey} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                {/* Bucket Header */}
+                                <button
+                                  onClick={() => setExpandedBuckets(prev => ({ ...prev, [bucketKey]: !prev[bucketKey] }))}
+                                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 font-medium text-sm flex items-center justify-between transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <svg
+                                      className={`w-3 h-3 transition-transform flex-shrink-0 ${isBucketExpanded ? 'rotate-90' : ''}`}
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    <span className="truncate">{bucket}</span>
+                                  </div>
+                                  <span className="text-xs text-gray-500 flex-shrink-0 ml-2">{records.length} item{records.length !== 1 ? 's' : ''}</span>
+                                </button>
+
+                                {/* Bucket Content - Records Table */}
+                                {isBucketExpanded && (
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                      <thead className="bg-gray-50">
+                                        <tr>
+                                          <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500 text-xs sm:text-sm">Name</th>
+                                          <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500 text-xs sm:text-sm">SSIC</th>
+                                          <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500 text-xs sm:text-sm">Retention</th>
+                                          <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500 text-xs sm:text-sm hidden sm:table-cell">Disposal Date</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white divide-y divide-gray-200">
+                                        {records.map((r) => (
+                                          <tr key={r.id} className="hover:bg-gray-50">
+                                            <td className="px-2 sm:px-3 py-2 font-medium text-brand-navy text-xs sm:text-sm max-w-[120px] sm:max-w-none truncate">{r.subject}</td>
+                                            <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm">{r.ssic}</td>
+                                            <td className="px-2 sm:px-3 py-2">
+                                              {r.isPermanent ? (
+                                                <span className="inline-flex px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded whitespace-nowrap">
+                                                  Perm
+                                                </span>
+                                              ) : (
+                                                <span className="inline-flex px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded whitespace-nowrap">
+                                                  {r.retentionValue} {(r.retentionUnit || '').replace('S', '')}
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm hidden sm:table-cell">{calculateDisposalDate(r)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

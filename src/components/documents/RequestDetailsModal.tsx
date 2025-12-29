@@ -4,6 +4,7 @@ import { Document, FeedbackMessage } from './types';
 import { DocCard } from './DocCard';
 import { originatorArchiveOnly, canDeleteRequest } from '@/lib/stage';
 import { validateFile, MAX_FILES_PER_UPLOAD } from '@/lib/validation';
+import { CreateNavalLetterButton, NavalLetterAttachmentList } from '@/components/nlf';
 
 interface RequestDetailsModalProps {
   request: Request;
@@ -181,7 +182,7 @@ export const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
 
             {/* Attach files (only if not archive-only) */}
             {!showArchiveOnly && (
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded-lg hover:brightness-110 cursor-pointer inline-block">
                   <input
                     type="file"
@@ -192,10 +193,17 @@ export const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
                   />
                   Add Files
                 </label>
+
+                {/* Naval Letter Formatter Button */}
+                <CreateNavalLetterButton
+                  requestId={request.id}
+                  userUnitCode={currentUser?.unitUic || ''}
+                />
+
                 {fileError && (
-                  <p className="text-sm text-red-600 mt-1" role="alert">{fileError}</p>
+                  <p className="text-sm text-red-600 mt-1 w-full" role="alert">{fileError}</p>
                 )}
-                <div className="ml-2 flex flex-wrap gap-2 mt-2">
+                <div className="w-full flex flex-wrap gap-2 mt-2">
                   {attachFiles.length === 0 ? (
                     <span className="text-xs text-[var(--muted)]">No files selected</span>
                   ) : (
@@ -215,6 +223,14 @@ export const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Naval Letters Section */}
+          <div>
+            <h4 className="text-sm font-medium text-[var(--text)]">Naval Letters</h4>
+            <div className="mt-2">
+              <NavalLetterAttachmentList requestId={request.id} />
+            </div>
           </div>
         </div>
 

@@ -132,6 +132,39 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
   };
 
+  // File a request for records management
+  const fileRequest = async () => {
+    if (!selectedRequest || !currentUser?.id) return;
+
+    // Check if request has SSIC/retention info
+    if (!selectedRequest.ssic) {
+      setFeedback({ type: 'error', message: 'Request must have SSIC/retention classification before filing.' });
+      return;
+    }
+
+    const filedAt = new Date().toISOString();
+    const entry = {
+      actor: `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`,
+      timestamp: filedAt,
+      action: 'Filed for Records Management',
+      comment: (editRequestNotes || '').trim()
+    };
+    const updated: Request = {
+      ...selectedRequest,
+      filedAt,
+      activity: Array.isArray(selectedRequest.activity) ? [...selectedRequest.activity, entry] : [entry]
+    };
+    try {
+      const resReq = await upsertRequest(updated as unknown as RequestRecord);
+      if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
+      setUserRequests(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+      setSelectedRequest(updated);
+      setFeedback({ type: 'success', message: 'Request filed for records management.' });
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: `Failed to file request: ${String(e?.message || e)}` });
+    }
+  };
+
   const resubmitRequest = async () => {
     if (!selectedRequest || !currentUser?.id || selectedRequest.uploadedById !== currentUser.id) return;
 
@@ -725,7 +758,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const groupedRecords = useMemo<GroupedRecords>(() => {
     if (!currentUser?.id) return {};
 
-    const records = userRequests.filter(r => r.uploadedById === currentUser.id && r.ssic);
+    // Only include records that have been filed (filedAt is set)
+    const records = userRequests.filter(r => r.uploadedById === currentUser.id && r.ssic && r.filedAt);
     const grouped: GroupedRecords = {};
 
     for (const record of records) {
@@ -1080,8 +1114,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                   <div className="animate-pulse">Loading records…</div>
                 ) : sortedYearKeys.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    <p>No records with retention classification yet.</p>
-                    <p className="text-sm mt-1">Create a new request with SSIC classification to see records here.</p>
+                    <p>No filed records yet.</p>
+                    <p className="text-sm mt-1">Archive a request and click "File" to add it to records management.</p>
                   </div>
                 ) : (
                   <>
@@ -1124,8 +1158,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                                         <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
                                         <th className="px-3 py-2 text-left font-medium text-gray-500">Retention</th>
                                         <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Date</th>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date Finalized</th>
                                         <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date Created</th>
                                         <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Action</th>
                                       </tr>
                                     </thead>
@@ -1150,8 +1184,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                                             )}
                                           </td>
                                           <td className="px-3 py-2">{calculateDisposalDate(r)}</td>
+                                          <td className="px-3 py-2">{r.filedAt ? new Date(r.filedAt).toLocaleDateString() : 'N/A'}</td>
                                           <td className="px-3 py-2">{getOriginatorName(r)}</td>
-                                          <td className="px-3 py-2">{new Date(r.createdAt).toLocaleDateString()}</td>
                                           <td className="px-3 py-2">{r.disposalAction || (r.isPermanent ? 'TRANSFER' : 'DESTROY')}</td>
                                         </tr>
                                       ))}
@@ -1409,6 +1443,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
               )}
               {currentUser && needsResubmit(selectedRequest) && currentUser.id === selectedRequest.uploadedById && (
                 <button className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700" onClick={resubmitRequest}>Resubmit</button>
+              )}
+              {/* File button - show for archived requests with SSIC that haven't been filed yet */}
+              {currentUser && selectedRequest.currentStage === 'ARCHIVED' && selectedRequest.ssic && !selectedRequest.filedAt && currentUser.id === selectedRequest.uploadedById && (
+                <button className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700" onClick={fileRequest}>File</button>
               )}
               {currentUser && canDeleteRequest(selectedRequest as any, String(currentUser?.id || '')) && (
                 <button className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700" onClick={() => deleteRequest(selectedRequest!)}>Delete Request</button>

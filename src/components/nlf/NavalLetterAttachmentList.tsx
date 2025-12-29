@@ -257,44 +257,44 @@ function NavalLetterPreviewModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <dl className="space-y-4">
-            {content.ssic && (
+            {typeof content.ssic === 'string' && content.ssic && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">SSIC</dt>
                 <dd className="mt-1 text-sm text-[var(--text)]">
-                  {String(content.ssic)} - {String(content.ssicTitle || '')}
+                  {content.ssic} - {String(content.ssicTitle || '')}
                 </dd>
               </div>
             )}
-            {content.subject && (
+            {typeof content.subject === 'string' && content.subject && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">Subject</dt>
-                <dd className="mt-1 text-sm text-[var(--text)]">{String(content.subject)}</dd>
+                <dd className="mt-1 text-sm text-[var(--text)]">{content.subject}</dd>
               </div>
             )}
-            {content.from && (
+            {typeof content.from === 'string' && content.from && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">From</dt>
-                <dd className="mt-1 text-sm text-[var(--text)]">{String(content.from)}</dd>
+                <dd className="mt-1 text-sm text-[var(--text)]">{content.from}</dd>
               </div>
             )}
-            {content.to && (
+            {typeof content.to === 'string' && content.to && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">To</dt>
-                <dd className="mt-1 text-sm text-[var(--text)]">{String(content.to)}</dd>
+                <dd className="mt-1 text-sm text-[var(--text)]">{content.to}</dd>
               </div>
             )}
             {Array.isArray(content.via) && content.via.length > 0 && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">Via</dt>
                 <dd className="mt-1 text-sm text-[var(--text)]">
-                  {content.via.join(' → ')}
+                  {(content.via as string[]).join(' → ')}
                 </dd>
               </div>
             )}
-            {content.letterType && (
+            {typeof content.letterType === 'string' && content.letterType && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">Letter Type</dt>
-                <dd className="mt-1 text-sm text-[var(--text)]">{String(content.letterType)}</dd>
+                <dd className="mt-1 text-sm text-[var(--text)]">{content.letterType}</dd>
               </div>
             )}
             {Array.isArray(content.paragraphs) && content.paragraphs.length > 0 && (

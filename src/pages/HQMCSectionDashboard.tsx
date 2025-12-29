@@ -4,7 +4,7 @@ import { UserRecord } from '@/types'
 import RequestTable from '../components/RequestTable'
 import { Request } from '../types'
 import HQMCSectionPermissionManager from '@/components/HQMCSectionPermissionManager'
-import { DocumentList } from '@/components/common'
+import { DocumentList, useToast } from '@/components/common'
 
 interface DocumentItem {
   id: string
@@ -34,6 +34,11 @@ export default function HQMCSectionDashboard() {
   const [hqmcStructure, setHqmcStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
   const [permOpen, setPermOpen] = useState(false)
+  // File dialog state
+  const [showFileDialog, setShowFileDialog] = useState(false)
+  const [fileDialogRequest, setFileDialogRequest] = useState<Request | null>(null)
+  const [fileFinalizedDate, setFileFinalizedDate] = useState('')
+  const toast = useToast()
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -134,13 +139,34 @@ export default function HQMCSectionDashboard() {
     setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
     setComments(prev => ({ ...prev, [r.id]: '' }))
   }
-  const archiveRequest = async (r: Request) => {
+  const openFileDialog = (r: Request) => {
+    setFileDialogRequest(r)
+    setFileFinalizedDate(new Date().toISOString().slice(0, 10))
+    setShowFileDialog(true)
+  }
+
+  const confirmFileRequest = async () => {
+    if (!fileDialogRequest || !fileFinalizedDate) return
+    const r = fileDialogRequest
     const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Section'
-    const entry = { actor, timestamp: new Date().toISOString(), action: 'Archived by HQMC Section', comment: (comments[r.id] || '').trim() }
-    const updated: Request = { ...r, currentStage: 'ARCHIVED', activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry] }
-    try { await upsertRequest(updated as any) } catch {}
-    setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
-    setComments(prev => ({ ...prev, [r.id]: '' }))
+    const entry = { actor, timestamp: new Date().toISOString(), action: `Filed by HQMC Section (Date Finalized: ${fileFinalizedDate})`, comment: (comments[r.id] || '').trim() }
+    const updated: Request = {
+      ...r,
+      filedAt: new Date(fileFinalizedDate).toISOString(),
+      activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
+    }
+    try {
+      await upsertRequest(updated as any)
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)))
+      setComments(prev => ({ ...prev, [r.id]: '' }))
+      setShowFileDialog(false)
+      setFileDialogRequest(null)
+      setFileFinalizedDate('')
+      toast.success('Request filed successfully')
+    } catch (e) {
+      console.error('Failed to file request:', e)
+      toast.error('Failed to file request')
+    }
   }
   const reassignRequest = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Section'
@@ -307,7 +333,9 @@ export default function HQMCSectionDashboard() {
                       <button className="px-3 py-2 rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" onClick={() => reassignRequest(r)}>Reassign</button>
                     </div>
                     <div className="flex items-center justify-end gap-2">
-                      <button className="px-3 py-2 rounded bg-green-600 text-white hover:bg-green-700" onClick={() => archiveRequest(r)}>Archive</button>
+                      {r.ssic && !r.filedAt && (
+                        <button className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2" onClick={() => openFileDialog(r)}>File</button>
+                      )}
                       <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2" onClick={() => returnRequest(r)}>Return to Installation</button>
                     </div>
                   </div>
@@ -371,6 +399,43 @@ export default function HQMCSectionDashboard() {
           assignments={assignments}
           onClose={() => setPermOpen(false)}
         />
+      )}
+
+      {/* File Dialog Modal */}
+      {showFileDialog && fileDialogRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">File Record</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Filing: <strong>{fileDialogRequest.subject}</strong>
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date Finalized</label>
+              <input
+                type="date"
+                value={fileFinalizedDate}
+                onChange={(e) => setFileFinalizedDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold"
+              />
+              <p className="text-xs text-gray-500 mt-1">This date will be used to calculate the disposal date based on the retention schedule.</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                className="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+                onClick={() => { setShowFileDialog(false); setFileDialogRequest(null); setFileFinalizedDate('') }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2"
+                onClick={confirmFileRequest}
+                disabled={!fileFinalizedDate}
+              >
+                Confirm File
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

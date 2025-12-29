@@ -30,7 +30,7 @@ export default function HQMCSectionDashboard() {
   const [openDocsId, setOpenDocsId] = useState<string | null>(null)
   const docsRef = useRef<HTMLDivElement | null>(null)
   const [assignments, setAssignments] = useState<Array<{ division_code: string; branch: string; reviewers: string[]; approvers: string[] }>>([])
-  const [activeTab, setActiveTab] = useState<'Pending' | 'Approved' | 'Archived' | 'Files'>('Pending')
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Approved' | 'Files'>('Pending')
   const [filesSearchQuery, setFilesSearchQuery] = useState<string>('')
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({})
   const [expandedBuckets, setExpandedBuckets] = useState<Record<string, boolean>>({})
@@ -100,8 +100,6 @@ export default function HQMCSectionDashboard() {
   const pending = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'HQMC_REVIEW' && !isApproverApproved(r)), [inScope])
   // Approved: at HQMC_REVIEW AND approved by HQMC Approver (waiting for Section action)
   const approvedByHqmc = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'HQMC_REVIEW' && isApproverApproved(r)), [inScope])
-  // Archived: completed requests (not filed)
-  const archived = useMemo(() => inScope.filter(r => (r.currentStage || 'PLATOON_REVIEW') === 'ARCHIVED' && !r.filedAt), [inScope])
 
   // Get disposal year from request
   const getDisposalYear = useCallback((request: Request): string => {
@@ -244,10 +242,9 @@ export default function HQMCSectionDashboard() {
   const downloadCsv = (filename: string, csv: string) => { const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url) }
   const exportPending = () => downloadCsv('hqmc_pending.csv', buildRows(pending))
   const exportApproved = () => downloadCsv('hqmc_approved.csv', buildRows(approvedByHqmc))
-  const exportArchived = () => downloadCsv('hqmc_archived.csv', buildRows(archived))
   const filedRecords = useMemo(() => Object.values(groupedFiledRecords).flatMap(buckets => Object.values(buckets).flat()), [groupedFiledRecords])
   const exportFiles = () => downloadCsv('hqmc_files.csv', buildRows(filedRecords))
-  const exportAll = () => downloadCsv('hqmc_all.csv', buildRows([...pending, ...approvedByHqmc, ...archived, ...filedRecords]))
+  const exportAll = () => downloadCsv('hqmc_all.csv', buildRows([...pending, ...approvedByHqmc, ...filedRecords]))
 
   const approveRequest = async (r: Request) => {
     const actor = currentUser ? `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}`.trim() : 'HQMC Reviewer'
@@ -327,7 +324,6 @@ export default function HQMCSectionDashboard() {
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             <button onClick={() => setActiveTab('Pending')} className={`${activeTab === 'Pending' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Pending</button>
             <button onClick={() => setActiveTab('Approved')} className={`${activeTab === 'Approved' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Approved</button>
-            <button onClick={() => setActiveTab('Archived')} className={`${activeTab === 'Archived' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Archived</button>
             <button onClick={() => setActiveTab('Files')} className={`${activeTab === 'Files' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Files ({filedRecordCount})</button>
           </nav>
         </div>
@@ -467,52 +463,6 @@ export default function HQMCSectionDashboard() {
                         <button className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2" onClick={() => openFileDialog(r)}>File</button>
                       )}
                       <button className="px-3 py-2 rounded bg-brand-navy text-brand-cream hover:bg-brand-red-2" onClick={() => returnRequest(r)}>Return to Installation</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </RequestTable>
-          )}
-          {activeTab === 'Archived' && (
-            <RequestTable
-              title="Archived"
-              titleActions={(<button className="px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2 hidden md:block" onClick={exportArchived}>Export Archived</button>)}
-              requests={archived}
-              users={users}
-              onRowClick={(r) => setExpandedLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-              expandedRows={expandedLogs}
-            >
-              {(r: Request) => (
-                <div id={`details-hqarc-${r.id}`}>
-                  <div className="mt-3">
-                    <button className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2" aria-expanded={!!expandedDocs[r.id]} aria-controls={`docs-hqarc-${r.id}`} onClick={() => { setExpandedDocs(prev => ({ ...prev, [r.id]: !prev[r.id] })); setOpenDocsId(prev => (!expandedDocs[r.id] ? r.id : null)) }}>
-                      <span>Show Documents</span>
-                      <svg width="10" height="10" viewBox="0 0 20 20" className={`transition-transform ${expandedDocs[r.id] ? 'rotate-180' : 'rotate-0'}`} aria-hidden="true"><path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                    </button>
-                  </div>
-                  <div id={`docs-hqarc-${r.id}`} ref={expandedDocs[r.id] ? docsRef : undefined} className={`${expandedDocs[r.id] ? 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-[50vh] opacity-100' : 'mt-2 space-y-2 overflow-hidden transition-all duration-300 max-h-0 opacity-0'}`}>
-                    <DocumentList documents={docsFor(r.id).map(d => ({ ...d, fileUrl: (d as any).fileUrl }))} />
-                  </div>
-                  <div className="mt-3">
-                    <button
-                      className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded bg-brand-cream text-brand-navy border border-brand-navy/30 hover:bg-brand-gold-2"
-                      aria-expanded={!!expandedActivityLogs[r.id]}
-                      aria-controls={`logs-hqarc-${r.id}`}
-                      onClick={() => setExpandedActivityLogs(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                    >
-                      {expandedActivityLogs[r.id] ? 'Hide' : 'Show'} Activity Log
-                    </button>
-                    <div id={`logs-hqarc-${r.id}`} className={expandedActivityLogs[r.id] ? 'mt-2 space-y-2' : 'hidden'}>
-                      {r.activity && r.activity.length ? (
-                        r.activity.map((a, idx) => (
-                          <div key={idx} className="text-xs text-gray-700">
-                            <div className="font-medium">{a.actor} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                            {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-xs text-gray-500">No activity</div>
-                      )}
                     </div>
                   </div>
                 </div>

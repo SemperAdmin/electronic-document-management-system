@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the complete workflow for document requests in the Electronic Document Management System (EDMS). Requests flow through multiple review stages, with actions available at each stage depending on the reviewer's role.
+This document describes the complete workflow for document requests in the Electronic Document Management System (EDMS). Requests flow through multiple review stages, with actions available at each stage depending on the reviewer's role. Upon completion, requests are "filed" with retention information for records management.
 
 ---
 
@@ -28,7 +28,7 @@ This document describes the complete workflow for document requests in the Elect
 │  └───┬────┘  │              │              │              │              │              │              │              │                │
 │      │       │              │              │              │              │              │              │              │                │
 │  ┌───┴───┐   │              │              │              │              │              │              │              │                │
-│  │Archive│   │              │              │              │              │              │              │              │                │
+│  │ File  │   │              │              │              │              │              │              │              │                │
 │  │  or   │   │              │              │              │              │              │              │              │                │
 │  │Submit │   │              │              │              │              │              │              │              │                │
 │  └───┬───┘   │              │              │              │              │              │              │              │                │
@@ -54,7 +54,7 @@ This document describes the complete workflow for document requests in the Elect
 │              │              │              │  │  or   ├───┼─►│SECTION │  │              │              │              │                │
 │              │              │              │  │Approve│   │  │ REVIEW │  │              │              │              │                │
 │              │              │              │  │  or   │   │  └───┬────┘  │              │              │              │                │
-│              │              │              │  │Archive│   │      │       │              │              │              │                │
+│              │              │              │  │ File  │   │      │       │              │              │              │                │
 │              │              │              │  │  or   │   │  ┌───┴───┐   │  ┌────────┐  │              │              │                │
 │              │              │              │  │Route  │   │  │Route  │   │  │COMMANDER│  │              │              │                │
 │              │              │              │  │Extern │   │  │Section├───┼─►│ REVIEW │  │              │              │                │
@@ -85,12 +85,12 @@ This document describes the complete workflow for document requests in the Elect
 │              │              │              │              │              │              │              │              │  ┌───┴───┐     │
 │              │              │              │              │              │              │              │              │  │Approve│     │
 │              │              │              │              │              │              │              │              │  │Return │     │
-│              │              │              │              │              │              │              │              │  │Archive│     │
+│              │              │              │              │              │              │              │              │  │ File  │     │
 │              │              │              │              │              │              │              │              │  └───┬───┘     │
 │              │              │              │              │              │              │              │              │      │         │
 │              │              │              │              │              │              │              │              │      ▼         │
 │              │              │              │              │              │              │              │              │  ┌────────┐    │
-│              │              │              │              │              │              │              │              │  │ARCHIVED│    │
+│              │              │              │              │              │              │              │              │  │ FILED  │    │
 │              │              │              │              │              │              │              │              │  └────────┘    │
 └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴────────────────┘
 ```
@@ -108,7 +108,40 @@ This document describes the complete workflow for document requests in the Elect
 | `COMMANDER_REVIEW` | Unit commander or command section review | Commander / Command Section |
 | `INSTALLATION_REVIEW` | Installation-level section or commander review | Installation Staff |
 | `HQMC_REVIEW` | Headquarters Marine Corps review | HQMC Section / Approver |
-| `ARCHIVED` | Final state – request completed | N/A |
+| `FILED` | Final state – request completed with retention tracking | N/A |
+
+---
+
+## Filing and Records Management
+
+When a request is **filed**, the following information is captured:
+
+| Field | Description |
+|-------|-------------|
+| `filedAt` | Date the record was finalized (used for retention calculation) |
+| `ssic` | Standard Subject Identification Code |
+| `ssicNomenclature` | Human-readable SSIC description |
+| `ssicBucket` | Category grouping for the SSIC |
+| `isPermanent` | Whether the record is permanent retention |
+| `retentionValue` | Numeric retention period |
+| `retentionUnit` | Unit for retention (YEARS, MONTHS, DAYS) |
+| `cutoffTrigger` | When retention period starts (CALENDAR_YEAR, FISCAL_YEAR) |
+| `disposalAction` | What happens after retention (DESTROY, TRANSFER, etc.) |
+
+### Disposal Date Calculation
+
+1. **Cutoff Date**: Based on `filedAt` and `cutoffTrigger`:
+   - `CALENDAR_YEAR`: December 31 of the filed year
+   - `FISCAL_YEAR`: September 30 (end of fiscal year containing filed date)
+2. **Disposal Date**: Cutoff date + retention period
+
+### Files Tab
+
+All dashboards include a **Files** tab showing filed records:
+- Grouped by **Disposal Year** (when records can be disposed)
+- Sub-grouped by **SSIC Bucket** (category)
+- Searchable by subject, SSIC, and category
+- Permanent records grouped separately
 
 ---
 
@@ -119,9 +152,11 @@ This document describes the complete workflow for document requests in the Elect
 | Action | Result | Next Stage |
 |--------|--------|------------|
 | Submit | Routes to first available reviewer | PLATOON_REVIEW / COMPANY_REVIEW / BATTALION_REVIEW |
-| Archive | Originator archives without submission | ARCHIVED |
+| File | File without further review (if approved by commander) | FILED |
 | Edit | Modify request details | ORIGINATOR_REVIEW |
 | Delete | Remove request entirely | (Deleted) |
+
+**Note**: Originator can only file after commander approval, not at initial creation.
 
 ### PLATOON_REVIEW
 
@@ -129,6 +164,7 @@ This document describes the complete workflow for document requests in the Elect
 |--------|--------|------------|
 | Approve | Advances to company review | COMPANY_REVIEW |
 | Return to Originator | Returns for corrections | ORIGINATOR_REVIEW |
+| File | File record (if approved by commander) | FILED |
 | Add Comment/Files | Attach notes or documents | PLATOON_REVIEW |
 
 ### COMPANY_REVIEW
@@ -138,6 +174,7 @@ This document describes the complete workflow for document requests in the Elect
 | Approve | Advances to battalion section | BATTALION_REVIEW |
 | Return to Platoon | Returns to platoon reviewer | PLATOON_REVIEW |
 | Return to Originator | Returns for corrections | ORIGINATOR_REVIEW |
+| File | File record (if approved by commander) | FILED |
 | Add Comment/Files | Attach notes or documents | COMPANY_REVIEW |
 
 ### BATTALION_REVIEW
@@ -150,7 +187,7 @@ This document describes the complete workflow for document requests in the Elect
 | Return to Originator | Returns for corrections | ORIGINATOR_REVIEW |
 | Route to External Unit | Send to another battalion | EXTERNAL_REVIEW |
 | Route to Installation | Send to installation level | INSTALLATION_REVIEW |
-| Archive | Complete request at this level | ARCHIVED |
+| File | Complete and file request at this level | FILED |
 | Add Comment/Files | Attach notes or documents | BATTALION_REVIEW |
 
 ### COMMANDER_REVIEW (Command Sections)
@@ -172,7 +209,7 @@ This document describes the complete workflow for document requests in the Elect
 | Send to Command Section | Route to specific command section for review | COMMANDER_REVIEW (routeSection=section) |
 | Add Comment/Files | Attach notes or documents | COMMANDER_REVIEW |
 
-**Note:** The Commander cannot return requests directly to the originator or archive them. All decisions (Approve/Endorse/Reject) route back to the battalion section that originally processed the request, where staff can then take further action (archive, return to company/originator, route externally, etc.).
+**Note:** The Commander cannot return requests directly to the originator or file them. All decisions (Approve/Endorse/Reject) route back to the battalion section that originally processed the request, where staff can then take further action (file, return to company/originator, route externally, etc.).
 
 ### INSTALLATION_REVIEW (Section)
 
@@ -181,13 +218,14 @@ This document describes the complete workflow for document requests in the Elect
 | Approve to Commander | Route to installation commander | INSTALLATION_REVIEW (routeSection='') |
 | Return to Unit | Return to originating unit | BATTALION_REVIEW |
 | Route to HQMC | Send to headquarters | HQMC_REVIEW |
+| File | Complete and file at installation level | FILED |
 | Add Comment/Files | Attach notes or documents | INSTALLATION_REVIEW |
 
 ### INSTALLATION_REVIEW (Commander)
 
 | Action | Result | Next Stage |
 |--------|--------|------------|
-| Approve | Approves at installation level | ARCHIVED or BATTALION_REVIEW |
+| Approve | Approves at installation level | FILED or BATTALION_REVIEW |
 | Endorse | Endorses for higher review | HQMC_REVIEW |
 | Reject | Rejects request | BATTALION_REVIEW |
 | Return to Section | Return to installation section | INSTALLATION_REVIEW (routeSection=section) |
@@ -197,9 +235,10 @@ This document describes the complete workflow for document requests in the Elect
 
 | Action | Result | Next Stage |
 |--------|--------|------------|
-| Approve | Final approval | ARCHIVED |
+| Approve | Final approval at HQMC | Activity logged |
 | Reject | Return to installation | INSTALLATION_REVIEW |
 | Return | Send back for corrections | INSTALLATION_REVIEW |
+| File | Complete and file at HQMC level | FILED |
 | Add Comment/Files | Attach notes or documents | HQMC_REVIEW |
 
 ---
@@ -216,16 +255,34 @@ This document describes the complete workflow for document requests in the Elect
 
 ---
 
+## Role Scope Fields
+
+| Field | Description |
+|-------|-------------|
+| `role` | User's role (MEMBER, PLATOON_REVIEWER, COMPANY_REVIEWER, COMMANDER) |
+| `roleCompany` | Company scope for reviewer roles |
+| `rolePlatoon` | Platoon scope for PLATOON_REVIEWER role |
+| `company` | User's assigned company |
+| `platoon` | User's assigned platoon |
+
+**Note**: `roleCompany`/`rolePlatoon` define the reviewer's scope, while `company`/`platoon` define the user's organizational assignment.
+
+---
+
 ## Routing Logic Summary
 
-1. **Originator submits** → Routes to first available reviewer (Platoon → Company → Battalion)
+1. **Originator submits** → Routes to first available reviewer:
+   - If PLATOON_REVIEWER exists for user's company/platoon → PLATOON_REVIEW
+   - Else if COMPANY_REVIEWER exists for user's company → COMPANY_REVIEW
+   - Else → BATTALION_REVIEW
 2. **Each review level** → Can approve (forward) or return (backward)
 3. **Battalion Section** → Routes to Command Section or directly to Commander
 4. **Command Sections** → Process and route to Commander or return to Battalion
 5. **Commander** → Approve/Endorse/Reject → Routes back to Battalion Section
-6. **Battalion post-commander** → Can archive, route to Installation, or handle rejection
+6. **Battalion post-commander** → Can file, route to Installation, or handle rejection
 7. **Installation** → Section review → Commander → HQMC or complete
-8. **HQMC** → Final approval authority
+8. **HQMC** → Final approval/file authority
+9. **Any level post-approval** → Can file record with SSIC classification
 
 ---
 
@@ -237,3 +294,6 @@ This document describes the complete workflow for document requests in the Elect
 4. **External Routing**: Requests can be routed to other battalions for endorsement
 5. **Installation Escalation**: Requests requiring installation approval flow through installation sections
 6. **HQMC Escalation**: Requests requiring headquarters approval flow through HQMC divisions
+7. **Filing Requirements**: Records must have SSIC classification before filing
+8. **Retention Tracking**: Filed records are tracked by disposal year for records management
+9. **Subjects Uppercase**: All request subjects are automatically converted to uppercase

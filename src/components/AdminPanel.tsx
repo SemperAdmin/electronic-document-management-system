@@ -842,10 +842,15 @@ export const AdminPanel: React.FC = () => {
                       const base = UNITS.find(x => x.uic === u.unitUic);
                       const unitName = base ? base.unitName : u.unit;
                       if (u.isUnitAdmin || u.role === 'COMMANDER') return unitName || '—';
-                      if (u.role === 'COMPANY_REVIEWER') return (u.company && u.company !== 'N/A') ? u.company : '—';
+                      if (u.role === 'COMPANY_REVIEWER') {
+                        const rc = (u as any).role_company || (u as any).roleCompany || u.company;
+                        return (rc && rc !== 'N/A') ? rc : '—';
+                      }
                       if (u.role === 'PLATOON_REVIEWER') {
-                        const c = (u.company && u.company !== 'N/A') ? u.company : '';
-                        const p = ((u as any).platoon && (u as any).platoon !== 'N/A') ? (u as any).platoon : '';
+                        const rc = (u as any).role_company || (u as any).roleCompany || u.company;
+                        const rp = (u as any).role_platoon || (u as any).rolePlatoon || (u as any).platoon;
+                        const c = (rc && rc !== 'N/A') ? rc : '';
+                        const p = (rp && rp !== 'N/A') ? rp : '';
                         const parts = [c, p].filter(Boolean);
                         return parts.length ? parts.join(' / ') : '—';
                       }
@@ -924,7 +929,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="admin-role" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                    <select id="admin-role" aria-label="Role" value={editingRole} onChange={(e) => { const v = e.target.value; setEditingRole(v); if (v === 'COMMANDER') { setEditingCompany(undefined); setEditingPlatoon(undefined); } }} className="w-full px-3 py-2 border rounded">
+                    <select id="admin-role" aria-label="Role" value={editingRole} onChange={(e) => { const v = e.target.value; setEditingRole(v); if (v === 'COMMANDER') { setEditingCompany(undefined); setEditingPlatoon(undefined); setEditingRoleCompany(undefined); setEditingRolePlatoon(undefined); } else if (v === 'COMPANY_REVIEWER') { setEditingRolePlatoon(undefined); } else if (v === 'MEMBER') { setEditingRoleCompany(undefined); setEditingRolePlatoon(undefined); } }} className="w-full px-3 py-2 border rounded">
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
@@ -1031,7 +1036,7 @@ export const AdminPanel: React.FC = () => {
                         unit: baseUnitName,
                         platoon: (editingUserPlatoon || 'N/A'),
                         roleCompany: (editingRole.includes('REVIEW')) ? (editingRoleCompany || 'N/A') : undefined,
-                        rolePlatoon: (editingRole.includes('REVIEW')) ? (editingRolePlatoon || 'N/A') : undefined,
+                        rolePlatoon: (editingRole === 'PLATOON_REVIEWER') ? (editingRolePlatoon || 'N/A') : undefined,
                       };
                       try { localStorage.setItem(`fs/users/${updated.edipi}.json`, JSON.stringify(updated)); } catch {}
                       try {

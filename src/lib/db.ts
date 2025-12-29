@@ -44,6 +44,18 @@ interface RequestRow {
   external_pending_stage: string | null
   installation_id: string | null
   final_status: string | null
+  // SSIC/Retention fields
+  ssic: string | null
+  ssic_nomenclature: string | null
+  ssic_bucket: string | null
+  ssic_bucket_title: string | null
+  is_permanent: boolean | null
+  retention_value: number | null
+  retention_unit: string | null
+  cutoff_trigger: string | null
+  cutoff_description: string | null
+  disposal_action: string | null
+  dau: string | null
 }
 
 /** Raw database row for edms_users table */
@@ -174,6 +186,18 @@ export type RequestRecord = {
   externalPendingStage?: string
   installationId?: string;
   finalStatus?: string;
+  // SSIC/Retention fields
+  ssic?: string
+  ssicNomenclature?: string
+  ssicBucket?: string
+  ssicBucketTitle?: string
+  isPermanent?: boolean
+  retentionValue?: number | null
+  retentionUnit?: string
+  cutoffTrigger?: string
+  cutoffDescription?: string
+  disposalAction?: string
+  dau?: string
 }
 
 export type HQMCStructureRecord = {
@@ -261,6 +285,18 @@ function toReqRow(r: RequestRecord): Omit<RequestRow, never> {
     external_pending_stage: r.externalPendingStage ?? null,
     installation_id: r.installationId ?? null,
     final_status: r.finalStatus ?? null,
+    // SSIC/Retention fields
+    ssic: r.ssic ?? null,
+    ssic_nomenclature: r.ssicNomenclature ?? null,
+    ssic_bucket: r.ssicBucket ?? null,
+    ssic_bucket_title: r.ssicBucketTitle ?? null,
+    is_permanent: r.isPermanent ?? null,
+    retention_value: r.retentionValue ?? null,
+    retention_unit: r.retentionUnit ?? null,
+    cutoff_trigger: r.cutoffTrigger ?? null,
+    cutoff_description: r.cutoffDescription ?? null,
+    disposal_action: r.disposalAction ?? null,
+    dau: r.dau ?? null,
   }
 }
 
@@ -284,6 +320,18 @@ function fromReqRow(r: RequestRow): RequestRecord {
     externalPendingStage: r.external_pending_stage ? String(r.external_pending_stage) : undefined,
     installationId: r.installation_id ? String(r.installation_id) : undefined,
     finalStatus: r.final_status ? String(r.final_status) : undefined,
+    // SSIC/Retention fields
+    ssic: r.ssic ? String(r.ssic) : undefined,
+    ssicNomenclature: r.ssic_nomenclature ? String(r.ssic_nomenclature) : undefined,
+    ssicBucket: r.ssic_bucket ? String(r.ssic_bucket) : undefined,
+    ssicBucketTitle: r.ssic_bucket_title ? String(r.ssic_bucket_title) : undefined,
+    isPermanent: r.is_permanent ?? undefined,
+    retentionValue: r.retention_value ?? undefined,
+    retentionUnit: r.retention_unit ? String(r.retention_unit) : undefined,
+    cutoffTrigger: r.cutoff_trigger ? String(r.cutoff_trigger) : undefined,
+    cutoffDescription: r.cutoff_description ? String(r.cutoff_description) : undefined,
+    disposalAction: r.disposal_action ? String(r.disposal_action) : undefined,
+    dau: r.dau ? String(r.dau) : undefined,
   }
 }
 

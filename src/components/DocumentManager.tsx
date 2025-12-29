@@ -57,6 +57,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [selectedBattalionSection, setSelectedBattalionSection] = useState<string>('');
   const [ssicSelection, setSsicSelection] = useState<SsicSelection | null>(null);
   const [requestDetailTab, setRequestDetailTab] = useState<'documents' | 'retention' | 'activity'>('documents');
+  const [editingRetention, setEditingRetention] = useState<boolean>(false);
+  const [retentionSsicSelection, setRetentionSsicSelection] = useState<SsicSelection | null>(null);
 
   // Hooks
   const storage = useDocumentStorage();
@@ -570,6 +572,50 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
   };
 
+  const saveRetentionUpdate = async () => {
+    if (!selectedRequest || !currentUser || !retentionSsicSelection) return;
+
+    const actor = `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`;
+    const actorRole = currentUser.role || 'Reviewer';
+
+    const entry = {
+      actor,
+      actorRole,
+      timestamp: new Date().toISOString(),
+      action: 'Updated retention classification',
+      comment: `Changed SSIC to ${retentionSsicSelection.ssic} - ${retentionSsicSelection.nomenclature}`
+    };
+
+    const updatedRequest: Request = {
+      ...selectedRequest,
+      ssic: retentionSsicSelection.ssic,
+      ssicNomenclature: retentionSsicSelection.nomenclature,
+      ssicBucket: retentionSsicSelection.bucket,
+      ssicBucketTitle: retentionSsicSelection.bucketTitle,
+      isPermanent: retentionSsicSelection.isPermanent,
+      retentionValue: retentionSsicSelection.retentionValue,
+      retentionUnit: retentionSsicSelection.retentionUnit,
+      cutoffTrigger: retentionSsicSelection.cutoffTrigger,
+      cutoffDescription: retentionSsicSelection.cutoffDescription,
+      disposalAction: retentionSsicSelection.disposalAction,
+      dau: retentionSsicSelection.dau,
+      activity: [...(selectedRequest.activity || []), entry]
+    };
+
+    try {
+      const resReq = await upsertRequest(updatedRequest as unknown as RequestRecord);
+      if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
+
+      setUserRequests(prev => prev.map(r => (r.id === updatedRequest.id ? updatedRequest : r)));
+      setSelectedRequest(updatedRequest);
+      setEditingRetention(false);
+      setRetentionSsicSelection(null);
+      setFeedback({ type: 'success', message: 'Retention classification updated.' });
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: `Failed to update retention: ${String(e?.message || e)}` });
+    }
+  };
+
   const [loadingDocuments, setLoadingDocuments] = useState<boolean>(true)
   const [loadingRequests, setLoadingRequests] = useState<boolean>(true)
   useEffect(() => {
@@ -584,6 +630,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       setEditRequestDueDate(selectedRequest.dueDate || '');
       setEditRequestNotes(selectedRequest.notes || '');
       setAttachFiles([]);
+      setEditingRetention(false);
+      setRetentionSsicSelection(null);
     }
   }, [selectedRequest]);
 
@@ -1065,11 +1113,50 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                 {/* Retention Tab */}
                 {requestDetailTab === 'retention' && (
                   <div>
-                    {selectedRequest.ssic ? (
-                      <RetentionInfoPanel request={selectedRequest} />
+                    {editingRetention ? (
+                      <div className="space-y-4">
+                        <SsicSearch
+                          value={retentionSsicSelection}
+                          onChange={setRetentionSsicSelection}
+                          required
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingRetention(false); setRetentionSsicSelection(null); }}
+                            className="px-3 py-1 rounded border border-brand-navy/30 text-brand-navy hover:bg-brand-cream text-sm"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={saveRetentionUpdate}
+                            disabled={!retentionSsicSelection}
+                            className="px-3 py-1 rounded bg-brand-navy text-brand-cream hover:brightness-110 text-sm disabled:opacity-50"
+                          >
+                            Save Retention
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      <div className="text-sm text-[var(--muted)] p-4 bg-gray-50 rounded-lg">
-                        No retention information available for this request.
+                      <div>
+                        {selectedRequest.ssic ? (
+                          <RetentionInfoPanel request={selectedRequest} />
+                        ) : (
+                          <div className="text-sm text-[var(--muted)] p-4 bg-gray-50 rounded-lg">
+                            No retention information available for this request.
+                          </div>
+                        )}
+                        {/* Edit button for reviewers - anyone can update retention for now */}
+                        {currentUser && selectedRequest.currentStage !== 'ARCHIVED' && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingRetention(true)}
+                            className="mt-3 px-3 py-1 rounded border border-brand-navy/30 text-brand-navy hover:bg-brand-cream text-sm"
+                          >
+                            {selectedRequest.ssic ? 'Change Retention' : 'Add Retention Info'}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

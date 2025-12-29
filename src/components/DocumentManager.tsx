@@ -55,6 +55,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [activeTab, setActiveTab] = useState<'Pending' | 'Files'>('Pending');
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
   const [expandedBuckets, setExpandedBuckets] = useState<Record<string, boolean>>({});
+  const [filesSearchQuery, setFilesSearchQuery] = useState<string>('');
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({});
   const [selectedBattalionSection, setSelectedBattalionSection] = useState<string>('');
   const [ssicSelection, setSsicSelection] = useState<SsicSelection | null>(null);
@@ -801,7 +802,20 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     if (!currentUser?.id) return {};
 
     // Only include records that have been filed (filedAt is set)
-    const records = userRequests.filter(r => r.uploadedById === currentUser.id && r.ssic && r.filedAt);
+    let records = userRequests.filter(r => r.uploadedById === currentUser.id && r.ssic && r.filedAt);
+
+    // Apply search filter if query exists
+    if (filesSearchQuery.trim()) {
+      const query = filesSearchQuery.toLowerCase().trim();
+      records = records.filter(r =>
+        r.subject?.toLowerCase().includes(query) ||
+        r.ssic?.toLowerCase().includes(query) ||
+        r.ssicNomenclature?.toLowerCase().includes(query) ||
+        r.ssicBucketTitle?.toLowerCase().includes(query) ||
+        r.notes?.toLowerCase().includes(query)
+      );
+    }
+
     const grouped: GroupedRecords = {};
 
     for (const record of records) {
@@ -827,7 +841,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     }
 
     return grouped;
-  }, [userRequests, currentUser, getDisposalYear]);
+  }, [userRequests, currentUser, getDisposalYear, filesSearchQuery]);
 
   // Get sorted year keys (Permanent first, then years in ascending order)
   const sortedYearKeys = useMemo(() => {
@@ -1154,13 +1168,48 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
             {/* Files Tab Content - Records Management Dashboard */}
             {activeTab === 'Files' && (
-              <div className="py-4 space-y-2">
+              <div className="py-4 space-y-4">
+                {/* Search Bar */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search files by subject, SSIC, category..."
+                    value={filesSearchQuery}
+                    onChange={(e) => setFilesSearchQuery(e.target.value)}
+                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {filesSearchQuery && (
+                    <button
+                      onClick={() => setFilesSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
                 {loadingRequests ? (
                   <div className="animate-pulse">Loading records…</div>
                 ) : sortedYearKeys.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    <p>No filed records yet.</p>
-                    <p className="text-sm mt-1">Archive a request and click "File" to add it to records management.</p>
+                    {filesSearchQuery ? (
+                      <p>No records match your search.</p>
+                    ) : (
+                      <>
+                        <p>No filed records yet.</p>
+                        <p className="text-sm mt-1">Archive a request and click "File" to add it to records management.</p>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1352,32 +1401,52 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
               <button className="text-brand-navy" onClick={() => setSelectedRequest(null)}>✕</button>
             </div>
             <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-[var(--text)] mb-1">Subject</label>
-                <input type="text" value={editRequestSubject} onChange={(e) => setEditRequestSubject(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-[var(--muted)]">Submitted {new Date(selectedRequest.createdAt).toLocaleString()}</div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text)] mb-1">Due Date</label>
-                  <input type="date" value={editRequestDueDate} onChange={(e) => setEditRequestDueDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-              {selectedRequest.currentStage && (() => {
-                const { level, scope } = getStatusLabel(selectedRequest);
+              {/* Check if record is filed/archived - make read-only */}
+              {(() => {
+                const isFiledRecord = !!selectedRequest.filedAt || selectedRequest.currentStage === 'ARCHIVED';
                 return (
-                  <span className="inline-flex flex-col items-center px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-lg border border-brand-navy/30 leading-tight">
-                    <span>{level}</span>
-                    {scope && <span className="text-[10px]">{scope}</span>}
-                  </span>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--text)] mb-1">Subject</label>
+                      {isFiledRecord ? (
+                        <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">{selectedRequest.subject}</div>
+                      ) : (
+                        <input type="text" value={editRequestSubject} onChange={(e) => setEditRequestSubject(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-sm text-[var(--muted)]">Submitted {new Date(selectedRequest.createdAt).toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text)] mb-1">Due Date</label>
+                        {isFiledRecord ? (
+                          <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">{selectedRequest.dueDate ? new Date(selectedRequest.dueDate).toLocaleDateString() : '—'}</div>
+                        ) : (
+                          <input type="date" value={editRequestDueDate} onChange={(e) => setEditRequestDueDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        )}
+                      </div>
+                    </div>
+                    {selectedRequest.currentStage && (() => {
+                      const { level, scope } = getStatusLabel(selectedRequest);
+                      return (
+                        <span className="inline-flex flex-col items-center px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded-lg border border-brand-navy/30 leading-tight">
+                          <span>{level}</span>
+                          {scope && <span className="text-[10px]">{scope}</span>}
+                        </span>
+                      );
+                    })()}
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--text)] mb-1">Notes</label>
+                      {isFiledRecord ? (
+                        <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 min-h-[4rem]">{selectedRequest.notes || '—'}</div>
+                      ) : (
+                        <textarea rows={3} value={editRequestNotes} onChange={(e) => setEditRequestNotes(e.target.value)} className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold" />
+                      )}
+                    </div>
+                  </>
                 );
               })()}
-              <div>
-                <label className="block text-sm font-medium text-[var(--text)] mb-1">Notes</label>
-                <textarea rows={3} value={editRequestNotes} onChange={(e) => setEditRequestNotes(e.target.value)} className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold" />
-              </div>
 
               {/* Tabbed Navigation */}
               <div className="border-b border-gray-200">
@@ -1430,7 +1499,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                         <div className="text-sm text-[var(--muted)]">No documents attached</div>
                       );
                     })()}
-                    {!originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && (
+                    {/* Hide Add Files for filed/archived records */}
+                    {!selectedRequest.filedAt && selectedRequest.currentStage !== 'ARCHIVED' && !originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && (
                       <div className="mt-3">
                         <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded-lg hover:brightness-110 cursor-pointer inline-block">
                           <input type="file" multiple onChange={(e) => { const files = e.target.files ? Array.from(e.target.files) : []; setAttachFiles(prev => [...prev, ...files]); try { e.target.value = '' } catch {} }} className="hidden" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" />

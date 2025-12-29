@@ -157,8 +157,13 @@ export default function HQMCApproverDashboard() {
   const groupedFiledRecords = useMemo<GroupedRecords>(() => {
     let records = requests.filter(r => {
       if (!r.filedAt) return false
-      // Filter by HQMC division if user has one
-      if (myDivision && r.hqmcDivision !== myDivision) return false
+      // Filter by HQMC sections the user is an approver for
+      if (approverBranches.length > 0) {
+        const inMyBranches = approverBranches.some(branch =>
+          String(r.routeSection || '').toUpperCase() === branch.toUpperCase()
+        )
+        if (!inMyBranches) return false
+      }
       return true
     })
 
@@ -190,7 +195,7 @@ export default function HQMCApproverDashboard() {
     }
 
     return grouped;
-  }, [requests, myDivision, filesSearchQuery, getDisposalYear])
+  }, [requests, approverBranches, filesSearchQuery, getDisposalYear])
 
   const sortedYearKeys = useMemo(() => {
     return Object.keys(groupedFiledRecords).sort((a, b) => {

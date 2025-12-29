@@ -325,6 +325,17 @@ export default function InstallationSectionDashboard() {
       sum + Object.values(buckets).reduce((s, arr) => s + arr.length, 0), 0);
   }, [groupedFiledRecords])
 
+  // Flat array of filed records for export
+  const filedInInstallation = useMemo(() => {
+    const result: Request[] = []
+    for (const buckets of Object.values(groupedFiledRecords)) {
+      for (const records of Object.values(buckets)) {
+        result.push(...records)
+      }
+    }
+    return result
+  }, [groupedFiledRecords])
+
   const restoreToSection = async (r: Request, sec?: string) => {
     const actor = formatActorName(currentUser, 'Installation Section')
     const targetSec = (sec || '').trim() || (r.routeSection || '')

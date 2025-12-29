@@ -8,7 +8,7 @@ import { Pagination } from '@/components/Pagination';
 import RequestTable from './RequestTable';
 import { Request, UserRecord } from '../types';
 import { normalizeString, hasReviewer } from '../lib/reviewers';
-import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly, canDeleteRequest } from '@/lib/stage';
+import { Stage, formatStageLabel, canRequesterEdit, originatorArchiveOnly, canDeleteRequest, canFileRequest, canReturnToLowerLevel, getReturnTargetStage } from '@/lib/stage';
 import { logEvent } from '@/lib/logger';
 import { supabaseClient } from '../lib/supabase';
 import { validateFiles, validateFile, sanitizeFilename, MAX_FILES_PER_UPLOAD } from '@/lib/validation';
@@ -158,6 +158,47 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       setFeedback({ type: 'success', message: 'Request filed for records management.' });
     } catch (e: any) {
       setFeedback({ type: 'error', message: `Failed to file request: ${String(e?.message || e)}` });
+    }
+  };
+
+  // Return request to lower level in the chain after commander approval
+  const returnToLowerLevel = async () => {
+    if (!selectedRequest || !currentUser?.id) return;
+
+    const targetStage = getReturnTargetStage(selectedRequest.currentStage || '');
+    if (!targetStage) {
+      setFeedback({ type: 'error', message: 'Cannot return from this stage.' });
+      return;
+    }
+
+    const actor = `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`;
+    const stageName = targetStage === Stage.ORIGINATOR_REVIEW ? 'Originator' :
+                      targetStage === Stage.PLATOON_REVIEW ? 'Platoon' :
+                      targetStage === Stage.COMPANY_REVIEW ? 'Company' : 'Lower Level';
+
+    const entry = {
+      actor,
+      actorRole: currentUser.role || 'Reviewer',
+      timestamp: new Date().toISOString(),
+      action: `Returned to ${stageName} for filing`,
+      comment: (editRequestNotes || '').trim()
+    };
+
+    const updated: Request = {
+      ...selectedRequest,
+      currentStage: targetStage,
+      activity: Array.isArray(selectedRequest.activity) ? [...selectedRequest.activity, entry] : [entry]
+    };
+
+    try {
+      const resReq = await upsertRequest(updated as unknown as RequestRecord);
+      if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
+      setUserRequests(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+      setSelectedRequest(updated);
+      setEditRequestNotes('');
+      setFeedback({ type: 'success', message: `Request returned to ${stageName}.` });
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: `Failed to return request: ${String(e?.message || e)}` });
     }
   };
 
@@ -1436,14 +1477,28 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream" onClick={() => setSelectedRequest(null)}>Close</button>
-              {originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && !selectedRequest.filedAt ? (
+
+              {/* Save Changes - only for originator editing before approval */}
+              {currentUser && !selectedRequest.filedAt && !canFileRequest(selectedRequest as any, String(currentUser?.id || '')) && canRequesterEdit(selectedRequest as any, String(currentUser?.id || '')) && (
+                <button className="px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits}>Save Changes</button>
+              )}
+
+              {/* File button - available at any level after commander approval */}
+              {currentUser && canFileRequest(selectedRequest as any, String(currentUser?.id || '')) && (
                 <button className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700" onClick={openFileDialog}>File</button>
-              ) : !selectedRequest.filedAt ? (
-                <button className="px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits} disabled={!currentUser || currentUser.id !== (selectedRequest?.uploadedById || '')}>Save Changes</button>
-              ) : null}
+              )}
+
+              {/* Return button - available at review levels after commander approval */}
+              {currentUser && canReturnToLowerLevel(selectedRequest as any) && (
+                <button className="px-4 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600" onClick={returnToLowerLevel}>Return</button>
+              )}
+
+              {/* Resubmit - for originator when request was returned */}
               {currentUser && needsResubmit(selectedRequest) && currentUser.id === selectedRequest.uploadedById && (
                 <button className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700" onClick={resubmitRequest}>Resubmit</button>
               )}
+
+              {/* Delete - only before commander approval */}
               {currentUser && canDeleteRequest(selectedRequest as any, String(currentUser?.id || '')) && (
                 <button className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700" onClick={() => deleteRequest(selectedRequest!)}>Delete Request</button>
               )}

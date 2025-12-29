@@ -67,6 +67,11 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   // Hooks
   const storage = useDocumentStorage();
 
+  // Memoized actor name to avoid duplication across functions
+  const actorName = useMemo(() => {
+    if (!currentUser) return 'Unknown';
+    return `${currentUser.rank || ''} ${currentUser.lastName || ''}, ${currentUser.firstName || ''}${currentUser.mi ? ` ${currentUser.mi}` : ''}`.trim();
+  }, [currentUser]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : [];
@@ -133,10 +138,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
     // Convert date to ISO timestamp (end of day)
     const filedAt = new Date(fileFinalizedDate + 'T23:59:59').toISOString();
-    const actor = `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`;
 
     const entry = {
-      actor,
+      actor: actorName,
       timestamp: new Date().toISOString(),
       action: 'Filed for Records Management',
       comment: `Date Finalized: ${new Date(fileFinalizedDate).toLocaleDateString()}${editRequestNotes?.trim() ? ` - ${editRequestNotes.trim()}` : ''}`
@@ -173,13 +177,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       return;
     }
 
-    const actor = `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`;
     const stageName = targetStage === Stage.ORIGINATOR_REVIEW ? 'Originator' :
                       targetStage === Stage.PLATOON_REVIEW ? 'Platoon' :
                       targetStage === Stage.COMPANY_REVIEW ? 'Company' : 'Lower Level';
 
     const entry = {
-      actor,
+      actor: actorName,
       actorRole: currentUser.role || 'Reviewer',
       timestamp: new Date().toISOString(),
       action: `Returned to ${stageName} for filing`,
@@ -346,7 +349,6 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     setNotes('');
 
     try {
-      const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Unknown';
       const actorRole = 'Member'
       const originUnitUic = targetUic;
       const originCompany = normalizeString(targetUser?.company);
@@ -381,7 +383,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       disposalAction: ssicSelection?.disposalAction,
       dau: ssicSelection?.dau,
       activity: [
-        { actor, actorRole, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
+        { actor: actorName, actorRole, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
       ]
     };
       try {
@@ -446,9 +448,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     } : d);
     setDocuments(updated);
     try {
-      const actor = currentUser ? `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}` : 'Unknown';
       const actorRole = 'Member'
-      const entry: ActionEntry = { actor, actorRole, timestamp: new Date().toISOString(), action: 'Updated document', comment: (editNotes || '').trim() };
+      const entry: ActionEntry = { actor: actorName, actorRole, timestamp: new Date().toISOString(), action: 'Updated document', comment: (editNotes || '').trim() };
       const req = selectedDoc.requestId ? userRequests.find(r => r.id === selectedDoc.requestId) : null;
       if (req) {
         const nextReq = { ...req, activity: Array.isArray(req.activity) ? [...req.activity, entry] : [entry] };
@@ -647,11 +648,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const saveRetentionUpdate = async () => {
     if (!selectedRequest || !currentUser || !retentionSsicSelection) return;
 
-    const actor = `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`;
     const actorRole = currentUser.role || 'Reviewer';
 
     const entry = {
-      actor,
+      actor: actorName,
       actorRole,
       timestamp: new Date().toISOString(),
       action: 'Updated retention classification',
@@ -1381,40 +1381,55 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
               {/* Tabbed Navigation */}
               <div className="border-b border-gray-200">
-                <nav className="-mb-px flex space-x-4" aria-label="Request details tabs">
+                <div role="tablist" className="-mb-px flex space-x-4" aria-label="Request details tabs">
                   <button
+                    id="tab-documents"
+                    role="tab"
+                    aria-selected={requestDetailTab === 'documents'}
+                    aria-controls="tabpanel-documents"
                     onClick={() => setRequestDetailTab('documents')}
                     className={`${requestDetailTab === 'documents' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
                   >
                     Documents
                   </button>
                   <button
+                    id="tab-retention"
+                    role="tab"
+                    aria-selected={requestDetailTab === 'retention'}
+                    aria-controls="tabpanel-retention"
                     onClick={() => setRequestDetailTab('retention')}
                     className={`${requestDetailTab === 'retention' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
                   >
                     Retention
                   </button>
                   <button
+                    id="tab-activity"
+                    role="tab"
+                    aria-selected={requestDetailTab === 'activity'}
+                    aria-controls="tabpanel-activity"
                     onClick={() => setRequestDetailTab('activity')}
                     className={`${requestDetailTab === 'activity' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
                   >
                     Activity
                   </button>
-                </nav>
+                </div>
               </div>
 
               {/* Tab Content */}
               <div className="mt-3">
                 {/* Documents Tab */}
                 {requestDetailTab === 'documents' && (
-                  <div className="space-y-3">
-                    {documents.filter(d => d.requestId === selectedRequest.id && d.type !== 'request').length > 0 ? (
-                      documents.filter(d => d.requestId === selectedRequest.id && d.type !== 'request').map(d => (
-                        <DocCard key={d.id} doc={d} onView={openDoc} onDelete={deleteDocument} />
-                      ))
-                    ) : (
-                      <div className="text-sm text-[var(--muted)]">No documents attached</div>
-                    )}
+                  <div id="tabpanel-documents" role="tabpanel" aria-labelledby="tab-documents" className="space-y-3">
+                    {(() => {
+                      const requestDocs = documents.filter(d => d.requestId === selectedRequest.id && d.type !== 'request');
+                      return requestDocs.length > 0 ? (
+                        requestDocs.map(d => (
+                          <DocCard key={d.id} doc={d} onView={openDoc} onDelete={deleteDocument} />
+                        ))
+                      ) : (
+                        <div className="text-sm text-[var(--muted)]">No documents attached</div>
+                      );
+                    })()}
                     {!originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && (
                       <div className="mt-3">
                         <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded-lg hover:brightness-110 cursor-pointer inline-block">
@@ -1446,7 +1461,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
                 {/* Retention Tab */}
                 {requestDetailTab === 'retention' && (
-                  <div>
+                  <div id="tabpanel-retention" role="tabpanel" aria-labelledby="tab-retention">
                     {editingRetention ? (
                       <div className="space-y-4">
                         <SsicSearch
@@ -1498,10 +1513,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
                 {/* Activity Tab */}
                 {requestDetailTab === 'activity' && (
-                  <div className="space-y-2">
+                  <div id="tabpanel-activity" role="tabpanel" aria-labelledby="tab-activity" className="space-y-2">
                     {selectedRequest.activity && selectedRequest.activity.length ? (
                       selectedRequest.activity.map((a, idx) => (
-                        <div key={idx} className="text-xs text-gray-700 p-2 bg-gray-50 rounded">
+                        <div key={`${a.timestamp}-${idx}`} className="text-xs text-gray-700 p-2 bg-gray-50 rounded">
                           <div className="font-medium">{a.actor}{a.actorRole ? ` • ${a.actorRole}` : ''} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
                           {a.comment && <div className="text-gray-600 mt-1">{a.comment}</div>}
                         </div>

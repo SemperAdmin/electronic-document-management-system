@@ -332,7 +332,7 @@ function fromReqRow(r: RequestRow): RequestRecord {
     ssicBucket: r.ssic_bucket ? String(r.ssic_bucket) : undefined,
     ssicBucketTitle: r.ssic_bucket_title ? String(r.ssic_bucket_title) : undefined,
     isPermanent: r.is_permanent ?? undefined,
-    retentionValue: r.retention_value ?? undefined,
+    retentionValue: r.retention_value,
     retentionUnit: r.retention_unit ? String(r.retention_unit) : undefined,
     cutoffTrigger: r.cutoff_trigger ? String(r.cutoff_trigger) : undefined,
     cutoffDescription: r.cutoff_description ? String(r.cutoff_description) : undefined,

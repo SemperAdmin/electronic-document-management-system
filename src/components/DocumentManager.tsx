@@ -59,6 +59,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [requestDetailTab, setRequestDetailTab] = useState<'documents' | 'retention' | 'activity'>('documents');
   const [editingRetention, setEditingRetention] = useState<boolean>(false);
   const [retentionSsicSelection, setRetentionSsicSelection] = useState<SsicSelection | null>(null);
+  const [showFileDialog, setShowFileDialog] = useState<boolean>(false);
+  const [fileFinalizedDate, setFileFinalizedDate] = useState<string>('');
 
   // Hooks
   const storage = useDocumentStorage();
@@ -107,58 +109,52 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
     try { event.target.value = '' } catch {}
   };
 
-  const archiveByOriginator = async () => {
-    if (!selectedRequest || !currentUser?.id || selectedRequest.uploadedById !== currentUser.id) return;
-    const entry = {
-      actor: `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`,
-      timestamp: new Date().toISOString(),
-      action: 'Archived by Originator',
-      comment: (editRequestNotes || '').trim()
-    };
-    const updated: Request = {
-      ...selectedRequest,
-      currentStage: Stage.ARCHIVED,
-      finalStatus: 'Archived',
-      activity: Array.isArray(selectedRequest.activity) ? [...selectedRequest.activity, entry] : [entry]
-    };
-    try {
-      const resReq = await upsertRequest(updated as unknown as RequestRecord);
-      if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
-      setUserRequests(prev => prev.map(r => (r.id === updated.id ? updated : r)));
-      setSelectedRequest(updated);
-      setFeedback({ type: 'success', message: 'Request archived.' });
-    } catch (e: any) {
-      setFeedback({ type: 'error', message: `Failed to archive: ${String(e?.message || e)}` });
-    }
-  };
-
-  // File a request for records management
-  const fileRequest = async () => {
-    if (!selectedRequest || !currentUser?.id) return;
-
-    // Check if request has SSIC/retention info
-    if (!selectedRequest.ssic) {
+  // Open file dialog to select finalized date
+  const openFileDialog = () => {
+    if (!selectedRequest?.ssic) {
       setFeedback({ type: 'error', message: 'Request must have SSIC/retention classification before filing.' });
       return;
     }
+    // Default to today's date
+    setFileFinalizedDate(new Date().toISOString().split('T')[0]);
+    setShowFileDialog(true);
+  };
 
-    const filedAt = new Date().toISOString();
+  // File a request for records management with selected finalized date
+  const confirmFileRequest = async () => {
+    if (!selectedRequest || !currentUser?.id) return;
+
+    if (!fileFinalizedDate) {
+      setFeedback({ type: 'error', message: 'Please select a finalized date.' });
+      return;
+    }
+
+    // Convert date to ISO timestamp (end of day)
+    const filedAt = new Date(fileFinalizedDate + 'T23:59:59').toISOString();
+    const actor = `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`;
+
     const entry = {
-      actor: `${currentUser.rank} ${currentUser.lastName}, ${currentUser.firstName}${currentUser.mi ? ` ${currentUser.mi}` : ''}`,
-      timestamp: filedAt,
+      actor,
+      timestamp: new Date().toISOString(),
       action: 'Filed for Records Management',
-      comment: (editRequestNotes || '').trim()
+      comment: `Date Finalized: ${new Date(fileFinalizedDate).toLocaleDateString()}${editRequestNotes?.trim() ? ` - ${editRequestNotes.trim()}` : ''}`
     };
+
     const updated: Request = {
       ...selectedRequest,
+      currentStage: Stage.ARCHIVED,
+      finalStatus: 'Filed',
       filedAt,
       activity: Array.isArray(selectedRequest.activity) ? [...selectedRequest.activity, entry] : [entry]
     };
+
     try {
       const resReq = await upsertRequest(updated as unknown as RequestRecord);
       if (!resReq.ok) throw new Error(getApiErrorMessage(resReq, 'request_upsert_failed'));
       setUserRequests(prev => prev.map(r => (r.id === updated.id ? updated : r)));
       setSelectedRequest(updated);
+      setShowFileDialog(false);
+      setFileFinalizedDate('');
       setFeedback({ type: 'success', message: 'Request filed for records management.' });
     } catch (e: any) {
       setFeedback({ type: 'error', message: `Failed to file request: ${String(e?.message || e)}` });
@@ -720,24 +716,26 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   }, [userRequests, currentUser]);
 
   // Get disposal year from request (returns "Permanent" for permanent records or the year as string)
+  // Uses filedAt (Date Finalized) for calculating cutoff dates
   const getDisposalYear = useCallback((request: Request): string => {
     if (request.isPermanent) return 'Permanent';
-    if (!request.retentionValue || !request.cutoffTrigger) return 'Unknown';
+    if (!request.retentionValue || !request.cutoffTrigger || !request.filedAt) return 'Unknown';
 
-    const createdDate = new Date(request.createdAt);
+    // Use filedAt (Date Finalized) for calculating disposal
+    const finalizedDate = new Date(request.filedAt);
     let cutoffDate: Date;
 
     switch (request.cutoffTrigger) {
       case 'CALENDAR_YEAR':
-        cutoffDate = new Date(createdDate.getFullYear(), 11, 31);
+        cutoffDate = new Date(finalizedDate.getFullYear(), 11, 31);
         break;
       case 'FISCAL_YEAR':
-        cutoffDate = createdDate.getMonth() >= 9
-          ? new Date(createdDate.getFullYear() + 1, 8, 30)
-          : new Date(createdDate.getFullYear(), 8, 30);
+        cutoffDate = finalizedDate.getMonth() >= 9
+          ? new Date(finalizedDate.getFullYear() + 1, 8, 30)
+          : new Date(finalizedDate.getFullYear(), 8, 30);
         break;
       default:
-        cutoffDate = createdDate;
+        cutoffDate = finalizedDate;
     }
 
     const disposalDate = new Date(cutoffDate);
@@ -800,25 +798,27 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   }, [groupedRecords]);
 
   // Calculate disposal date based on retention rules
+  // Uses filedAt (Date Finalized) for calculating cutoff dates
   const calculateDisposalDate = useCallback((request: Request): string => {
-    if (!request.retentionValue || !request.cutoffTrigger) return 'N/A';
+    if (!request.retentionValue || !request.cutoffTrigger || !request.filedAt) return 'N/A';
     if (request.isPermanent) return 'Permanent';
 
-    const createdDate = new Date(request.createdAt);
+    // Use filedAt (Date Finalized) for calculating disposal
+    const finalizedDate = new Date(request.filedAt);
     let cutoffDate: Date;
 
     switch (request.cutoffTrigger) {
       case 'CALENDAR_YEAR':
-        cutoffDate = new Date(createdDate.getFullYear(), 11, 31); // Dec 31
+        cutoffDate = new Date(finalizedDate.getFullYear(), 11, 31); // Dec 31
         break;
       case 'FISCAL_YEAR':
         // Fiscal year ends Sep 30
-        cutoffDate = createdDate.getMonth() >= 9
-          ? new Date(createdDate.getFullYear() + 1, 8, 30)
-          : new Date(createdDate.getFullYear(), 8, 30);
+        cutoffDate = finalizedDate.getMonth() >= 9
+          ? new Date(finalizedDate.getFullYear() + 1, 8, 30)
+          : new Date(finalizedDate.getFullYear(), 8, 30);
         break;
       default:
-        cutoffDate = createdDate;
+        cutoffDate = finalizedDate;
     }
 
     // Add retention period
@@ -1436,21 +1436,77 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream" onClick={() => setSelectedRequest(null)}>Close</button>
-              {originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) ? (
-                <button className="px-4 py-2 rounded-lg bg-brand-gold text-brand-charcoal hover:brightness-110" onClick={archiveByOriginator}>Archive</button>
-              ) : (
+              {originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && !selectedRequest.filedAt ? (
+                <button className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700" onClick={openFileDialog}>File</button>
+              ) : !selectedRequest.filedAt ? (
                 <button className="px-4 py-2 rounded-lg bg-brand-navy text-brand-cream hover:brightness-110" onClick={saveRequestEdits} disabled={!currentUser || currentUser.id !== (selectedRequest?.uploadedById || '')}>Save Changes</button>
-              )}
+              ) : null}
               {currentUser && needsResubmit(selectedRequest) && currentUser.id === selectedRequest.uploadedById && (
                 <button className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700" onClick={resubmitRequest}>Resubmit</button>
-              )}
-              {/* File button - show for archived requests with SSIC that haven't been filed yet */}
-              {currentUser && selectedRequest.currentStage === 'ARCHIVED' && selectedRequest.ssic && !selectedRequest.filedAt && currentUser.id === selectedRequest.uploadedById && (
-                <button className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700" onClick={fileRequest}>File</button>
               )}
               {currentUser && canDeleteRequest(selectedRequest as any, String(currentUser?.id || '')) && (
                 <button className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700" onClick={() => deleteRequest(selectedRequest!)}>Delete Request</button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Dialog - Date Picker for Finalized Date */}
+      {showFileDialog && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onClick={() => setShowFileDialog(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">File for Records Management</h3>
+              <button className="text-gray-500 hover:text-gray-700" onClick={() => setShowFileDialog(false)}>✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date Finalized</label>
+                <input
+                  type="date"
+                  value={fileFinalizedDate}
+                  onChange={(e) => setFileFinalizedDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This date will be used to calculate the disposal date based on the retention schedule.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <div className="font-medium text-gray-700 mb-1">Retention Info</div>
+                <div className="text-gray-600">
+                  <div>SSIC: {selectedRequest.ssic} - {selectedRequest.ssicNomenclature}</div>
+                  <div>Retention: {selectedRequest.isPermanent ? 'Permanent' : `${selectedRequest.retentionValue} ${selectedRequest.retentionUnit}`}</div>
+                  <div>Cutoff: {selectedRequest.cutoffDescription || selectedRequest.cutoffTrigger}</div>
+                </div>
+              </div>
+
+              {feedback && (
+                <div className={`p-3 rounded-lg border ${feedback.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                  {feedback.message}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowFileDialog(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmFileRequest}
+                disabled={!fileFinalizedDate}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                File Record
+              </button>
             </div>
           </div>
         </div>

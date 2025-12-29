@@ -1,43 +1,52 @@
 import React, { useState } from 'react';
-import { NavalLetterAttachment, NavalLetterAttachmentListProps } from '@/types/nlf';
+import { DocumentRecord } from '@/lib/db';
 import { useNavalLetterAttachments } from '@/hooks/useNavalLetterAttachments';
 
+interface NavalLetterAttachmentListProps {
+  /** The request ID to fetch attachments for */
+  requestId: string;
+  /** Optional callback when a document is viewed */
+  onView?: (doc: DocumentRecord) => void;
+  /** Optional callback when a document is downloaded */
+  onDownload?: (doc: DocumentRecord) => void;
+}
+
 /**
- * Displays a list of naval letter attachments for a request.
+ * Displays a list of naval letter documents for a request.
  */
 export function NavalLetterAttachmentList({
   requestId,
   onView,
   onDownload,
 }: NavalLetterAttachmentListProps): React.ReactElement {
-  const { attachments, loading, error, downloadAttachment, getAttachmentContent } =
+  const { documents, loading, error, downloadDocument, getDocumentContent } =
     useNavalLetterAttachments(requestId);
   const [previewData, setPreviewData] = useState<{
-    attachment: NavalLetterAttachment;
-    content: Record<string, any>;
+    doc: DocumentRecord;
+    content: Record<string, unknown>;
   } | null>(null);
 
-  const handleView = async (attachment: NavalLetterAttachment) => {
+  const handleView = async (doc: DocumentRecord) => {
     if (onView) {
-      onView(attachment);
+      onView(doc);
       return;
     }
 
     // Default behavior: load and show preview
-    const content = await getAttachmentContent(attachment);
+    const content = await getDocumentContent(doc);
     if (content) {
-      setPreviewData({ attachment, content });
+      setPreviewData({ doc, content });
     }
   };
 
-  const handleDownload = async (attachment: NavalLetterAttachment) => {
+  const handleDownload = async (doc: DocumentRecord) => {
     if (onDownload) {
-      onDownload(attachment);
+      onDownload(doc);
       return;
     }
 
     // Default behavior: download the file
-    await downloadAttachment(attachment);
+    await downloadDocument(doc);
   };
 
   const closePreview = () => {
@@ -62,7 +71,7 @@ export function NavalLetterAttachmentList({
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
           />
         </svg>
-        <span className="ml-2 text-sm text-[var(--muted)]">Loading attachments...</span>
+        <span className="ml-2 text-sm text-[var(--muted)]">Loading naval letters...</span>
       </div>
     );
   }
@@ -70,12 +79,12 @@ export function NavalLetterAttachmentList({
   if (error) {
     return (
       <div className="py-2 text-sm text-red-600" role="alert">
-        Failed to load attachments: {error}
+        Failed to load naval letters: {error}
       </div>
     );
   }
 
-  if (attachments.length === 0) {
+  if (documents.length === 0) {
     return (
       <p className="py-2 text-sm text-[var(--muted)]">No naval letters attached</p>
     );
@@ -84,9 +93,9 @@ export function NavalLetterAttachmentList({
   return (
     <>
       <ul className="space-y-2" role="list" aria-label="Naval letter attachments">
-        {attachments.map((att) => (
+        {documents.map((doc) => (
           <li
-            key={att.id}
+            key={doc.id}
             className="flex items-center gap-3 p-3 border border-brand-navy/20 rounded-lg hover:bg-brand-cream/30 transition-colors"
           >
             {/* Mail/Letter icon */}
@@ -106,25 +115,20 @@ export function NavalLetterAttachmentList({
               </svg>
             </div>
 
-            {/* Attachment info */}
+            {/* Document info */}
             <div className="flex-1 min-w-0">
               <p
                 className="font-medium text-sm text-[var(--text)] truncate"
-                title={att.filename}
+                title={doc.name}
               >
-                {att.filename}
+                {doc.name}
               </p>
               <div className="flex items-center gap-2 mt-0.5">
-                {att.ssic && (
-                  <span className="px-1.5 py-0.5 text-xs bg-brand-cream text-brand-navy rounded border border-brand-navy/20">
-                    SSIC: {att.ssic}
-                  </span>
-                )}
-                {att.letterType && (
-                  <span className="text-xs text-[var(--muted)]">{att.letterType}</span>
+                {doc.category === 'naval-letter' && (
+                  <span className="text-xs text-[var(--muted)]">Naval Letter</span>
                 )}
                 <span className="text-xs text-[var(--muted)]">
-                  {formatFileSize(att.fileSize)}
+                  {formatFileSize(doc.size)}
                 </span>
               </div>
             </div>
@@ -136,17 +140,17 @@ export function NavalLetterAttachmentList({
 
             {/* Date */}
             <span className="flex-shrink-0 text-xs text-[var(--muted)]">
-              {formatDate(att.createdAt)}
+              {formatDate(doc.uploadedAt)}
             </span>
 
             {/* Actions */}
             <div className="flex-shrink-0 flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => handleView(att)}
+                onClick={() => handleView(doc)}
                 className="p-1.5 text-brand-navy hover:bg-brand-cream rounded transition-colors"
                 title="View"
-                aria-label={`View ${att.filename}`}
+                aria-label={`View ${doc.name}`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -165,10 +169,10 @@ export function NavalLetterAttachmentList({
               </button>
               <button
                 type="button"
-                onClick={() => handleDownload(att)}
+                onClick={() => handleDownload(doc)}
                 className="p-1.5 text-brand-navy hover:bg-brand-cream rounded transition-colors"
                 title="Download"
-                aria-label={`Download ${att.filename}`}
+                aria-label={`Download ${doc.name}`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -187,10 +191,10 @@ export function NavalLetterAttachmentList({
       {/* Preview Modal */}
       {previewData && (
         <NavalLetterPreviewModal
-          attachment={previewData.attachment}
+          doc={previewData.doc}
           content={previewData.content}
           onClose={closePreview}
-          onDownload={() => handleDownload(previewData.attachment)}
+          onDownload={() => handleDownload(previewData.doc)}
         />
       )}
     </>
@@ -201,14 +205,14 @@ export function NavalLetterAttachmentList({
  * Modal to preview naval letter content
  */
 interface NavalLetterPreviewModalProps {
-  attachment: NavalLetterAttachment;
-  content: Record<string, any>;
+  doc: DocumentRecord;
+  content: Record<string, unknown>;
   onClose: () => void;
   onDownload: () => void;
 }
 
 function NavalLetterPreviewModal({
-  attachment,
+  doc,
   content,
   onClose,
   onDownload,
@@ -231,7 +235,7 @@ function NavalLetterPreviewModal({
             <h3 id="preview-title" className="text-lg font-semibold text-[var(--text)]">
               Naval Letter Preview
             </h3>
-            <p className="text-sm text-[var(--muted)]">{attachment.filename}</p>
+            <p className="text-sm text-[var(--muted)]">{doc.name}</p>
           </div>
           <button
             type="button"
@@ -257,29 +261,29 @@ function NavalLetterPreviewModal({
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">SSIC</dt>
                 <dd className="mt-1 text-sm text-[var(--text)]">
-                  {content.ssic} - {content.ssicTitle}
+                  {String(content.ssic)} - {String(content.ssicTitle || '')}
                 </dd>
               </div>
             )}
             {content.subject && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">Subject</dt>
-                <dd className="mt-1 text-sm text-[var(--text)]">{content.subject}</dd>
+                <dd className="mt-1 text-sm text-[var(--text)]">{String(content.subject)}</dd>
               </div>
             )}
             {content.from && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">From</dt>
-                <dd className="mt-1 text-sm text-[var(--text)]">{content.from}</dd>
+                <dd className="mt-1 text-sm text-[var(--text)]">{String(content.from)}</dd>
               </div>
             )}
             {content.to && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">To</dt>
-                <dd className="mt-1 text-sm text-[var(--text)]">{content.to}</dd>
+                <dd className="mt-1 text-sm text-[var(--text)]">{String(content.to)}</dd>
               </div>
             )}
-            {content.via && content.via.length > 0 && (
+            {Array.isArray(content.via) && content.via.length > 0 && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">Via</dt>
                 <dd className="mt-1 text-sm text-[var(--text)]">
@@ -290,10 +294,10 @@ function NavalLetterPreviewModal({
             {content.letterType && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">Letter Type</dt>
-                <dd className="mt-1 text-sm text-[var(--text)]">{content.letterType}</dd>
+                <dd className="mt-1 text-sm text-[var(--text)]">{String(content.letterType)}</dd>
               </div>
             )}
-            {content.paragraphs && content.paragraphs.length > 0 && (
+            {Array.isArray(content.paragraphs) && content.paragraphs.length > 0 && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">Content</dt>
                 <dd className="mt-1 space-y-2">
@@ -305,7 +309,7 @@ function NavalLetterPreviewModal({
                 </dd>
               </div>
             )}
-            {content.enclosures && content.enclosures.length > 0 && (
+            {Array.isArray(content.enclosures) && content.enclosures.length > 0 && (
               <div>
                 <dt className="text-sm font-medium text-[var(--muted)]">Enclosures</dt>
                 <dd className="mt-1">
@@ -360,8 +364,8 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-US', {
+function formatDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

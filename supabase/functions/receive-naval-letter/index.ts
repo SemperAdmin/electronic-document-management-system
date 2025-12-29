@@ -2,13 +2,13 @@
  * Supabase Edge Function: receive-naval-letter
  *
  * Receives naval letter JSON data from the Naval Letter Formatter (NLF)
- * and stores it as an attachment to the specified EDMS request.
+ * and stores it as a document attached to the specified EDMS request.
  *
  * This function:
  * 1. Validates the user's auth token
  * 2. Verifies the user has access to the specified request
- * 3. Stores the letter JSON in Supabase Storage
- * 4. Creates an attachment record in the database
+ * 3. Stores the letter JSON in Supabase Storage (edms-docs bucket)
+ * 4. Creates a document record in edms_documents
  * 5. Updates the request with SSIC and subject from the letter
  * 6. Calculates retention based on SSIC
  */
@@ -51,6 +51,9 @@ interface RetentionResult {
   disposalDate: string | null;
 }
 
+// Storage bucket name - use existing edms-docs bucket
+const STORAGE_BUCKET = 'edms-docs';
+
 // ============================================================================
 // Retention Calculation
 // ============================================================================
@@ -63,11 +66,6 @@ async function calculateRetention(
   supabase: any,
   ssic: string
 ): Promise<RetentionResult> {
-  // Look up SSIC in the request's retention fields or SSIC reference data
-  // For now, we'll use a simplified calculation based on common patterns
-  // In production, this should query an SSIC crosswalk table
-
-  // Default retention for unknown SSIC
   const defaultResult: RetentionResult = {
     retentionPeriod: 'Unknown',
     cutoffTrigger: 'Unknown',
@@ -79,7 +77,6 @@ async function calculateRetention(
     return defaultResult;
   }
 
-  // Try to look up SSIC in a crosswalk table if it exists
   try {
     const { data: ssicRecord } = await supabase
       .from('ssic_crosswalk')
@@ -88,24 +85,19 @@ async function calculateRetention(
       .single();
 
     if (!ssicRecord) {
-      // SSIC not found in crosswalk, return default
       return defaultResult;
     }
 
-    // Calculate disposal date based on cutoff trigger
     let disposalDate: string | null = null;
     const now = new Date();
 
     if (ssicRecord.retention_years && ssicRecord.cutoff_trigger === 'CY') {
-      // Calendar year cutoff
       const cutoffYear = now.getFullYear();
       disposalDate = new Date(cutoffYear + ssicRecord.retention_years, 11, 31).toISOString();
     } else if (ssicRecord.retention_years && ssicRecord.cutoff_trigger === 'FY') {
-      // Fiscal year cutoff (ends Sep 30)
       const fy = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
       disposalDate = new Date(fy + ssicRecord.retention_years, 8, 30).toISOString();
     }
-    // Event-based cutoffs don't get automatic dates
 
     return {
       retentionPeriod: ssicRecord.retention_period || null,
@@ -114,7 +106,6 @@ async function calculateRetention(
       disposalDate,
     };
   } catch (error) {
-    // Table might not exist or other error, return default
     console.log('SSIC crosswalk lookup failed (table may not exist):', error);
     return defaultResult;
   }
@@ -199,9 +190,7 @@ serve(async (req) => {
     }
 
     // Check if user owns the request or has appropriate access
-    // For now, we'll allow the request owner to add attachments
     if (request.uploaded_by_id !== user.id) {
-      // Check if user is in the same unit or has admin access
       const { data: userRecord } = await supabase
         .from('edms_users')
         .select('unit_uic, is_unit_admin, is_installation_admin, is_app_admin')
@@ -219,13 +208,17 @@ serve(async (req) => {
       }
     }
 
+    // Build storage path using existing pattern: {unitUic}/{requestId}/{timestamp}-{filename}
+    const unitUic = request.unit_uic || 'N-A';
+    const timestamp = Date.now();
+    const storagePath = `${unitUic}/${requestId}/${timestamp}-0-${body.filename}`;
+
     // Store JSON file in Supabase Storage
-    const storagePath = `${requestId}/${body.filename}`;
     const fileContent = JSON.stringify(body.attachment, null, 2);
     const fileBlob = new Blob([fileContent], { type: 'application/json' });
 
     const { error: uploadError } = await supabase.storage
-      .from('naval-letters')
+      .from(STORAGE_BUCKET)
       .upload(storagePath, fileBlob, {
         contentType: 'application/json',
         upsert: false,
@@ -234,10 +227,9 @@ serve(async (req) => {
     if (uploadError) {
       console.error('Storage upload error:', uploadError);
 
-      // If file already exists, try with upsert
       if (uploadError.message?.includes('already exists')) {
         const { error: upsertError } = await supabase.storage
-          .from('naval-letters')
+          .from(STORAGE_BUCKET)
           .upload(storagePath, fileBlob, {
             contentType: 'application/json',
             upsert: true,
@@ -252,29 +244,38 @@ serve(async (req) => {
       }
     }
 
-    // Create attachment record
-    const { data: attachment, error: attachmentError } = await supabase
-      .from('naval_letter_attachments')
+    // Get public URL for the file
+    const { data: urlData } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(storagePath);
+
+    const fileUrl = urlData?.publicUrl || '';
+
+    // Create document record in edms_documents
+    const { data: document, error: documentError } = await supabase
+      .from('edms_documents')
       .insert({
+        name: body.filename,
+        type: 'application/json',
+        size: fileBlob.size,
+        uploaded_at: new Date().toISOString(),
+        category: 'naval-letter',
+        tags: ['naval-letter', body.attachment.letterType || 'letter'].filter(Boolean),
+        unit_uic: unitUic,
+        subject: body.attachment.subject || '',
+        uploaded_by_id: user.id,
         request_id: requestId,
-        filename: body.filename,
-        storage_path: storagePath,
-        content_type: 'application/json',
+        file_url: fileUrl,
         source: 'naval-letter-formatter',
-        file_size: fileBlob.size,
-        ssic: body.attachment.ssic || null,
-        subject: body.attachment.subject || null,
-        letter_type: body.attachment.letterType || null,
-        created_by: user.id,
       })
       .select('id')
       .single();
 
-    if (attachmentError) {
-      console.error('Attachment insert error:', attachmentError);
+    if (documentError) {
+      console.error('Document insert error:', documentError);
       // Try to clean up the uploaded file
-      await supabase.storage.from('naval-letters').remove([storagePath]);
-      return errorResponse('Failed to create attachment record', 500, origin);
+      await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+      return errorResponse('Failed to create document record', 500, origin);
     }
 
     // Calculate retention based on SSIC
@@ -302,6 +303,18 @@ serve(async (req) => {
       updateData.disposal_action = retention.disposalAction;
     }
 
+    // Update document_ids array on the request
+    const { data: currentRequest } = await supabase
+      .from('edms_requests')
+      .select('document_ids')
+      .eq('id', requestId)
+      .single();
+
+    const currentDocIds = currentRequest?.document_ids || [];
+    if (!currentDocIds.includes(document.id)) {
+      updateData.document_ids = [...currentDocIds, document.id];
+    }
+
     if (Object.keys(updateData).length > 0) {
       const { error: updateError } = await supabase
         .from('edms_requests')
@@ -310,7 +323,6 @@ serve(async (req) => {
 
       if (updateError) {
         console.error('Request update error:', updateError);
-        // Don't fail the whole request for this, just log it
       }
     }
 
@@ -318,8 +330,8 @@ serve(async (req) => {
     return jsonResponse(
       {
         success: true,
-        attachmentId: attachment.id,
-        storagePath: storagePath,
+        documentId: document.id,
+        fileUrl: fileUrl,
         retention: retention,
       },
       200,

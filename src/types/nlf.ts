@@ -50,42 +50,6 @@ export interface NLFPayload {
 }
 
 // ============================================================================
-// Naval Letter Attachment Database Types
-// ============================================================================
-
-/** Database row for naval_letter_attachments table (snake_case) */
-export interface NavalLetterAttachmentRow {
-  id: string;
-  request_id: string;
-  filename: string;
-  storage_path: string;
-  content_type: string;
-  source: string;
-  file_size: number;
-  ssic: string | null;
-  subject: string | null;
-  letter_type: string | null;
-  created_at: string;
-  created_by: string | null;
-}
-
-/** Application type for naval letter attachments (camelCase) */
-export interface NavalLetterAttachment {
-  id: string;
-  requestId: string;
-  filename: string;
-  storagePath: string;
-  contentType: string;
-  source: string;
-  fileSize: number;
-  ssic: string | null;
-  subject: string | null;
-  letterType: string | null;
-  createdAt: string;
-  createdBy: string | null;
-}
-
-// ============================================================================
 // Retention Calculation Types
 // ============================================================================
 
@@ -97,16 +61,6 @@ export interface RetentionResult {
   calculatedDisposalDate: string | null;
 }
 
-/** SSIC crosswalk record for retention lookups */
-export interface SSICCrosswalkRecord {
-  ssic: string;
-  ssicTitle: string;
-  retentionYears: number | null;
-  retentionPeriod: string;
-  cutoffTrigger: 'CY' | 'FY' | 'Event' | string;
-  disposalAction: string;
-}
-
 // ============================================================================
 // API Response Types
 // ============================================================================
@@ -114,8 +68,8 @@ export interface SSICCrosswalkRecord {
 /** Response from the receive-naval-letter edge function */
 export interface ReceiveNavalLetterResponse {
   success: boolean;
-  attachmentId?: string;
-  storagePath?: string;
+  documentId?: string;
+  fileUrl?: string;
   retention?: RetentionResult;
   error?: string;
 }
@@ -136,58 +90,4 @@ export interface CreateNavalLetterButtonProps {
   className?: string;
   /** Whether the button is disabled */
   disabled?: boolean;
-}
-
-/** Props for NavalLetterAttachmentList component */
-export interface NavalLetterAttachmentListProps {
-  /** The request ID to fetch attachments for */
-  requestId: string;
-  /** Optional callback when an attachment is viewed */
-  onView?: (attachment: NavalLetterAttachment) => void;
-  /** Optional callback when an attachment is downloaded */
-  onDownload?: (attachment: NavalLetterAttachment) => void;
-}
-
-// ============================================================================
-// Type Conversion Utilities
-// ============================================================================
-
-/** Convert database row to application type */
-export function fromNavalLetterAttachmentRow(row: NavalLetterAttachmentRow): NavalLetterAttachment {
-  return {
-    id: row.id,
-    requestId: row.request_id,
-    filename: row.filename,
-    storagePath: row.storage_path,
-    contentType: row.content_type,
-    source: row.source,
-    fileSize: row.file_size,
-    ssic: row.ssic,
-    subject: row.subject,
-    letterType: row.letter_type,
-    createdAt: row.created_at,
-    createdBy: row.created_by,
-  };
-}
-
-/** Convert application type to database row */
-export function toNavalLetterAttachmentRow(
-  attachment: Partial<NavalLetterAttachment>
-): Partial<NavalLetterAttachmentRow> {
-  const row: Partial<NavalLetterAttachmentRow> = {};
-
-  if (attachment.id !== undefined) row.id = attachment.id;
-  if (attachment.requestId !== undefined) row.request_id = attachment.requestId;
-  if (attachment.filename !== undefined) row.filename = attachment.filename;
-  if (attachment.storagePath !== undefined) row.storage_path = attachment.storagePath;
-  if (attachment.contentType !== undefined) row.content_type = attachment.contentType;
-  if (attachment.source !== undefined) row.source = attachment.source;
-  if (attachment.fileSize !== undefined) row.file_size = attachment.fileSize;
-  if (attachment.ssic !== undefined) row.ssic = attachment.ssic;
-  if (attachment.subject !== undefined) row.subject = attachment.subject;
-  if (attachment.letterType !== undefined) row.letter_type = attachment.letterType;
-  if (attachment.createdAt !== undefined) row.created_at = attachment.createdAt;
-  if (attachment.createdBy !== undefined) row.created_by = attachment.createdBy;
-
-  return row;
 }

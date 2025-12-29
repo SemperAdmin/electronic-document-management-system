@@ -29,6 +29,18 @@ export interface Request {
   externalPendingStage?: string;
   installationId?: string;
   finalStatus?: string;
+  // SSIC/Retention fields
+  ssic?: string;
+  ssicNomenclature?: string;
+  ssicBucket?: string;
+  ssicBucketTitle?: string;
+  isPermanent?: boolean;
+  retentionValue?: number | null;
+  retentionUnit?: string;
+  cutoffTrigger?: string;
+  cutoffDescription?: string;
+  disposalAction?: string;
+  dau?: string;
 }
 export interface Installation {
   id: string;

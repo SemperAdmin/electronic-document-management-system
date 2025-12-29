@@ -18,3 +18,6 @@ export { DocumentListItem, DocumentList } from './DocumentListItem';
 export type { DocumentListItemProps, DocumentListProps, DocumentListItemData } from './DocumentListItem';
 export { RequestFormDetails, RequestFormCompact } from './RequestFormDetails';
 export type { RequestFormDetailsProps, RequestFormCompactProps } from './RequestFormDetails';
+export { SsicSearch } from './SsicSearch';
+export type { SsicSelection } from './SsicSearch';
+export { RetentionInfoPanel } from './RetentionInfoPanel';

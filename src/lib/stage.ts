@@ -133,6 +133,65 @@ export interface ArchiveContext {
   userInstallationId?: string;
 }
 
+// Check if request can be filed (after commander approval, at any level in the return chain)
+export function canFileRequest(
+  r: { currentStage?: string; uploadedById?: string; filedAt?: string; ssic?: string; activity?: Array<{ action: string; timestamp?: string }> },
+  userId: string
+): boolean {
+  // Already filed
+  if (r.filedAt) return false
+  // Must have SSIC classification
+  if (!r.ssic) return false
+  // Must be approved by commander
+  if (!isUnitApproved(r) && !isUnitEndorsed(r)) return false
+
+  const stage = String(r.currentStage || '')
+
+  // Originator can file when in ORIGINATOR_REVIEW
+  if (stage === Stage.ORIGINATOR_REVIEW && String(r.uploadedById || '') === String(userId || '')) {
+    return true
+  }
+
+  // At review stages after commander approval, reviewers can file
+  // (Battalion, Company, Platoon can file when reviewing after approval)
+  if (stage === Stage.PLATOON_REVIEW || stage === Stage.COMPANY_REVIEW || stage === Stage.BATTALION_REVIEW) {
+    return true
+  }
+
+  return false
+}
+
+// Get the return target stage based on current stage
+export function getReturnTargetStage(currentStage: string): Stage | null {
+  switch (currentStage) {
+    case Stage.BATTALION_REVIEW:
+      return Stage.COMPANY_REVIEW
+    case Stage.COMPANY_REVIEW:
+      return Stage.PLATOON_REVIEW
+    case Stage.PLATOON_REVIEW:
+      return Stage.ORIGINATOR_REVIEW
+    default:
+      return null
+  }
+}
+
+// Check if request can be returned to lower level (after commander approval)
+export function canReturnToLowerLevel(
+  r: { currentStage?: string; filedAt?: string; activity?: Array<{ action: string; timestamp?: string }> }
+): boolean {
+  // Already filed
+  if (r.filedAt) return false
+  // Must be approved by commander
+  if (!isUnitApproved(r) && !isUnitEndorsed(r)) return false
+
+  const stage = String(r.currentStage || '')
+
+  // Can return from Battalion → Company, Company → Platoon, Platoon → Originator
+  return stage === Stage.BATTALION_REVIEW ||
+         stage === Stage.COMPANY_REVIEW ||
+         stage === Stage.PLATOON_REVIEW
+}
+
 export function canArchiveAtLevel(
   r: {
     currentStage?: string;

@@ -24,3 +24,15 @@ export async function getCurrentAuthUser() {
   const { data } = await sb.auth.getUser()
   return data?.user ?? null
 }
+
+export async function getSession() {
+  const sb = getSupabase()
+  if (!sb?.auth) return null
+  const { data } = await sb.auth.getSession()
+  return data?.session ?? null
+}
+
+export async function getAccessToken(): Promise<string | null> {
+  const session = await getSession()
+  return session?.access_token ?? null
+}

@@ -53,6 +53,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
   const [submitForUserId, setSubmitForUserId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'Pending' | 'Files'>('Pending');
+  const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
+  const [expandedBuckets, setExpandedBuckets] = useState<Record<string, boolean>>({});
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({});
   const [selectedBattalionSection, setSelectedBattalionSection] = useState<string>('');
   const [ssicSelection, setSsicSelection] = useState<SsicSelection | null>(null);
@@ -1152,7 +1154,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
 
             {/* Files Tab Content - Records Management Dashboard */}
             {activeTab === 'Files' && (
-              <div className="py-4 space-y-6">
+              <div className="py-4 space-y-2">
                 {loadingRequests ? (
                   <div className="animate-pulse">Loading records…</div>
                 ) : sortedYearKeys.length === 0 ? (
@@ -1161,87 +1163,121 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                     <p className="text-sm mt-1">Archive a request and click "File" to add it to records management.</p>
                   </div>
                 ) : (
-                  <>
-                    {/* Records grouped by disposal year, then by bucket */}
+                  <div className="space-y-2">
+                    {/* Records grouped by disposal year, then by bucket - Accordion Style */}
                     {sortedYearKeys.map((year) => {
                       const buckets = groupedRecords[year];
                       const sortedBuckets = Object.keys(buckets).sort();
                       const isPermanentYear = year === 'Permanent';
                       const recordCount = Object.values(buckets).reduce((sum, arr) => sum + arr.length, 0);
+                      const isYearExpanded = expandedYears[year] || false;
 
                       return (
-                        <div key={year} className="space-y-3">
-                          {/* Year Header */}
-                          <div className={`${isPermanentYear ? 'bg-blue-800' : 'bg-brand-navy'} text-brand-cream px-4 py-2 rounded-lg font-medium flex items-center justify-between`}>
-                            <span>
-                              {isPermanentYear ? 'Permanent Records' : `Disposal Year: ${year}`}
-                            </span>
+                        <div key={year} className="border border-gray-200 rounded-lg overflow-hidden">
+                          {/* Year Header - Clickable Accordion */}
+                          <button
+                            onClick={() => setExpandedYears(prev => ({ ...prev, [year]: !prev[year] }))}
+                            className={`w-full ${isPermanentYear ? 'bg-blue-800 hover:bg-blue-700' : 'bg-brand-navy hover:bg-brand-navy/90'} text-brand-cream px-4 py-3 font-medium flex items-center justify-between transition-colors`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className={`w-4 h-4 transition-transform ${isYearExpanded ? 'rotate-90' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                              <span>{isPermanentYear ? 'Permanent Records' : `Disposal Year: ${year}`}</span>
+                            </div>
                             <span className="text-xs bg-white/20 px-2 py-0.5 rounded">
                               {recordCount} record{recordCount !== 1 ? 's' : ''}
                             </span>
-                          </div>
+                          </button>
 
-                          {/* Buckets within year */}
-                          {sortedBuckets.map((bucket) => {
-                            const records = buckets[bucket];
-                            return (
-                              <div key={`${year}-${bucket}`} className="ml-4">
-                                {/* Bucket Header */}
-                                <div className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-t-lg font-medium text-sm border border-b-0 border-gray-200 flex items-center justify-between">
-                                  <span>{bucket}</span>
-                                  <span className="text-xs text-gray-500">{records.length} item{records.length !== 1 ? 's' : ''}</span>
-                                </div>
+                          {/* Year Content - Buckets */}
+                          {isYearExpanded && (
+                            <div className="bg-gray-50 p-2 space-y-2">
+                              {sortedBuckets.map((bucket) => {
+                                const records = buckets[bucket];
+                                const bucketKey = `${year}-${bucket}`;
+                                const isBucketExpanded = expandedBuckets[bucketKey] || false;
 
-                                {/* Records Table */}
-                                <div className="border border-gray-200 rounded-b-lg overflow-x-auto">
-                                  <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                    <thead className="bg-gray-50">
-                                      <tr>
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Name</th>
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Retention</th>
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Date</th>
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date Finalized</th>
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Action</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                      {records.map((r) => (
-                                        <tr
-                                          key={r.id}
-                                          className="hover:bg-gray-50 cursor-pointer"
-                                          onClick={() => setSelectedRequest(r)}
+                                return (
+                                  <div key={bucketKey} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                    {/* Bucket Header - Clickable Accordion */}
+                                    <button
+                                      onClick={() => setExpandedBuckets(prev => ({ ...prev, [bucketKey]: !prev[bucketKey] }))}
+                                      className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 font-medium text-sm flex items-center justify-between transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <svg
+                                          className={`w-3 h-3 transition-transform ${isBucketExpanded ? 'rotate-90' : ''}`}
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
                                         >
-                                          <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
-                                          <td className="px-3 py-2">{r.ssic}</td>
-                                          <td className="px-3 py-2">
-                                            {r.isPermanent ? (
-                                              <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                                                Permanent
-                                              </span>
-                                            ) : (
-                                              <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded">
-                                                {r.retentionValue} {r.retentionUnit}
-                                              </span>
-                                            )}
-                                          </td>
-                                          <td className="px-3 py-2">{calculateDisposalDate(r)}</td>
-                                          <td className="px-3 py-2">{r.filedAt ? new Date(r.filedAt).toLocaleDateString() : 'N/A'}</td>
-                                          <td className="px-3 py-2">{getOriginatorName(r)}</td>
-                                          <td className="px-3 py-2">{r.disposalAction || (r.isPermanent ? 'TRANSFER' : 'DESTROY')}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            );
-                          })}
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                        <span>{bucket}</span>
+                                      </div>
+                                      <span className="text-xs text-gray-500">{records.length} item{records.length !== 1 ? 's' : ''}</span>
+                                    </button>
+
+                                    {/* Bucket Content - Records Table */}
+                                    {isBucketExpanded && (
+                                      <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                          <thead className="bg-gray-50">
+                                            <tr>
+                                              <th className="px-3 py-2 text-left font-medium text-gray-500">Name</th>
+                                              <th className="px-3 py-2 text-left font-medium text-gray-500">SSIC</th>
+                                              <th className="px-3 py-2 text-left font-medium text-gray-500">Retention</th>
+                                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Date</th>
+                                              <th className="px-3 py-2 text-left font-medium text-gray-500">Date Finalized</th>
+                                              <th className="px-3 py-2 text-left font-medium text-gray-500">Originator</th>
+                                              <th className="px-3 py-2 text-left font-medium text-gray-500">Disposal Action</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="bg-white divide-y divide-gray-200">
+                                            {records.map((r) => (
+                                              <tr
+                                                key={r.id}
+                                                className="hover:bg-gray-50 cursor-pointer"
+                                                onClick={() => setSelectedRequest(r)}
+                                              >
+                                                <td className="px-3 py-2 font-medium text-brand-navy">{r.subject}</td>
+                                                <td className="px-3 py-2">{r.ssic}</td>
+                                                <td className="px-3 py-2">
+                                                  {r.isPermanent ? (
+                                                    <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                                                      Permanent
+                                                    </span>
+                                                  ) : (
+                                                    <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded">
+                                                      {r.retentionValue} {r.retentionUnit}
+                                                    </span>
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2">{calculateDisposalDate(r)}</td>
+                                                <td className="px-3 py-2">{r.filedAt ? new Date(r.filedAt).toLocaleDateString() : 'N/A'}</td>
+                                                <td className="px-3 py-2">{getOriginatorName(r)}</td>
+                                                <td className="px-3 py-2">{r.disposalAction || (r.isPermanent ? 'TRANSFER' : 'DESTROY')}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
-                  </>
+                  </div>
                 )}
               </div>
             )}

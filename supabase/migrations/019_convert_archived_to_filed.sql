@@ -2,7 +2,7 @@
 -- Records with currentStage = 'ARCHIVED' should have filedAt set so they appear in Files tab
 
 -- Update records that have ARCHIVED status but no filedAt date
--- Set filedAt to the last activity timestamp or updatedAt or createdAt
+-- Set filedAt to the last activity timestamp or created_at
 UPDATE public.edms_requests
 SET
   filed_at = COALESCE(
@@ -13,8 +13,6 @@ SET
       ORDER BY (elem->>'timestamp')::timestamptz DESC
       LIMIT 1
     ),
-    -- Fall back to updated_at
-    updated_at,
     -- Fall back to created_at
     created_at,
     -- Last resort: current timestamp

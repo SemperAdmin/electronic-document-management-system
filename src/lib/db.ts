@@ -56,6 +56,8 @@ interface RequestRow {
   cutoff_description: string | null
   disposal_action: string | null
   dau: string | null
+  // Filing/Records Management
+  filed_at: string | null
 }
 
 /** Raw database row for edms_users table */
@@ -198,6 +200,8 @@ export type RequestRecord = {
   cutoffDescription?: string
   disposalAction?: string
   dau?: string
+  // Filing/Records Management
+  filedAt?: string
 }
 
 export type HQMCStructureRecord = {
@@ -297,6 +301,8 @@ function toReqRow(r: RequestRecord): Omit<RequestRow, never> {
     cutoff_description: r.cutoffDescription ?? null,
     disposal_action: r.disposalAction ?? null,
     dau: r.dau ?? null,
+    // Filing/Records Management
+    filed_at: r.filedAt ?? null,
   }
 }
 
@@ -332,6 +338,8 @@ function fromReqRow(r: RequestRow): RequestRecord {
     cutoffDescription: r.cutoff_description ? String(r.cutoff_description) : undefined,
     disposalAction: r.disposal_action ? String(r.disposal_action) : undefined,
     dau: r.dau ? String(r.dau) : undefined,
+    // Filing/Records Management
+    filedAt: r.filed_at ? String(r.filed_at) : undefined,
   }
 }
 

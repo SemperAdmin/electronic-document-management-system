@@ -41,6 +41,8 @@ export interface Request {
   cutoffDescription?: string;
   disposalAction?: string;
   dau?: string;
+  // Filing/Records Management
+  filedAt?: string;
 }
 export interface Installation {
   id: string;

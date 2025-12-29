@@ -16,7 +16,7 @@ import { Document, ActionEntry, FeedbackMessage } from './documents/types';
 import { DocCard, formatFileSize } from './documents/DocCard';
 import { NewRequestForm } from './documents/NewRequestForm';
 import { RequestDetailsModal } from './documents/RequestDetailsModal';
-import { SsicSearch, SsicSelection } from './common';
+import { SsicSearch, SsicSelection, RetentionInfoPanel } from './common';
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure';
 
 const STORAGE_BUCKET = 'edms-docs';
@@ -56,6 +56,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({});
   const [selectedBattalionSection, setSelectedBattalionSection] = useState<string>('');
   const [ssicSelection, setSsicSelection] = useState<SsicSelection | null>(null);
+  const [requestDetailTab, setRequestDetailTab] = useState<'documents' | 'retention' | 'activity'>('documents');
 
   // Hooks
   const storage = useDocumentStorage();
@@ -995,60 +996,98 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
                 <label className="block text-sm font-medium text-[var(--text)] mb-1">Notes</label>
                 <textarea rows={3} value={editRequestNotes} onChange={(e) => setEditRequestNotes(e.target.value)} className="w-full px-3 py-2 border border-brand-navy/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold" />
               </div>
-              <div>
-                <h4 className="text-sm font-medium text-[var(--text)]">Action Log</h4>
-                <div className="mt-2 space-y-2">
-                  {selectedRequest.activity && selectedRequest.activity.length ? (
-                    selectedRequest.activity.map((a, idx) => (
-                      <div key={idx} className="text-xs text-gray-700">
-                        <div className="font-medium">{a.actor}{a.actorRole ? ` • ${a.actorRole}` : ''} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
-                        {a.comment && <div className="text-gray-600">{a.comment}</div>}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-xs text-gray-500">No activity</div>
-                  )}
-                </div>
+
+              {/* Tabbed Navigation */}
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-4" aria-label="Request details tabs">
+                  <button
+                    onClick={() => setRequestDetailTab('documents')}
+                    className={`${requestDetailTab === 'documents' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    Documents
+                  </button>
+                  <button
+                    onClick={() => setRequestDetailTab('retention')}
+                    className={`${requestDetailTab === 'retention' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    Retention
+                  </button>
+                  <button
+                    onClick={() => setRequestDetailTab('activity')}
+                    className={`${requestDetailTab === 'activity' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    Activity
+                  </button>
+                </nav>
               </div>
-              <div>
-                <h4 className="text-sm font-medium text-[var(--text)]">Documents</h4>
-                <button
-                  className="mt-2 px-3 py-1 rounded bg-brand-navy text-brand-cream hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
-                  aria-expanded={docsExpanded}
-                  aria-controls="docs-panel"
-                  onClick={() => setDocsExpanded((p) => !p)}
-                >
-                  {docsExpanded ? 'Hide' : 'Show'} Documents
-                </button>
-                <div id="docs-panel" className={docsExpanded ? 'mt-3 space-y-2' : 'hidden'}>
-                  {documents.filter(d => d.requestId === selectedRequest.id && d.type !== 'request').map(d => (
-                    <DocCard key={d.id} doc={d} onView={openDoc} onDelete={deleteDocument} />
-                  ))}
-                </div>
-                {!originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && (
-                  <div className="mt-3">
-                    <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded-lg hover:brightness-110 cursor-pointer inline-block">
-                      <input type="file" multiple onChange={(e) => { const files = e.target.files ? Array.from(e.target.files) : []; setAttachFiles(prev => [...prev, ...files]); try { e.target.value = '' } catch {} }} className="hidden" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" />
-                      Add Files
-                    </label>
-                    <div className="ml-2 flex flex-wrap gap-2">
-                      {attachFiles.length === 0 ? (
-                        <span className="text-xs text-[var(--muted)]">No files selected</span>
-                      ) : (
-                        attachFiles.map((f, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded border border-brand-navy/20">
-                            <span className="max-w-[240px] truncate" title={f.name}>{f.name}</span>
-                            <button
-                              type="button"
-                              className="text-brand-red-2 hover:underline"
-                              onClick={() => setAttachFiles(prev => prev.filter((_, i) => i !== idx))}
-                            >
-                              Delete
-                            </button>
-                          </span>
-                        ))
-                      )}
-                    </div>
+
+              {/* Tab Content */}
+              <div className="mt-3">
+                {/* Documents Tab */}
+                {requestDetailTab === 'documents' && (
+                  <div className="space-y-3">
+                    {documents.filter(d => d.requestId === selectedRequest.id && d.type !== 'request').length > 0 ? (
+                      documents.filter(d => d.requestId === selectedRequest.id && d.type !== 'request').map(d => (
+                        <DocCard key={d.id} doc={d} onView={openDoc} onDelete={deleteDocument} />
+                      ))
+                    ) : (
+                      <div className="text-sm text-[var(--muted)]">No documents attached</div>
+                    )}
+                    {!originatorArchiveOnly(selectedRequest as any, String(currentUser?.id || '')) && (
+                      <div className="mt-3">
+                        <label className="bg-brand-navy text-brand-cream px-3 py-1 rounded-lg hover:brightness-110 cursor-pointer inline-block">
+                          <input type="file" multiple onChange={(e) => { const files = e.target.files ? Array.from(e.target.files) : []; setAttachFiles(prev => [...prev, ...files]); try { e.target.value = '' } catch {} }} className="hidden" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" />
+                          Add Files
+                        </label>
+                        <div className="ml-2 flex flex-wrap gap-2 mt-2">
+                          {attachFiles.length === 0 ? (
+                            <span className="text-xs text-[var(--muted)]">No files selected</span>
+                          ) : (
+                            attachFiles.map((f, idx) => (
+                              <span key={idx} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-brand-cream text-brand-navy rounded border border-brand-navy/20">
+                                <span className="max-w-[240px] truncate" title={f.name}>{f.name}</span>
+                                <button
+                                  type="button"
+                                  className="text-brand-red-2 hover:underline"
+                                  onClick={() => setAttachFiles(prev => prev.filter((_, i) => i !== idx))}
+                                >
+                                  Delete
+                                </button>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Retention Tab */}
+                {requestDetailTab === 'retention' && (
+                  <div>
+                    {selectedRequest.ssic ? (
+                      <RetentionInfoPanel request={selectedRequest} />
+                    ) : (
+                      <div className="text-sm text-[var(--muted)] p-4 bg-gray-50 rounded-lg">
+                        No retention information available for this request.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Activity Tab */}
+                {requestDetailTab === 'activity' && (
+                  <div className="space-y-2">
+                    {selectedRequest.activity && selectedRequest.activity.length ? (
+                      selectedRequest.activity.map((a, idx) => (
+                        <div key={idx} className="text-xs text-gray-700 p-2 bg-gray-50 rounded">
+                          <div className="font-medium">{a.actor}{a.actorRole ? ` • ${a.actorRole}` : ''} • {new Date(a.timestamp).toLocaleString()} • {a.action}</div>
+                          {a.comment && <div className="text-gray-600 mt-1">{a.comment}</div>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-[var(--muted)]">No activity recorded</div>
+                    )}
                   </div>
                 )}
               </div>

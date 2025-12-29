@@ -8,7 +8,7 @@ import { Request, Installation, UserRecord } from '../types'
 import { normalizeString, hasReviewer } from '../lib/reviewers';
 import { DocumentList } from '@/components/common';
 import { formatActorName } from '@/lib/utils';
-import { canArchiveAtLevel, isUnitApproved, isUnitEndorsed } from '@/lib/stage';
+import { canArchiveAtLevel, isUnitApproved, isUnitEndorsed, canFileRequest, canReturnToLowerLevel, getReturnTargetStage, Stage } from '@/lib/stage';
 
 const DEFAULT_EXTERNAL_STAGE = 'REVIEW';
 
@@ -64,6 +64,9 @@ export default function SectionDashboard() {
   const [hqmcStructure, setHqmcStructure] = useState<Array<{ division_name: string; division_code?: string; branch: string; description?: string }>>([])
   const [hqmcDivisionSel, setHqmcDivisionSel] = useState<Record<string, string>>({})
   const [hqmcBranchSel, setHqmcBranchSel] = useState<Record<string, string>>({})
+  const [showFileDialog, setShowFileDialog] = useState<boolean>(false)
+  const [fileDialogRequest, setFileDialogRequest] = useState<Request | null>(null)
+  const [fileFinalizedDate, setFileFinalizedDate] = useState<string>('')
 
   useEffect(() => {
     listInstallationsLegacy().then(data => setInstallations(data as Installation[]));
@@ -432,24 +435,88 @@ export default function SectionDashboard() {
     }
   }
 
-  const archiveRequest = async (r: Request) => {
-    const actor = formatActorName(currentUser, 'Battalion')
-    const actorRole = getActorRole()
-    const entry = { actor, actorRole, timestamp: new Date().toISOString(), action: 'Archived', comment: (comments[r.id] || '').trim() }
+  // Open file dialog to select finalized date
+  const openFileDialog = (r: Request) => {
+    if (!r.ssic) {
+      alert('Request must have SSIC/retention classification before filing.');
+      return;
+    }
+    setFileDialogRequest(r);
+    setFileFinalizedDate(new Date().toISOString().split('T')[0]);
+    setShowFileDialog(true);
+  };
+
+  // File a request for records management
+  const confirmFileRequest = async () => {
+    if (!fileDialogRequest || !currentUser) return;
+    if (!fileFinalizedDate) {
+      alert('Please select a finalized date.');
+      return;
+    }
+
+    const filedAt = new Date(fileFinalizedDate + 'T23:59:59').toISOString();
+    const actor = formatActorName(currentUser, 'Battalion');
+    const actorRole = getActorRole();
+    const entry = {
+      actor,
+      actorRole,
+      timestamp: new Date().toISOString(),
+      action: 'Filed for Records Management',
+      comment: `Date Finalized: ${new Date(fileFinalizedDate).toLocaleDateString()}${comments[fileDialogRequest.id]?.trim() ? ` - ${comments[fileDialogRequest.id].trim()}` : ''}`
+    };
+    const updated: Request = {
+      ...fileDialogRequest,
+      currentStage: 'ARCHIVED',
+      finalStatus: 'Filed',
+      filedAt,
+      activity: Array.isArray(fileDialogRequest.activity) ? [...fileDialogRequest.activity, entry] : [entry]
+    };
+    try {
+      await upsertRequest(updated as any);
+      setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+      setComments(prev => ({ ...prev, [fileDialogRequest.id]: '' }));
+      setShowFileDialog(false);
+      setFileDialogRequest(null);
+      setFileFinalizedDate('');
+    } catch (error) {
+      console.error('Failed to file request:', error);
+    }
+  };
+
+  // Return request to lower level in the chain
+  const returnToLowerLevel = async (r: Request) => {
+    const targetStage = getReturnTargetStage(r.currentStage || '');
+    if (!targetStage) {
+      alert('Cannot return from this stage.');
+      return;
+    }
+
+    const actor = formatActorName(currentUser, 'Battalion');
+    const actorRole = getActorRole();
+    const stageName = targetStage === Stage.ORIGINATOR_REVIEW ? 'Originator' :
+                      targetStage === Stage.PLATOON_REVIEW ? 'Platoon' :
+                      targetStage === Stage.COMPANY_REVIEW ? 'Company' : 'Lower Level';
+
+    const entry = {
+      actor,
+      actorRole,
+      timestamp: new Date().toISOString(),
+      action: `Returned to ${stageName} for filing`,
+      comment: (comments[r.id] || '').trim()
+    };
     const updated: Request = {
       ...r,
-      currentStage: 'ARCHIVED',
-      finalStatus: 'Archived',
+      currentStage: targetStage,
       activity: Array.isArray(r.activity) ? [...r.activity, entry] : [entry]
-    }
+    };
     try {
       await upsertRequest(updated as any);
       setRequests(prev => prev.map(x => (x.id === updated.id ? updated : x)));
       setComments(prev => ({ ...prev, [r.id]: '' }));
     } catch (error) {
-      console.error('Failed to archive request:', error);
+      console.error('Failed to return request:', error);
     }
-  }
+  };
 
   const handleExternalUnitChange = (requestId: string, selectedUnit: Unit | undefined) => {
     if (!selectedUnit) {
@@ -773,14 +840,23 @@ export default function SectionDashboard() {
                         </button>
                       </div>
                     )}
-                    {canArchiveAtLevel(r, { userLevel: 'unit', userUnitUic: currentUser?.unitUic }) && (
+                    {/* File/Return options after commander approval */}
+                    {(isUnitApproved(r) || isUnitEndorsed(r)) && !r.filedAt && (
                       <div className="mt-3 flex items-center justify-end gap-2">
                         <button
-                          className="px-3 py-2 rounded bg-brand-gold text-brand-charcoal hover:bg-brand-gold-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
-                          onClick={() => archiveRequest(r)}
+                          className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                          onClick={() => openFileDialog(r)}
                         >
-                          Archive
+                          File
                         </button>
+                        {canReturnToLowerLevel(r) && (
+                          <button
+                            className="px-3 py-2 rounded bg-amber-500 text-white hover:bg-amber-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+                            onClick={() => returnToLowerLevel(r)}
+                          >
+                            Return
+                          </button>
+                        )}
                       </div>
                     )}
                     {r.activity?.some(a => /(endorsed by commander|commander.*endorsed)/i.test(String(a.action || ''))) && (
@@ -952,6 +1028,60 @@ export default function SectionDashboard() {
           </div>
         </div>
       </div>
+
+      {/* File Dialog - Date Picker for Finalized Date */}
+      {showFileDialog && fileDialogRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onClick={() => setShowFileDialog(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">File for Records Management</h3>
+              <button className="text-gray-500 hover:text-gray-700" onClick={() => setShowFileDialog(false)}>✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date Finalized</label>
+                <input
+                  type="date"
+                  value={fileFinalizedDate}
+                  onChange={(e) => setFileFinalizedDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This date will be used to calculate the disposal date based on the retention schedule.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <div className="font-medium text-gray-700 mb-1">Retention Info</div>
+                <div className="text-gray-600">
+                  <div>SSIC: {fileDialogRequest.ssic} - {fileDialogRequest.ssicNomenclature}</div>
+                  <div>Retention: {fileDialogRequest.isPermanent ? 'Permanent' : `${fileDialogRequest.retentionValue} ${fileDialogRequest.retentionUnit}`}</div>
+                  <div>Cutoff: {fileDialogRequest.cutoffDescription || fileDialogRequest.cutoffTrigger}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowFileDialog(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmFileRequest}
+                disabled={!fileFinalizedDate}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                File Record
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

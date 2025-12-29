@@ -16,6 +16,7 @@ import { Document, ActionEntry, FeedbackMessage } from './documents/types';
 import { DocCard, formatFileSize } from './documents/DocCard';
 import { NewRequestForm } from './documents/NewRequestForm';
 import { RequestDetailsModal } from './documents/RequestDetailsModal';
+import { SsicSearch, SsicSelection } from './common';
 import { loadUnitStructureFromBundle } from '@/lib/unitStructure';
 
 const STORAGE_BUCKET = 'edms-docs';
@@ -54,6 +55,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
   const [activeTab, setActiveTab] = useState<'Pending' | 'Archived'>('Pending');
   const [unitSections, setUnitSections] = useState<Record<string, string[]>>({});
   const [selectedBattalionSection, setSelectedBattalionSection] = useState<string>('');
+  const [ssicSelection, setSsicSelection] = useState<SsicSelection | null>(null);
 
   // Hooks
   const storage = useDocumentStorage();
@@ -291,6 +293,18 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       createdAt: new Date().toISOString(),
       currentStage: hasPlatoonReviewer ? Stage.PLATOON_REVIEW : hasCompanyReviewer ? Stage.COMPANY_REVIEW : Stage.BATTALION_REVIEW,
       routeSection: goesDirectlyToBattalion && selectedBattalionSection ? selectedBattalionSection : undefined,
+      // SSIC/Retention fields
+      ssic: ssicSelection?.ssic,
+      ssicNomenclature: ssicSelection?.nomenclature,
+      ssicBucket: ssicSelection?.bucket,
+      ssicBucketTitle: ssicSelection?.bucketTitle,
+      isPermanent: ssicSelection?.isPermanent,
+      retentionValue: ssicSelection?.retentionValue,
+      retentionUnit: ssicSelection?.retentionUnit,
+      cutoffTrigger: ssicSelection?.cutoffTrigger,
+      cutoffDescription: ssicSelection?.cutoffDescription,
+      disposalAction: ssicSelection?.disposalAction,
+      dau: ssicSelection?.dau,
       activity: [
         { actor, actorRole, timestamp: new Date().toISOString(), action: 'Submitted request', comment: (notes || '').trim() }
       ]
@@ -314,6 +328,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
       setFeedback({ type: 'success', message: 'Submission successful.' });
       setShowForm(false);
       setSelectedBattalionSection('');
+      setSsicSelection(null);
       } catch {
       setIsUploading(false);
       try { logEvent('request_persist_failed', { requestId }, 'error') } catch {}
@@ -715,6 +730,14 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
             </div>
           </div>
 
+          <div>
+            <SsicSearch
+              value={ssicSelection}
+              onChange={setSsicSelection}
+              required
+            />
+          </div>
+
           {String(currentUser?.role || '').includes('REVIEW') && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-1">
@@ -795,8 +818,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ selectedUnit, 
               )}
             </div>
             <div className="md:ml-auto flex gap-2">
-              <button type="button" onClick={() => { setShowForm(false); setSelectedFiles([]); setSubject(''); setDueDate(''); setNotes(''); setSelectedBattalionSection(''); setFeedback(null); }} className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream">Cancel</button>
-              <button type="submit" className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors disabled:opacity-60" disabled={!subject.trim()}>Submit</button>
+              <button type="button" onClick={() => { setShowForm(false); setSelectedFiles([]); setSubject(''); setDueDate(''); setNotes(''); setSelectedBattalionSection(''); setSsicSelection(null); setFeedback(null); }} className="px-4 py-2 rounded-lg border border-brand-navy/30 text-brand-navy hover:bg-brand-cream">Cancel</button>
+              <button type="submit" className="bg-brand-gold text-brand-charcoal px-4 py-2 rounded-lg hover:bg-brand-gold-2 transition-colors disabled:opacity-60" disabled={!subject.trim() || !ssicSelection}>Submit</button>
             </div>
           </div>
 

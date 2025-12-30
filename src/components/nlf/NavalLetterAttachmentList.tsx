@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { DocumentRecord } from '@/lib/db';
 import { useNavalLetterAttachments } from '@/hooks/useNavalLetterAttachments';
+import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/supabase';
+
+// Get NLF URL from environment variable
+const NLF_BASE_URL = (import.meta as any)?.env?.VITE_NLF_URL || 'https://semperadmin.github.io/naval-letter-formatter';
 
 interface NavalLetterAttachmentListProps {
   /** The request ID to fetch attachments for */
@@ -47,6 +51,35 @@ export function NavalLetterAttachmentList({
 
     // Default behavior: download the file
     await downloadDocument(doc);
+  };
+
+  const openInNLF = (doc: DocumentRecord) => {
+    const supabaseUrl = getSupabaseUrl();
+    const supabaseKey = getSupabaseAnonKey();
+    const returnUrl = encodeURIComponent(window.location.href);
+
+    const params = new URLSearchParams({
+      mode: 'edit',
+      edmsId: requestId,
+      documentId: doc.id,
+      returnUrl: returnUrl,
+    });
+
+    // Pass file URL so NLF can load the letter
+    if (doc.fileUrl) {
+      params.set('fileUrl', doc.fileUrl);
+    }
+
+    // Include Supabase credentials
+    if (supabaseUrl) {
+      params.set('supabaseUrl', supabaseUrl);
+    }
+    if (supabaseKey) {
+      params.set('supabaseKey', supabaseKey);
+    }
+
+    const launchUrl = `${NLF_BASE_URL}?${params.toString()}`;
+    window.open(launchUrl, '_blank', 'noopener,noreferrer');
   };
 
   const closePreview = () => {
@@ -147,6 +180,22 @@ export function NavalLetterAttachmentList({
             <div className="flex-shrink-0 flex items-center gap-1">
               <button
                 type="button"
+                onClick={() => openInNLF(doc)}
+                className="p-1.5 text-brand-navy hover:bg-brand-cream rounded transition-colors"
+                title="Edit in Naval Letter Formatter"
+                aria-label={`Edit ${doc.name} in Naval Letter Formatter`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
                 onClick={() => handleView(doc)}
                 className="p-1.5 text-brand-navy hover:bg-brand-cream rounded transition-colors"
                 title="View"
@@ -195,6 +244,7 @@ export function NavalLetterAttachmentList({
           content={previewData.content}
           onClose={closePreview}
           onDownload={() => handleDownload(previewData.doc)}
+          onEditInNLF={() => openInNLF(previewData.doc)}
         />
       )}
     </>
@@ -209,6 +259,7 @@ interface NavalLetterPreviewModalProps {
   content: Record<string, unknown>;
   onClose: () => void;
   onDownload: () => void;
+  onEditInNLF: () => void;
 }
 
 function NavalLetterPreviewModal({
@@ -216,6 +267,7 @@ function NavalLetterPreviewModal({
   content,
   onClose,
   onDownload,
+  onEditInNLF,
 }: NavalLetterPreviewModalProps): React.ReactElement {
   return (
     <div
@@ -336,7 +388,7 @@ function NavalLetterPreviewModal({
           <button
             type="button"
             onClick={onDownload}
-            className="px-4 py-2 text-sm font-medium bg-brand-navy text-brand-cream rounded-lg hover:brightness-110 transition-colors inline-flex items-center gap-2"
+            className="px-4 py-2 text-sm font-medium text-brand-navy border border-brand-navy/30 rounded-lg hover:bg-brand-cream transition-colors inline-flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -346,7 +398,22 @@ function NavalLetterPreviewModal({
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
               />
             </svg>
-            Download JSON
+            Download
+          </button>
+          <button
+            type="button"
+            onClick={onEditInNLF}
+            className="px-4 py-2 text-sm font-medium bg-brand-navy text-brand-cream rounded-lg hover:brightness-110 transition-colors inline-flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
+            </svg>
+            Edit in NLF
           </button>
         </div>
       </div>

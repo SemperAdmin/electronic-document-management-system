@@ -120,14 +120,17 @@ export const DocCard: React.FC<DocCardProps> = memo(function DocCard({ doc, onVi
               Open
             </a>
           )}
-          <button
-            type="button"
-            className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
-            onClick={(e) => { e.stopPropagation(); onView(doc); }}
-            aria-label={`View or edit document ${doc.subject}`}
-          >
-            View/Edit
-          </button>
+          {/* Hide View/Edit for naval letters - use Edit in NLF instead */}
+          {!isNavalLetterDoc && (
+            <button
+              type="button"
+              className="px-3 py-1 text-xs bg-brand-cream text-brand-navy rounded hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold underline decoration-brand-red-2 underline-offset-2"
+              onClick={(e) => { e.stopPropagation(); onView(doc); }}
+              aria-label={`View or edit document ${doc.subject}`}
+            >
+              View/Edit
+            </button>
+          )}
           <button
             type="button"
             className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"

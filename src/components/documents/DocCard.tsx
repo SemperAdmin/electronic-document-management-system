@@ -2,11 +2,50 @@ import React, { memo, useState } from 'react';
 import { Document } from './types';
 import { formatStageLabel } from '@/lib/stage';
 import { FileTypeIcon, DocumentPreview, canPreview } from '@/components/common';
+import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/supabase';
+
+// Get NLF URL from environment variable
+const NLF_BASE_URL = (import.meta as any)?.env?.VITE_NLF_URL || 'https://semperadmin.github.io/naval-letter-formatter';
 
 interface DocCardProps {
   doc: Document;
   onView: (doc: Document) => void;
   onDelete: (doc: Document) => void;
+}
+
+// Check if document is a naval letter
+function isNavalLetter(doc: Document): boolean {
+  return doc.category === 'naval-letter' ||
+         doc.name.startsWith('naval-letter-') ||
+         doc.type === 'application/json' && doc.name.includes('naval-letter');
+}
+
+// Build NLF edit URL for a naval letter document
+function buildNLFEditUrl(doc: Document): string {
+  const supabaseUrl = getSupabaseUrl();
+  const supabaseKey = getSupabaseAnonKey();
+  const returnUrl = encodeURIComponent(window.location.href);
+
+  const params = new URLSearchParams({
+    mode: 'edit',
+    documentId: doc.id,
+    returnUrl: returnUrl,
+  });
+
+  if (doc.requestId) {
+    params.set('edmsId', doc.requestId);
+  }
+  if (doc.fileUrl) {
+    params.set('fileUrl', doc.fileUrl);
+  }
+  if (supabaseUrl) {
+    params.set('supabaseUrl', supabaseUrl);
+  }
+  if (supabaseKey) {
+    params.set('supabaseKey', supabaseKey);
+  }
+
+  return `${NLF_BASE_URL}?${params.toString()}`;
 }
 
 export function formatFileSize(bytes: number): string {
@@ -21,6 +60,13 @@ export function formatFileSize(bytes: number): string {
 export const DocCard: React.FC<DocCardProps> = memo(function DocCard({ doc, onView, onDelete }) {
   const [showPreview, setShowPreview] = useState(false);
   const isPreviewable = doc.fileUrl && canPreview(doc.type, doc.name);
+  const isNavalLetterDoc = isNavalLetter(doc);
+
+  const handleOpenInNLF = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = buildNLFEditUrl(doc);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <>
@@ -53,7 +99,17 @@ export const DocCard: React.FC<DocCardProps> = memo(function DocCard({ doc, onVi
               Preview
             </button>
           )}
-          {doc.fileUrl && (
+          {doc.fileUrl && isNavalLetterDoc && (
+            <button
+              type="button"
+              onClick={handleOpenInNLF}
+              className="px-3 py-1 text-xs bg-brand-navy text-brand-cream rounded hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-gold"
+              aria-label={`Edit ${doc.name} in Naval Letter Formatter`}
+            >
+              Edit in NLF
+            </button>
+          )}
+          {doc.fileUrl && !isNavalLetterDoc && (
             <a
               href={doc.fileUrl}
               target="_blank"

@@ -56,13 +56,12 @@ export function NavalLetterAttachmentList({
   const openInNLF = (doc: DocumentRecord) => {
     const supabaseUrl = getSupabaseUrl();
     const supabaseKey = getSupabaseAnonKey();
-    const returnUrl = encodeURIComponent(window.location.href);
 
     const params = new URLSearchParams({
       mode: 'edit',
       edmsId: requestId,
       documentId: doc.id,
-      returnUrl: returnUrl,
+      returnUrl: window.location.href,  // URLSearchParams handles encoding
     });
 
     // Pass file URL so NLF can load the letter

@@ -16,20 +16,18 @@ interface DocCardProps {
 // Check if document is a naval letter
 function isNavalLetter(doc: Document): boolean {
   return doc.category === 'naval-letter' ||
-         doc.name.startsWith('naval-letter-') ||
-         doc.type === 'application/json' && doc.name.includes('naval-letter');
+         doc.name.startsWith('naval-letter-');
 }
 
 // Build NLF edit URL for a naval letter document
 function buildNLFEditUrl(doc: Document): string {
   const supabaseUrl = getSupabaseUrl();
   const supabaseKey = getSupabaseAnonKey();
-  const returnUrl = encodeURIComponent(window.location.href);
 
   const params = new URLSearchParams({
     mode: 'edit',
     documentId: doc.id,
-    returnUrl: returnUrl,
+    returnUrl: window.location.href,  // URLSearchParams handles encoding
   });
 
   if (doc.requestId) {

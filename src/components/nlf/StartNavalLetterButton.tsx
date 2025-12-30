@@ -66,14 +66,13 @@ export function StartNavalLetterButton({
       }
 
       // Build the NLF launch URL with context parameters
-      const returnUrl = encodeURIComponent(window.location.href);
       const supabaseUrl = getSupabaseUrl();
       const supabaseKey = getSupabaseAnonKey();
 
       const params = new URLSearchParams({
         edmsId: requestId,
         unitCode: currentUser.unitUic || '',
-        returnUrl: returnUrl,
+        returnUrl: window.location.href,  // URLSearchParams handles encoding
       });
 
       // Include Supabase credentials so NLF can save back to EDMS

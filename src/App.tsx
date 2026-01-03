@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastProvider, SessionTimeout } from "./components/common";
+import { FeedbackButton } from "./components/common/FeedbackButton";
 
 // Lazy load route components for code splitting
 const Home = lazy(() => import("./pages/Home"));
@@ -41,6 +42,7 @@ export default function App() {
             </Routes>
           </Suspense>
           <SessionTimeout />
+          <FeedbackButton />
         </ErrorBoundary>
       </Router>
     </ToastProvider>
